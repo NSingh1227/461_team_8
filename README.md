@@ -1,4 +1,4 @@
 # 46100_Team_12
-## Team Members:
+## Team Members: 
 Aakash Bathini
 Neal Singh
