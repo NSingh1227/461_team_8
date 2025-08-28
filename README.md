@@ -2,3 +2,4 @@
 ## Team Members: 
 Aakash Bathini
 Neal Singh
+Rishi Mantri
