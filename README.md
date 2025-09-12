@@ -2,5 +2,5 @@
 ## Team Members: 
 Aakash Bathini  
 Neal Singh  
-Rishi Mantri
+Rishi Mantri  
 Vishal Madhudi
