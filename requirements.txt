@@ -1,5 +1,10 @@
-# Existing dependencies
-pytest>=7.0
-dataclasses>=0.8  # if Python <3.7
-# New dependency for Phase 2
-requests>=2.31
+# Core dependencies for Milestone 1
+pytest>=7.0.0
+pytest-cov>=4.0.0
+typing-extensions>=4.0.0
+
+# Future dependencies for upcoming milestones
+# (commented out for Milestone 1 focus)
+# requests>=2.28.0
+# huggingface-hub>=0.16.0
+# PyGithub>=1.58.0
