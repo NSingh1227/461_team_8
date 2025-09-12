@@ -6,7 +6,7 @@ Part of Milestone 1 validation requirements.
 import pytest
 from unittest.mock import Mock
 from src.metric_calculator import MetricCalculator, ModelContext
-from src.exceptions import MetricCalculationException
+from src.results_storage import ResultsStorage, MetricResult, ModelResult
 
 
 class ConcreteMetricCalculator(MetricCalculator):
