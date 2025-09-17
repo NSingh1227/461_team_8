@@ -2,32 +2,32 @@ import argparse
 import json
 import sys
 import os
-from url_processor import URLProcessor
+from src.core.url_processor import URLProcessor
 
+# Main CLI entry point
 def main():
     parser = argparse.ArgumentParser(description='ECE 46100 | Team 8 - CLI Package Tester')
-
-    # Command OR URL file
     parser.add_argument("command_or_file", help="Use 'install', 'test', or provide a path to a URL file.")
 
     args = parser.parse_args()
 
     if args.command_or_file == "install":
         print("Installing dependencies...")
-        # More logic to add here later
         sys.exit(0)
 
     elif args.command_or_file == "test":
         print("Running tests...")
-        # More logic to add here later
         sys.exit(0)
 
     elif os.path.exists(args.command_or_file):
         print(f"Processing URL File: {args.command_or_file}")
         processor = URLProcessor(args.command_or_file)
-        results = processor.process_urls()
-        for entry in results:
-            print(json.dumps(entry))
+        
+        # Use full metric calculation pipeline
+        model_results = processor.process_urls_with_metrics()
+        for model_result in model_results:
+            print(model_result.to_ndjson_line())
+        
         sys.exit(0)
 
     else:

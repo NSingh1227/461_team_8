@@ -1,0 +1,53 @@
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional
+from dataclasses import dataclass
+
+
+@dataclass
+class ModelContext:
+    # Context object containing model information for metric calculators
+    model_url: str
+    model_info: Dict[str, Any]
+    dataset_url: Optional[str] = None
+    code_url: Optional[str] = None
+    local_repo_path: Optional[str] = None
+    huggingface_metadata: Optional[Dict[str, Any]] = None
+
+
+class MetricCalculator(ABC):
+    # Abstract base class for all metric calculators
+    def __init__(self, name: str):
+        self.name = name
+        self._score: Optional[float] = None
+        self._calculation_time_ms: Optional[int] = None
+    
+    @abstractmethod
+    def calculate_score(self, context: ModelContext) -> float:
+        pass
+    
+    # Get the last calculated score
+    def get_score(self) -> Optional[float]:
+        return self._score
+    
+    # Get the time taken for the last calculation in milliseconds
+    def get_calculation_time(self) -> Optional[int]:
+        return self._calculation_time_ms
+    
+    # Set the calculated score and timing
+    def _set_score(self, score: float, calculation_time_ms: int) -> None:
+        if not (0 <= score <= 1):
+            raise ValueError(f"Score must be between 0 and 1, got {score}")
+        
+        self._score = score
+        self._calculation_time_ms = calculation_time_ms
+    
+    # Reset the calculator state for a new calculation
+    def reset(self) -> None:
+        self._score = None
+        self._calculation_time_ms = None
+    
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}(name='{self.name}')"
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name='{self.name}', score={self._score})"
