@@ -11,6 +11,9 @@ from ..metrics.base import ModelContext
 from ..storage.results_storage import ResultsStorage, MetricResult, ModelResult
 from .exceptions import *
 from ..metrics.license_calculator import LicenseCalculator
+from ..metrics.size_calculator import SizeCalculator
+from ..metrics.code_quality_calculator import CodeQualityCalculator
+from ..metrics.performance_claims_calculator import PerformanceClaimsCalculator
 
 class URLType(Enum):
     HUGGINGFACE_MODEL = 'model'
@@ -221,16 +224,28 @@ class URLProcessor:
         license_calc = LicenseCalculator()
         license_score = license_calc.calculate_score(model_context)
         license_latency = license_calc.get_calculation_time()
+
+        size_calc = SizeCalculator()
+        size_score = size_calc.calculate_score(model_context)
+        size_latency = size_calc.get_calculation_time()
+
+        cq_calc = CodeQualityCalculator()
+        cq_score = cq_calc.calculate_score(model_context)
+        cq_latency = cq_calc.get_calculation_time()
+
+        perf_calc = PerformanceClaimsCalculator()
+        perf_score = perf_calc.calculate_score(model_context)
+        perf_latency = perf_calc.get_calculation_time()
         
         return {
-            "Size": MetricResult("Size", 0.8, 100, timestamp),
+            "Size": MetricResult("Size", size_score, size_latency, timestamp),
             "License": MetricResult("License", license_score, license_latency, timestamp),
             "RampUp": MetricResult("RampUp", 0.7, 200, timestamp),
             "BusFactor": MetricResult("BusFactor", 0.6, 150, timestamp),
             "DatasetCode": MetricResult("DatasetCode", 0.8, 300, timestamp),
             "DatasetQuality": MetricResult("DatasetQuality", 0.7, 250, timestamp),
-            "CodeQuality": MetricResult("CodeQuality", 0.9, 180, timestamp),
-            "PerformanceClaims": MetricResult("PerformanceClaims", 0.8, 220, timestamp)
+            "CodeQuality": MetricResult("CodeQuality", cq_score, cq_latency, timestamp),
+            "PerformanceClaims": MetricResult("PerformanceClaims", perf_score, perf_latency, timestamp)
         }
 
 class URLHandler(ABC):
