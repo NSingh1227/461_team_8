@@ -11,6 +11,8 @@ from ..metrics.base import ModelContext
 from ..storage.results_storage import ResultsStorage, MetricResult, ModelResult
 from .exceptions import *
 from ..metrics.license_calculator import LicenseCalculator
+from ..metrics.dataset_code_calculator import DatasetCodeCalculator
+from ..metrics.dataset_quality_calculator import DatasetQualityCalculator
 
 class URLType(Enum):
     HUGGINGFACE_MODEL = 'model'
@@ -218,17 +220,26 @@ class URLProcessor:
         
         timestamp = datetime.datetime.now().isoformat()
         
+        # Real metric calculations
         license_calc = LicenseCalculator()
         license_score = license_calc.calculate_score(model_context)
         license_latency = license_calc.get_calculation_time()
+        
+        dac_calc = DatasetCodeCalculator()
+        dac_score = dac_calc.calculate_score(model_context)
+        dac_latency = dac_calc.get_calculation_time()
+        
+        dq_calc = DatasetQualityCalculator()
+        dq_score = dq_calc.calculate_score(model_context)
+        dq_latency = dq_calc.get_calculation_time()
         
         return {
             "Size": MetricResult("Size", 0.8, 100, timestamp),
             "License": MetricResult("License", license_score, license_latency, timestamp),
             "RampUp": MetricResult("RampUp", 0.7, 200, timestamp),
             "BusFactor": MetricResult("BusFactor", 0.6, 150, timestamp),
-            "DatasetCode": MetricResult("DatasetCode", 0.8, 300, timestamp),
-            "DatasetQuality": MetricResult("DatasetQuality", 0.7, 250, timestamp),
+            "DatasetCode": MetricResult("DatasetCode", dac_score, dac_latency, timestamp),
+            "DatasetQuality": MetricResult("DatasetQuality", dq_score, dq_latency, timestamp),
             "CodeQuality": MetricResult("CodeQuality", 0.9, 180, timestamp),
             "PerformanceClaims": MetricResult("PerformanceClaims", 0.8, 220, timestamp)
         }
