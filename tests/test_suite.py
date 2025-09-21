@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from src.core.url_processor import URLProcessor, URLType, process_url, categorize_url, is_valid_url
 from src.metrics.license_calculator import LicenseCalculator
+from src.metrics.busfactor_calculator import BusFactorCalculator
 from src.metrics.base import ModelContext
 
 class TestSuite:
@@ -887,7 +888,65 @@ class TestSuite:
     #  BUS FACTOR METRIC TESTS
     # ============================================================
     
-    # TODO: Add BusFactor metric tests when implemented
+    def test_busfactor_calculator(self):
+        self.print_header("BUS FACTOR CALCULATOR TESTS")
+        
+        calculator = BusFactorCalculator()
+        
+        test_cases = [
+            {
+                "name": "Active GitHub Repository",
+                "url": "https://github.com/microsoft/DialoGPT",
+                "expected_range": (0.0, 1.0),
+                "description": "Real GitHub repository with multiple contributors"
+            },
+            {
+                "name": "Small GitHub Repository", 
+                "url": "https://github.com/torvalds/linux",
+                "expected_range": (0.0, 1.0),
+                "description": "Large GitHub repository with many contributors"
+            },
+            {
+                "name": "Nonexistent GitHub Repository",
+                "url": "https://github.com/fake/nonexistent-repo",
+                "expected_range": (0.0, 0.5),
+                "description": "Fake GitHub repository URL"
+            }
+        ]
+        
+        self.print_section("Bus Factor Score Tests")
+        
+        for test_case in test_cases:
+            try:
+                from src.core.url_processor import CodeHandler
+                handler = CodeHandler()
+                model_context = handler.process_url(test_case["url"])
+                
+                score = calculator.calculate_score(model_context)
+                latency = calculator.get_calculation_time()
+                
+                min_score, max_score = test_case["expected_range"]
+                passed = min_score <= score <= max_score
+                
+                if not self.coverage_mode:
+                    print(f"{'✅ PASS' if passed else '❌ FAIL'} | {test_case['name']}")
+                    print(f"      URL: {test_case['url']}")
+                    print(f"      Description: {test_case['description']}")
+                    print(f"      Score: {score:.2f} (expected: {min_score}-{max_score})")
+                    print(f"      Latency: {latency}ms")
+                    print()
+                
+                if passed:
+                    self.passed_tests += 1
+                else:
+                    self.failed_tests += 1
+                self.total_tests += 1
+                
+            except Exception as e:
+                if not self.coverage_mode:
+                    print(f"❌ ERROR | {test_case['name']}: {e}")
+                self.failed_tests += 1
+                self.total_tests += 1
     
     # ============================================================
     #  CORRECTNESS METRIC TESTS
@@ -1230,6 +1289,9 @@ class TestSuite:
             # License metric tests
             self.test_license_calculator()
             self.test_license_compatibility_mapping()
+            
+            # Bus Factor metric tests
+            self.test_busfactor_calculator()
             
             # Performance and stress tests
             self.test_metric_calculation_performance()
