@@ -12,7 +12,6 @@ class DatasetQualityCalculator(MetricCalculator):
         self.llm_analyzer = LLMAnalyzer()
 
     def calculate_score(self, context: ModelContext) -> float:
-        """Calculate dataset quality score via GenAI Studio pipeline."""
         start_time = time.time()
         score = 0.0
 
@@ -24,17 +23,13 @@ class DatasetQualityCalculator(MetricCalculator):
                 print("[DatasetQuality] No dataset info available → default 0.0")
         except Exception as e:
             print(f"[DatasetQuality] Error calculating score: {e}")
-            score = 0.0  # fallback to lowest instead of arbitrary 0.5
+            score = 0.0
 
         end_time = time.time()
         self._set_score(score, int((end_time - start_time) * 1000))
         return score
 
     def _prepare_dataset_info(self, context: ModelContext) -> Optional[Dict[str, Any]]:
-        """
-        Consolidate dataset-related info from model metadata and README
-        for GenAI Studio API analysis.
-        """
         dataset_info: Dict[str, Any] = {}
 
         if context and context.dataset_url:
@@ -56,7 +51,6 @@ class DatasetQualityCalculator(MetricCalculator):
         return dataset_info or None
 
     def _fetch_readme_content(self, context: ModelContext) -> Optional[str]:
-        """Assemble pseudo-README for analysis from Hugging Face metadata."""
         try:
             if not context or not context.huggingface_metadata:
                 return None

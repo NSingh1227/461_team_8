@@ -6,20 +6,19 @@ from datetime import datetime
 
 @dataclass
 class MetricResult:
-    # Individual metric calculation result
+    """Individual metric calculation result."""
     metric_name: str
     score: float
     calculation_time_ms: int
     timestamp: str
     
-    # Convert to dictionary for JSON serialization
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 @dataclass
 class ModelResult:
-    # Complete result set for a single model
+    """Complete result set for a single model."""
     url: str
     net_score: float
     net_score_latency: int
@@ -40,7 +39,6 @@ class ModelResult:
     performance_claims_score: float
     performance_claims_latency: int
     
-    # Convert to NDJSON format as specified in requirements
     def to_ndjson_line(self) -> str:
         result_dict = {
             "URL": self.url,
@@ -48,11 +46,11 @@ class ModelResult:
             "NetScore_Latency": self.net_score_latency,
             "RampUp": self.ramp_up_score,
             "RampUp_Latency": self.ramp_up_latency,
-            "Correctness": self.performance_claims_score,  # Performance claims mapped to Correctness
+            "Correctness": self.performance_claims_score,
             "Correctness_Latency": self.performance_claims_latency,
             "BusFactor": self.bus_factor_score,
             "BusFactor_Latency": self.bus_factor_latency,
-            "ResponsiveMaintainer": self.dataset_code_score,  # DAC mapped to ResponsiveMaintainer
+            "ResponsiveMaintainer": self.dataset_code_score,
             "ResponsiveMaintainer_Latency": self.dataset_code_latency,
             "License": self.license_score,
             "License_Latency": self.license_latency
@@ -61,28 +59,23 @@ class ModelResult:
 
 
 class ResultsStorage:
-    # Central storage for all metric calculation results
+    """Central storage for all metric calculation results."""
     def __init__(self):
-        # Initialize empty results storage
         self._model_results: Dict[str, Dict[str, MetricResult]] = {}
         self._completed_models: List[ModelResult] = []
     
-    # Store a single metric result for a model
     def store_metric_result(self, model_url: str, metric_result: MetricResult) -> None:
         if model_url not in self._model_results:
             self._model_results[model_url] = {}
         
         self._model_results[model_url][metric_result.metric_name] = metric_result
     
-    # Retrieve a specific metric result
     def get_metric_result(self, model_url: str, metric_name: str) -> Optional[MetricResult]:
         return self._model_results.get(model_url, {}).get(metric_name)
     
-    # Get all calculated metrics for a specific model
     def get_all_metrics_for_model(self, model_url: str) -> Dict[str, MetricResult]:
         return self._model_results.get(model_url, {})
     
-    # Check if all required metrics have been calculated for a model
     def is_model_complete(self, model_url: str) -> bool:
         required_metrics = {
             "Size", "License", "RampUp", "BusFactor", 
@@ -92,7 +85,6 @@ class ResultsStorage:
         model_metrics = set(self._model_results.get(model_url, {}).keys())
         return required_metrics.issubset(model_metrics)
     
-    # Create final ModelResult when all metrics are calculated
     def finalize_model_result(self, model_url: str, net_score: float, net_score_latency: int) -> ModelResult:
         if not self.is_model_complete(model_url):
             raise ValueError(f"Model {model_url} does not have all required metrics calculated")
@@ -124,11 +116,9 @@ class ResultsStorage:
         self._completed_models.append(model_result)
         return model_result
     
-    # Get all completed model results
     def get_completed_models(self) -> List[ModelResult]:
         return self._completed_models.copy()
     
-    # Clear all stored results
     def clear(self) -> None:
         self._model_results.clear()
         self._completed_models.clear()

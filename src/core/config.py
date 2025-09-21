@@ -6,7 +6,7 @@ class Config:
 
     @staticmethod
     def get_github_token() -> Optional[str]:
-        """Get GitHub token from environment or file (used for repo metadata)."""
+        """Get GitHub token from environment or file."""
         token = os.environ.get('GITHUB_TOKEN')
         if token:
             return token

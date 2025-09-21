@@ -14,7 +14,6 @@ class DatasetCodeCalculator(MetricCalculator):
             start_time = time.time()
             
             try:
-                # Guard against empty/invalid context
                 if not context:
                     score = 0.0
                 else:
@@ -39,59 +38,46 @@ class DatasetCodeCalculator(MetricCalculator):
 
     
     def _check_dataset_availability(self, context: ModelContext) -> bool:
-        """Check if dataset is available and accessible."""
-        # Check if dataset URL is provided in context
         if context.dataset_url:
             return self._verify_url_accessible(context.dataset_url)
         
-        # Check HuggingFace metadata for dataset field
         if context.huggingface_metadata:
             datasets = context.huggingface_metadata.get('datasets', [])
             if datasets:
                 return True
                 
-            # Check card data for dataset information
             card_data = context.huggingface_metadata.get('cardData', {})
             if 'datasets' in card_data:
                 return True
         
-        # Check model info for dataset references
         if context.model_info:
             return 'datasets' in context.model_info or 'dataset' in str(context.model_info).lower()
         
         return False
     
     def _check_code_availability(self, context: ModelContext) -> bool:
-        """Check if code is available and accessible."""
-        # Check if code URL is provided in context
         if context.code_url:
             return self._verify_url_accessible(context.code_url)
         
-        # Check HuggingFace metadata for code/repository links
         if context.huggingface_metadata:
-            # Check for repository or source code references
             if 'repository' in context.huggingface_metadata:
                 return True
             
-            # Check tags for code-related information
             tags = context.huggingface_metadata.get('tags', [])
             code_tags = ['code', 'github', 'source', 'implementation']
             if any(tag.lower() in code_tags for tag in tags if isinstance(tag, str)):
                 return True
         
-        # Check model info for code references
         if context.model_info and context.model_info.get('source') == 'github':
             return True
         
         return False
     
     def _verify_url_accessible(self, url: str) -> bool:
-        """Verify that a URL is accessible."""
         try:
             response = requests.head(url, timeout=5, allow_redirects=True)
             return response.status_code == 200
         except Exception:
-            # If HEAD request fails, try GET with minimal data
             try:
                 response = requests.get(url, timeout=5, stream=True)
                 return response.status_code == 200

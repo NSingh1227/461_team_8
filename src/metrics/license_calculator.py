@@ -6,7 +6,7 @@ from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
 from .base import MetricCalculator, ModelContext
 
 class LicenseCalculator(MetricCalculator):
-    # LGPL v2.1 compatibility scores for different license types
+    """Calculator for LGPL v2.1 license compatibility scoring."""
     LGPL_license_compatibility: Dict[str, float] = {
         'mit': 1.0,
         'apache': 1.0,
@@ -31,12 +31,10 @@ class LicenseCalculator(MetricCalculator):
         'all rights reserved': 0.0,
     }
 
-    # Initialize license calculator
     def __init__(self) -> None:
         super().__init__("License")
         self.hf_api = HfApi()
     
-    # Calculate LGPL compatibility score for model context
     def calculate_score(self, context: ModelContext) -> float:
         start_time = time.time()
         
@@ -52,8 +50,7 @@ class LicenseCalculator(MetricCalculator):
         self._set_score(score, calculation_time_ms)
         
         return score
-
-    # Extract license text from model context based on URL type
+    
     def _extract_license_from_context(self, context: ModelContext) -> Optional[str]:
         if context.model_url.startswith("https://huggingface.co"):
             return self._extract_huggingface_license(context)
@@ -62,7 +59,6 @@ class LicenseCalculator(MetricCalculator):
         else:
             return None
 
-    # Extract license from HuggingFace metadata or README
     def _extract_huggingface_license(self, context: ModelContext) -> Optional[str]:
         if context.huggingface_metadata:
             if 'cardData' in context.huggingface_metadata:
@@ -83,7 +79,6 @@ class LicenseCalculator(MetricCalculator):
             print(f"Failed to fetch README for license: {e}")
             return None
 
-    # Extract license from GitHub metadata
     def _extract_github_license(self, context: ModelContext) -> Optional[str]:
         if (context.model_info and 
             'github_metadata' in context.model_info and 
@@ -99,7 +94,6 @@ class LicenseCalculator(MetricCalculator):
         
         return None
     
-    # Calculate compatibility score based on license text
     def _calculate_compatibility_score(self, license_text: Optional[str]) -> float:
         if not license_text:
             return 0.5
@@ -115,7 +109,6 @@ class LicenseCalculator(MetricCalculator):
         
         return 0.5
     
-    # Extract license text from README content
     def _extract_license_from_readme(self, readme_content: str) -> Optional[str]:
         license_pattern = r'license:\s*([^\n]*)'
         match = re.search(license_pattern, readme_content.lower())
@@ -125,7 +118,6 @@ class LicenseCalculator(MetricCalculator):
             return license
         return None
 
-    # Extract HuggingFace repository ID from URL
     def _extract_repo_id(self, model_url: str) -> str:
         if "huggingface.co/" in model_url:
             repo_id = "/".join(model_url.split("huggingface.co/")[1].split("/"))
@@ -133,7 +125,6 @@ class LicenseCalculator(MetricCalculator):
         else:
             raise ValueError(f"Invalid Hugging Face URL: {model_url}")
 
-    # Fetch README content from HuggingFace API
     def _fetch_readme_from_hf_api(self, repo_id: str) -> str:
         try:
             readme_path = hf_hub_download(

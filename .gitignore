@@ -4,6 +4,11 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Coverage files
+.coverage
+.coverage.*
+htmlcov/
+
 # Environment files
 .env
 .env.*

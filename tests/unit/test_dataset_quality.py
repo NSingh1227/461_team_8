@@ -1,4 +1,10 @@
 import unittest
+import sys
+import os
+
+# Add the project root to the path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
 from src.core.url_processor import process_url, get_handler
 from src.metrics.dataset_quality_calculator import DatasetQualityCalculator
 from src.metrics.base import ModelContext

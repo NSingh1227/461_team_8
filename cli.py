@@ -4,8 +4,8 @@ import sys
 import os
 from src.core.url_processor import URLProcessor
 
-# Main CLI entry point
 def main():
+    """Main CLI entry point for package testing."""
     parser = argparse.ArgumentParser(description='ECE 46100 | Team 8 - CLI Package Tester')
     parser.add_argument("command_or_file", help="Use 'install', 'test', or provide a path to a URL file.")
 
@@ -23,7 +23,6 @@ def main():
         print(f"Processing URL File: {args.command_or_file}")
         processor = URLProcessor(args.command_or_file)
         
-        # Use full metric calculation pipeline
         model_results = processor.process_urls_with_metrics()
         for model_result in model_results:
             print(model_result.to_ndjson_line())

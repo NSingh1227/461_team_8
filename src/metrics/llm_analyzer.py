@@ -5,10 +5,7 @@ from typing import Dict, Any, Optional
 
 
 class LLMAnalyzer:
-    """
-    Analyzer that uses Purdue GenAI Studio API (OpenAI-compatible)
-    to evaluate model metadata, README files, and datasets.
-    """
+    """Analyzer using Purdue GenAI Studio API for model metadata evaluation."""
 
     def __init__(self,
                  api_url: str = "https://genai.rcac.purdue.edu/api/chat/completions",
@@ -56,7 +53,6 @@ class LLMAnalyzer:
         if not content:
             return 0.0
         try:
-            # Strict float extraction
             match = re.search(r"\b(0(\.\d+)?|1(\.0+)?)\b", content.strip())
             if match:
                 return round(float(match.group(1)), 2)

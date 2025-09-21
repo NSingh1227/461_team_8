@@ -13,6 +13,7 @@ from .exceptions import *
 from ..metrics.license_calculator import LicenseCalculator
 from ..metrics.dataset_code_calculator import DatasetCodeCalculator
 from ..metrics.dataset_quality_calculator import DatasetQualityCalculator
+from ..metrics.busfactor_calculator import BusFactorCalculator
 
 class URLType(Enum):
     HUGGINGFACE_MODEL = 'model'
@@ -22,6 +23,7 @@ class URLType(Enum):
 
 # Fetch metadata from HuggingFace API for models or datasets
 def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
+    """Retrieve model or dataset metadata from HuggingFace API."""
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -57,6 +59,7 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
 
 # Fetch metadata from GitHub API for repositories
 def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
+    """Retrieve repository metadata from GitHub API."""
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -83,7 +86,7 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
 
 # Validate URL format
 def is_valid_url(url_string):
-    # Check for spaces which indicate invalid URLs
+    """Check if URL has valid format and scheme."""
     if ' ' in url_string:
         return False
     
@@ -95,6 +98,7 @@ def is_valid_url(url_string):
     
 # Categorize URL by domain and path
 def categorize_url(url_string):
+    """Determine URL type based on domain and path structure."""
     parsed_url = urlparse(url_string)
     
     if parsed_url.netloc == "huggingface.co":
@@ -109,6 +113,7 @@ def categorize_url(url_string):
 
 # Process URL and return its type
 def process_url(url_string):
+    """Validate and categorize URL."""
     if is_valid_url(url_string):
         return categorize_url(url_string)
     else:
@@ -116,6 +121,7 @@ def process_url(url_string):
 
 # Get appropriate handler for URL type
 def get_handler(url_type: URLType):
+    """Return appropriate handler instance for URL type."""
     if url_type == URLType.HUGGINGFACE_MODEL:
         return ModelHandler()
     elif url_type == URLType.HUGGINGFACE_DATASET:
@@ -125,13 +131,14 @@ def get_handler(url_type: URLType):
     return None
 
 class URLProcessor:
-    # Initialize processor with URL file path
+    """URL file processor for trustworthy model metrics pipeline."""
+
     def __init__(self, file_path: str):
         self.file_path = file_path
         self.results_storage = ResultsStorage()
     
-    # Read URLs from file
     def read_urls(self) -> List[str]:
+        """Read URLs from input file."""
         try:
             with open(self.file_path, 'r') as file:
                 return [line.strip() for line in file if line.strip()]
@@ -142,8 +149,8 @@ class URLProcessor:
             print(f"An error occurred: {e}")
             return []
     
-    # Process URLs and return basic metadata
     def process_urls(self) -> List[Dict[str, Any]]:
+        """Process URLs and return basic metadata."""
         urls = self.read_urls()
         results = []
         
@@ -182,8 +189,8 @@ class URLProcessor:
         
         return results
     
-    # Process URLs with full metric calculation
     def process_urls_with_metrics(self) -> List[ModelResult]:
+        """Process URLs with full metric calculation."""
         urls = self.read_urls()
         model_results = []
         
@@ -214,13 +221,12 @@ class URLProcessor:
                 
         return model_results
     
-    # Create metrics with real license calculation and dummy scores for others
     def _create_dummy_metrics(self, model_context: ModelContext) -> Dict[str, MetricResult]:
+        """Create metrics with real calculators where implemented, dummy scores for others."""
         import datetime
         
         timestamp = datetime.datetime.now().isoformat()
         
-        # Real metric calculations
         license_calc = LicenseCalculator()
         license_score = license_calc.calculate_score(model_context)
         license_latency = license_calc.get_calculation_time()
@@ -233,11 +239,15 @@ class URLProcessor:
         dq_score = dq_calc.calculate_score(model_context)
         dq_latency = dq_calc.get_calculation_time()
         
+        busfactor_calc = BusFactorCalculator()
+        busfactor_score = busfactor_calc.calculate_score(model_context)
+        busfactor_latency = busfactor_calc.get_calculation_time()
+        
         return {
             "Size": MetricResult("Size", 0.8, 100, timestamp),
             "License": MetricResult("License", license_score, license_latency, timestamp),
             "RampUp": MetricResult("RampUp", 0.7, 200, timestamp),
-            "BusFactor": MetricResult("BusFactor", 0.6, 150, timestamp),
+            "BusFactor": MetricResult("BusFactor", busfactor_score, busfactor_latency, timestamp),
             "DatasetCode": MetricResult("DatasetCode", dac_score, dac_latency, timestamp),
             "DatasetQuality": MetricResult("DatasetQuality", dq_score, dq_latency, timestamp),
             "CodeQuality": MetricResult("CodeQuality", 0.9, 180, timestamp),
@@ -245,13 +255,13 @@ class URLProcessor:
         }
 
 class URLHandler(ABC):
-    # Abstract interface for URL processing
+    """Abstract interface for URL processing."""
     @abstractmethod
     def process_url(self, url: str) -> ModelContext:
         pass
     
 class DatasetHandler(URLHandler):
-    # Handle HuggingFace dataset URLs
+    """Handle HuggingFace dataset URLs."""
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -284,7 +294,7 @@ class DatasetHandler(URLHandler):
 
 
 class ModelHandler(URLHandler):
-    # Handle HuggingFace model URLs
+    """Handle HuggingFace model URLs."""
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -313,7 +323,7 @@ class ModelHandler(URLHandler):
 
 
 class CodeHandler(URLHandler):
-    # Handle GitHub repository URLs
+    """Handle GitHub repository URLs."""
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
