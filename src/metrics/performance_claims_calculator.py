@@ -37,11 +37,15 @@ class PerformanceClaimsCalculator(MetricCalculator):
             # Path like /org/name or /datasets/name
             model_id = parsed.path.strip("/")
             if model_id and not model_id.startswith("datasets/"):
+                print("model_id: ", model_id)
                 readme_url = f"https://huggingface.co/{model_id}/raw/main/README.md"
+                print("readme_url: ", readme_url)
                 try:
                     resp = requests.get(readme_url, timeout=10)
+                    print("resp: ", resp)
                     if resp.status_code == 200 and isinstance(resp.text, str):
                         content = resp.text
+                        print("content: ", content)
                         # Combine heuristics + LLM JSON score
                         heuristic = self._heuristic_readme_score(content.lower())
                         prompt = (
@@ -54,18 +58,14 @@ class PerformanceClaimsCalculator(MetricCalculator):
                         if llm_score is None:
                             return heuristic
                         return max(0.0, min(1.0, 0.6 * llm_score + 0.4 * heuristic))
-                except Exception:
-                    pass
-
-        prompt = (
-            "Evaluate performance claims in README or model card (0..1).\n"
-            "Return {\"score\": float, \"rationale\": string}.\n\n"
-            f"URL: {url}"
-        )
-        llm_score, _ = ask_for_json_score(prompt)
-        if llm_score is None:
-            return 0.5
-        return llm_score
+                    else:
+                        return 0.0
+                except Exception as e:
+                    print("Exception: ", e)
+                    return 0.0
+        else:
+            print("Not an HF model")
+            return 0.0
 
     def _heuristic_readme_score(self, content: str) -> float:
         score = 0.0

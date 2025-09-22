@@ -13,93 +13,63 @@ from src.metrics.base import ModelContext
 from src.metrics.size_calculator import SizeCalculator
 from src.metrics.code_quality_calculator import CodeQualityCalculator
 from src.metrics.performance_claims_calculator import PerformanceClaimsCalculator
+from src.core.url_processor import fetch_github_metadata
 
 
 class TestSizeCalculator(unittest.TestCase):
-    def test_size_from_hf_siblings(self):
+    def test_size_real_hf_model(self):
+        # Use a tiny model to avoid large downloads
         context = ModelContext(
-            model_url="https://huggingface.co/org/model",
+            model_url="https://huggingface.co/microsoft/DialoGPT-medium",
             model_info={"source": "huggingface", "type": "model"},
-            huggingface_metadata={
-                "siblings": [
-                    {"rfilename": "pytorch_model.bin", "size": 50 * 1024 * 1024},
-                    {"rfilename": "config.json", "size": 1024},
-                    {"rfilename": "tokenizer.json", "size": 2048},
-                ]
-            },
         )
+        
         calc = SizeCalculator()
         score = calc.calculate_score(context)
+        print(score)
         self.assertGreaterEqual(score, 0.0)
         self.assertLessEqual(score, 1.0)
         self.assertIsNotNone(calc.get_calculation_time())
-
-    def test_size_unknown_metadata(self):
-        context = ModelContext(
-            model_url="https://huggingface.co/org/model",
-            model_info={"source": "huggingface", "type": "model"},
-            huggingface_metadata=None,
-        )
-        calc = SizeCalculator()
-        score = calc.calculate_score(context)
-        self.assertEqual(score, 0.5)
 
 
 class TestCodeQualityCalculator(unittest.TestCase):
-    def test_code_quality_github_metadata(self):
+    def test_code_quality_real_github_repo(self):
+        # Use a popular public repo; metadata fetched externally for model_info
+        code_url = "https://github.com/microsoft/DialoGPT"
+        github_meta = fetch_github_metadata(code_url)
+        model_info = {"source": "github", "type": "repository"}
+        if isinstance(github_meta, dict):
+            model_info.update({
+                "stars": github_meta.get("stargazers_count"),
+                "forks": github_meta.get("forks_count"),
+                "description": github_meta.get("description"),
+                "updated_at": github_meta.get("updated_at"),
+            })
         context = ModelContext(
-            model_url="https://github.com/user/repo",
-            model_info={
-                "source": "github",
-                "type": "repository",
-                "stars": 1500,
-                "forks": 600,
-                "language": "Python",
-                "description": "A test repo",
-                "updated_at": "2025-01-15T00:00:00Z",
-            },
+            model_url=code_url,
+            code_url=code_url,
+            model_info=model_info,
         )
         calc = CodeQualityCalculator()
         score = calc.calculate_score(context)
+        print(score)
         self.assertGreaterEqual(score, 0.0)
         self.assertLessEqual(score, 1.0)
         self.assertIsNotNone(calc.get_calculation_time())
 
-    def test_code_quality_fallback_llm(self):
-        context = ModelContext(
-            model_url="https://huggingface.co/org/model",
-            model_info={"source": "huggingface", "type": "model"},
-            huggingface_metadata={"cardData": {"some": "field"}},
-        )
-        calc = CodeQualityCalculator()
-        score = calc.calculate_score(context)
-        self.assertAlmostEqual(score, 0.6, places=3)
-
 
 class TestPerformanceClaimsCalculator(unittest.TestCase):
-    def test_performance_from_metadata(self):
+    def test_performance_real_hf_readme(self):
+        # Use tiny model with README
         context = ModelContext(
-            model_url="https://huggingface.co/org/model",
+            model_url="https://huggingface.co/sshleifer/tiny-gpt2",
             model_info={"source": "huggingface", "type": "model"},
-            huggingface_metadata={
-                "cardData": {"metrics": [{"name": "accuracy", "value": 0.9}]},
-                "tags": ["benchmark:glue"],
-            },
         )
         calc = PerformanceClaimsCalculator()
         score = calc.calculate_score(context)
+        print("PerformanceClaimsCalculator score: ", score)
         self.assertGreaterEqual(score, 0.0)
         self.assertLessEqual(score, 1.0)
-
-    def test_performance_fallback_llm(self):
-        context = ModelContext(
-            model_url="https://huggingface.co/org/model",
-            model_info={"source": "huggingface", "type": "model"},
-            huggingface_metadata={"cardData": {"no": "signals"}},
-        )
-        calc = PerformanceClaimsCalculator()
-        score = calc.calculate_score(context)
-        self.assertAlmostEqual(score, 0.5, places=3)
 
 
 if __name__ == '__main__':

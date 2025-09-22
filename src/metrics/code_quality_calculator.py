@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 from huggingface_hub import hf_hub_download
 from ..core.llm_client import ask_for_json_score
 from .base import MetricCalculator, ModelContext
+from dulwich import porcelain  # type: ignore
+
 
 
 class CodeQualityCalculator(MetricCalculator):
@@ -42,61 +44,34 @@ class CodeQualityCalculator(MetricCalculator):
                 score = self._score_via_hf_downloads(model_url)
         except Exception:
             # Fall back to GitHub metadata-only heuristics if clone or inputs fail
-            try:
-                model_info = context.model_info if context and context.model_info else {}
-                score = self._score_from_github_metadata(model_info)
-            except Exception:
                 score = 0.5
 
         end_time = time.time()
         self._set_score(score, int((end_time - start_time) * 1000))
         return score
 
-    def _score_from_github_metadata(self, model_info: Dict[str, Any]) -> float:
-        stars = int(model_info.get("stars") or 0)
-        forks = int(model_info.get("forks") or 0)
-        description = model_info.get("description")
-        updated_at_iso = model_info.get("updated_at")
 
-        score = 0.0
-
-        # Popularity signals
-        score += min(1.0, stars / 1000.0) * 0.4
-        score += min(1.0, forks / 500.0) * 0.2
-
-        
-        if isinstance(description, str) and description.strip():
-            score += 0.1
-
-        # Recent activity
-        try:
-            if isinstance(updated_at_iso, str) and updated_at_iso:
-                updated_dt = datetime.fromisoformat(updated_at_iso.replace("Z", "+00:00"))
-                now = datetime.now(timezone.utc)
-                months = (now.year - updated_dt.year) * 12 + (now.month - updated_dt.month)
-                if months <= 12:
-                    score += 0.2
-        except Exception:
-            pass
 
         return max(0.0, min(1.0, score))
+    
+        
 
     def _score_via_clone_and_heuristics(self, repo_url: str, model_info: Dict[str, Any]) -> float:
         """
         Clone the repo (pure Python Git lib), inspect presence of common files,
         count simple signals, and blend with GitHub metadata as available.
         """
-        gh_score = self._score_from_github_metadata(model_info)
 
-        try:
-            from dulwich import porcelain  # type: ignore
-        except Exception:
-            return gh_score  # fall back to metadata-only
+        print("clone and heuristics")
+        def progress_printer(event):
+            print(event, file=sys.stderr)
 
         signals = 0.0
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                porcelain.clone(source=repo_url, target=tmpdir, checkout=True)
+                print("dulwich imported")
+                porcelain.clone(source=repo_url, target=tmpdir, checkout=True, progress=progress_printer)
+                print("dulwich cloned")
                 # Presence of structure/config/test files (including scripts dir)
                 candidates = [
                     "README.md", "README.rst", "pyproject.toml", "setup.py",
@@ -106,12 +81,15 @@ class CodeQualityCalculator(MetricCalculator):
                 found = 0
                 for c in candidates:
                     path = os.path.join(tmpdir, c)
+                    print("checking for: ", path)
+                    print("files in tmpdir: ", os.listdir(tmpdir))
                     if os.path.isdir(path) or os.path.isfile(path):
                         found += 1
                 if found > 0:
                     # normalize by count (cap influence)
                     signals += min(1.0, found / 7.0) * 0.5
-
+                
+                print("found: ", found)
                 # README style/comprehensiveness via heuristic + LLM
                 readme_text = None
                 for fname in ["README.md", "README.rst"]:
@@ -124,6 +102,7 @@ class CodeQualityCalculator(MetricCalculator):
                         except Exception:
                             pass
                 heuristic_readme = 0.0
+                print("readme_text: ", readme_text)
                 if isinstance(readme_text, str):
                     heuristic_readme = self._analyze_readme_content_score(readme_text)
                 llm_score = None
@@ -135,15 +114,17 @@ class CodeQualityCalculator(MetricCalculator):
                         f"README:\n{readme_text[:4000]}"
                     )
                     llm_score, _ = ask_for_json_score(prompt)
+                    print("llm_score: ", llm_score)
                 if llm_score is None:
                     llm_score = heuristic_readme
                 signals += min(1.0, max(heuristic_readme, llm_score)) * 0.3
 
-        except Exception:
+        except Exception as e:
+            print("clone fails: ", e)
             # If clone fails, return the metadata-based score
-            return gh_score
-
-        return max(0.0, min(1.0, gh_score * 0.6 + signals))
+            return 0.5
+        print("signals: ", signals)
+        return max(0.0, min(1.0, signals))
 
     def _score_via_hf_downloads(self, model_url: str) -> float:
         """

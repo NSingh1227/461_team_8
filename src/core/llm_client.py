@@ -2,6 +2,9 @@ import os
 import json
 from typing import Optional, Tuple
 import requests
+import dotenv
+
+dotenv.load_dotenv()
 
 
 GENAI_API_URL = "https://genai.rcac.purdue.edu/api/chat/completions"
@@ -13,7 +16,7 @@ def call_llm(prompt: str, model: str = DEFAULT_MODEL, timeout: int = 30) -> Opti
     Call the GenAI OpenAI-compatible endpoint with a user prompt.
     Returns the assistant message content as a string, or None on error.
     """
-    api_key = os.environ.get("GENAI_API_KEY")
+    api_key = os.environ.get("RCAC_GENAI_API_KEY")
     if not api_key:
         print("[LLM] Warning: API key not set (RCAC_GENAI_API_KEY). Skipping LLM call.")
         return None
