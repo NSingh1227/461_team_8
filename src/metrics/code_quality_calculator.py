@@ -1,0 +1,273 @@
+from typing import Optional, Dict, Any
+import os
+import sys
+import time
+import tempfile
+from datetime import datetime, timezone
+from urllib.parse import urlparse
+from huggingface_hub import hf_hub_download
+from .base import MetricCalculator, ModelContext
+
+# Import the LLM client
+try:
+    from ..core.llm_client import ask_for_json_score
+except ImportError:
+    # Fallback if llm_client doesn't exist
+    def ask_for_json_score(prompt):
+        """Fallback function if LLM client is not available."""
+        return 0.5, "LLM client not available"
+
+# Try to import dulwich for Git operations
+try:
+    from dulwich import porcelain
+    HAS_DULWICH = True
+except ImportError:
+    HAS_DULWICH = False
+    print("Warning: dulwich not available for Git operations")
+
+
+class CodeQualityCalculator(MetricCalculator):
+    """
+    Heuristic code quality scoring.
+
+    Primary signals for GitHub repos (if available via URL processing):
+    - Stars (normalized)
+    - Forks (normalized)
+    - Description presence
+    - Primary language presence
+    - Recent activity (updated within last 12 months)
+
+    If GitHub signals are not available, fall back to a dummy LLM-based
+    assessment using the Hugging Face model card metadata (when available).
+    """
+
+    def __init__(self) -> None:
+        super().__init__("CodeQuality")
+
+    def calculate_score(self, context: ModelContext) -> float:
+        start_time = time.time()
+        try:
+            code_url = getattr(context, "code_url", None)
+            if isinstance(code_url, str) and code_url.strip():
+                # Use the GitHub repository for local analysis + metadata
+                repo_url = code_url
+                model_info = context.model_info if context and context.model_info else {}
+                score = self._score_via_clone_and_heuristics(repo_url, model_info)
+            else:
+                # No code repo provided; use the Hugging Face model URL and analyze local files
+                model_url = getattr(context, "model_url", "") or ""
+                score = self._score_via_hf_downloads(model_url)
+        except Exception as e:
+            print(f"CodeQuality calculation error: {e}")
+            # Fall back to GitHub metadata-only heuristics if clone or inputs fail
+            score = 0.5
+
+        end_time = time.time()
+        self._set_score(score, int((end_time - start_time) * 1000))
+        return max(0.0, min(1.0, score))
+
+    def _score_via_clone_and_heuristics(self, repo_url: str, model_info: Dict[str, Any]) -> float:
+        """
+        Clone the repo (pure Python Git lib), inspect presence of common files,
+        count simple signals, and blend with GitHub metadata as available.
+        """
+        if not HAS_DULWICH:
+            print("Dulwich not available, using metadata-only scoring")
+            return self._score_from_github_metadata(model_info)
+
+        print("clone and heuristics")
+
+        def progress_printer(event):
+            print(event, file=sys.stderr)
+
+        signals = 0.0
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                print("dulwich imported")
+                porcelain.clone(source=repo_url, target=tmpdir, checkout=True, progress=progress_printer)
+                print("dulwich cloned")
+                
+                # Presence of structure/config/test files (including scripts dir)
+                candidates = [
+                    "README.md", "README.rst", "pyproject.toml", "setup.py",
+                    "requirements.txt", "config.json", "model_index.json",
+                    "tests", "test", "scripts", ".flake8", "mypy.ini", "setup.cfg",
+                ]
+                found = 0
+                for c in candidates:
+                    path = os.path.join(tmpdir, c)
+                    print("checking for: ", path)
+                    if os.listdir(tmpdir):
+                        print("files in tmpdir: ", os.listdir(tmpdir))
+                    if os.path.isdir(path) or os.path.isfile(path):
+                        found += 1
+                if found > 0:
+                    # normalize by count (cap influence)
+                    signals += min(1.0, found / 7.0) * 0.5
+
+                print("found: ", found)
+                
+                # README style/comprehensiveness via heuristic + LLM
+                readme_text = None
+                for fname in ["README.md", "README.rst"]:
+                    p = os.path.join(tmpdir, fname)
+                    if os.path.exists(p):
+                        try:
+                            with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                                readme_text = f.read()
+                            break
+                        except Exception:
+                            pass
+                
+                heuristic_readme = 0.0
+                print("readme_text: ", readme_text[:200] if readme_text else "None")
+                
+                if isinstance(readme_text, str):
+                    heuristic_readme = self._analyze_readme_content_score(readme_text)
+                
+                llm_score = None
+                if isinstance(readme_text, str) and len(readme_text) > 0:
+                    prompt = (
+                        "Rate README quality and maintainability (0..1).\n"
+                        "Consider clarity, examples, contribution/testing docs, code style hints, badges.\n"
+                        "Return {\"score\": float, \"rationale\": string}.\n\n"
+                        f"README:\n{readme_text[:4000]}"
+                    )
+                    llm_score, _ = ask_for_json_score(prompt)
+                    print("llm_score: ", llm_score)
+                
+                if llm_score is None:
+                    llm_score = heuristic_readme
+                signals += min(1.0, max(heuristic_readme, llm_score)) * 0.3
+
+        except Exception as e:
+            print("clone fails: ", e)
+            # If clone fails, return the metadata-based score
+            return self._score_from_github_metadata(model_info)
+        
+        print("signals: ", signals)
+        return max(0.0, min(1.0, signals))
+
+    def _score_via_hf_downloads(self, model_url: str) -> float:
+        """
+        Download HF model files (README.md, config.json, model_index.json),
+        analyze README style/comprehensiveness heuristically plus a dummy LLM
+        score for config/structure, and blend into a final score.
+        """
+        try:
+            parsed = urlparse(model_url)
+            if parsed.netloc != "huggingface.co":
+                return 0.6
+
+            repo_id = parsed.path.strip("/")
+            if not repo_id or repo_id.startswith("datasets/"):
+                return 0.6
+
+            readme_text = None
+            config_present = False
+            index_present = False
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Try to fetch README.md
+                try:
+                    readme_path = hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="model", cache_dir=tmpdir)
+                    with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
+                        readme_text = f.read()
+                except Exception:
+                    pass
+
+                # Try to fetch config.json / model_index.json
+                for fname in ["config.json", "model_index.json"]:
+                    try:
+                        local_path = hf_hub_download(repo_id=repo_id, filename=fname, repo_type="model", cache_dir=tmpdir)
+                        if os.path.exists(local_path):
+                            if fname == "config.json":
+                                config_present = True
+                            else:
+                                index_present = True
+                    except Exception:
+                        continue
+
+            readme_score = 0.0
+            if isinstance(readme_text, str):
+                readme_score = self._analyze_readme_content_score(readme_text)
+
+            # LLM assessment using HF model files
+            prompt = (
+                "Rate maintainability (0..1) using HF files.\n"
+                "Consider architecture clarity, parameters, example scripts, structure.\n"
+                "Return {\"score\": float, \"rationale\": string}.\n\n"
+                f"config.json present: {config_present}\n"
+                f"model_index.json present: {index_present}\n"
+                f"README (first 4000 chars):\n{(readme_text or '')[:4000]}"
+            )
+            structure_score, _ = ask_for_json_score(prompt)
+            if structure_score is None:
+                structure_score = 0.6 if (config_present or index_present) else 0.55
+
+            final = max(0.0, min(1.0, 0.6 * readme_score + 0.4 * structure_score))
+            # Ensure stable baseline when little is available
+            if final == 0.0:
+                final = 0.6
+            return final
+        except Exception:
+            return 0.6
+
+    def _score_from_github_metadata(self, model_info: Dict[str, Any]) -> float:
+        """Score based on GitHub metadata when cloning is not available."""
+        score = 0.3  # Base score
+        
+        if 'github_metadata' in model_info:
+            github_data = model_info['github_metadata']
+            
+            # Language indicator (Python is good for ML)
+            language = github_data.get('language', '').lower()
+            if language in ['python', 'jupyter notebook']:
+                score += 0.2
+            
+            # Stars indicate community trust
+            stars = github_data.get('stargazers_count', 0)
+            if stars > 100:
+                score += 0.2
+            elif stars > 10:
+                score += 0.1
+            
+            # Recent activity
+            updated_at = github_data.get('updated_at', '')
+            if updated_at:
+                if '2024' in updated_at or '2025' in updated_at:
+                    score += 0.1
+            
+            # Has description
+            if github_data.get('description'):
+                score += 0.1
+            
+            # Not archived
+            if not github_data.get('archived', False):
+                score += 0.1
+        
+        return min(1.0, score)
+
+    def _analyze_readme_content_score(self, content: str) -> float:
+        content_l = content.lower()
+        score = 0.0
+        
+        # Headings / sections
+        if "install" in content_l or "installation" in content_l:
+            score += 0.2
+        if "usage" in content_l or "getting started" in content_l:
+            score += 0.2
+        if "example" in content_l or "examples" in content_l:
+            score += 0.15
+        if "contribut" in content_l:
+            score += 0.1
+        if "license" in content_l:
+            score += 0.05
+        if "test" in content_l:
+            score += 0.05
+        
+        # Code blocks
+        if "```" in content or "\n    " in content:  # code fence or indented code
+            score += 0.15
+
+        return max(0.0, min(1.0, score))
