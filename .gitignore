@@ -21,5 +21,3 @@ venv/
 # API tokens and secrets
 .github_token
 .genai_token
-github_token.txt
-genai_token.txt

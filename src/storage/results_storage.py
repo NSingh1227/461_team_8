@@ -2,6 +2,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 import json
 from datetime import datetime
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -22,7 +23,7 @@ class ModelResult:
     url: str
     net_score: float
     net_score_latency: int
-    size_score: float
+    size_score: Dict[str, float]  # Changed to dict for hardware platforms
     size_latency: int
     license_score: float
     license_latency: int
@@ -39,21 +40,57 @@ class ModelResult:
     performance_claims_score: float
     performance_claims_latency: int
     
+    def _extract_model_name(self) -> str:
+        """Extract model name from URL."""
+        try:
+            parsed_url = urlparse(self.url)
+            path_parts = parsed_url.path.strip('/').split('/')
+            
+            if 'huggingface.co' in parsed_url.netloc:
+                if len(path_parts) >= 2:
+                    return path_parts[-1]  # Last part is usually the model name
+                else:
+                    return path_parts[0] if path_parts else "unknown"
+            elif 'github.com' in parsed_url.netloc:
+                if len(path_parts) >= 2:
+                    return path_parts[1]  # Repo name
+                else:
+                    return "unknown"
+            else:
+                return "unknown"
+        except Exception:
+            return "unknown"
+    
     def to_ndjson_line(self) -> str:
+        """Convert to NDJSON format matching expected output."""
+        model_name = self._extract_model_name()
+        
         result_dict = {
-            "URL": self.url,
-            "NetScore": self.net_score,
-            "NetScore_Latency": self.net_score_latency,
-            "RampUp": self.ramp_up_score,
-            "RampUp_Latency": self.ramp_up_latency,
-            "Correctness": self.performance_claims_score,
-            "Correctness_Latency": self.performance_claims_latency,
-            "BusFactor": self.bus_factor_score,
-            "BusFactor_Latency": self.bus_factor_latency,
-            "ResponsiveMaintainer": self.dataset_code_score,
-            "ResponsiveMaintainer_Latency": self.dataset_code_latency,
-            "License": self.license_score,
-            "License_Latency": self.license_latency
+            "name": model_name,
+            "category": "MODEL",
+            "net_score": round(self.net_score, 2),
+            "net_score_latency": self.net_score_latency,
+            "ramp_up_time": round(self.ramp_up_score, 2),
+            "ramp_up_time_latency": self.ramp_up_latency,
+            "bus_factor": round(self.bus_factor_score, 2),
+            "bus_factor_latency": self.bus_factor_latency,
+            "performance_claims": round(self.performance_claims_score, 2),
+            "performance_claims_latency": self.performance_claims_latency,
+            "license": round(self.license_score, 2),
+            "license_latency": self.license_latency,
+            "size_score": {
+                "raspberry_pi": round(self.size_score.get("raspberry_pi", 0.0), 2),
+                "jetson_nano": round(self.size_score.get("jetson_nano", 0.0), 2),
+                "desktop_pc": round(self.size_score.get("desktop_pc", 0.0), 2),
+                "aws_server": round(self.size_score.get("aws_server", 0.0), 2)
+            },
+            "size_score_latency": self.size_latency,
+            "dataset_and_code_score": round(self.dataset_code_score, 2),
+            "dataset_and_code_score_latency": self.dataset_code_latency,
+            "dataset_quality": round(self.dataset_quality_score, 2),
+            "dataset_quality_latency": self.dataset_quality_latency,
+            "code_quality": round(self.code_quality_score, 2),
+            "code_quality_latency": self.code_quality_latency
         }
         return json.dumps(result_dict)
 
@@ -91,11 +128,24 @@ class ResultsStorage:
         
         metrics = self._model_results[model_url]
         
+        # Handle size score - convert from single value to hardware platform dict
+        size_metric = metrics["Size"]
+        if isinstance(size_metric.score, dict):
+            size_score = size_metric.score
+        else:
+            # Create default hardware compatibility scores
+            size_score = {
+                "raspberry_pi": size_metric.score * 0.2,
+                "jetson_nano": size_metric.score * 0.4,
+                "desktop_pc": size_metric.score * 0.8,
+                "aws_server": size_metric.score
+            }
+        
         model_result = ModelResult(
             url=model_url,
             net_score=net_score,
             net_score_latency=net_score_latency,
-            size_score=metrics["Size"].score,
+            size_score=size_score,
             size_latency=metrics["Size"].calculation_time_ms,
             license_score=metrics["License"].score,
             license_latency=metrics["License"].calculation_time_ms,

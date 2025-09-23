@@ -6,7 +6,7 @@ import datetime
 from enum import Enum
 from urllib.parse import urlparse
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from ..metrics.base import ModelContext
 from ..storage.results_storage import ResultsStorage, MetricResult, ModelResult
 from .exceptions import *
@@ -78,7 +78,6 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
         print(f"Warning: Failed to fetch GitHub metadata for {url}: {e}")
         return None
 
-# Validate URL format
 def is_valid_url(url_string):
     """Check if URL has valid format and scheme."""
     if ' ' in url_string:
@@ -90,7 +89,6 @@ def is_valid_url(url_string):
     else:
         return False
     
-# Categorize URL by domain and path
 def categorize_url(url_string):
     """Determine URL type based on domain and path structure."""
     parsed_url = urlparse(url_string)
@@ -105,7 +103,6 @@ def categorize_url(url_string):
     else:
         return URLType.UNKNOWN
 
-# Process URL and return its type
 def process_url(url_string):
     """Validate and categorize URL."""
     if is_valid_url(url_string):
@@ -113,7 +110,6 @@ def process_url(url_string):
     else:
         return URLType.UNKNOWN
 
-# Get appropriate handler for URL type
 def get_handler(url_type: URLType):
     """Return appropriate handler instance for URL type."""
     if url_type == URLType.HUGGINGFACE_MODEL:
@@ -130,97 +126,116 @@ class URLProcessor:
     def __init__(self, file_path: str):
         self.file_path = file_path
         self.results_storage = ResultsStorage()
+        self.processed_datasets = set()  # Track datasets we've seen
     
-    def read_urls(self) -> List[str]:
-        """Read URLs from input file."""
+    def parse_input_line(self, line: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """Parse a line with comma-separated URLs: code_url, dataset_url, model_url"""
+        line = line.strip()
+        if not line or line.startswith('#'):
+            return None, None, None
+        
+        # Split by comma and clean up
+        parts = [part.strip() if part.strip() else None for part in line.split(',')]
+        
+        # Ensure we have exactly 3 parts
+        while len(parts) < 3:
+            parts.append(None)
+        
+        code_url = parts[0] if parts[0] else None
+        dataset_url = parts[1] if parts[1] else None
+        model_url = parts[2] if parts[2] else None
+        
+        return code_url, dataset_url, model_url
+    
+    def read_url_lines(self) -> List[Tuple[Optional[str], Optional[str], Optional[str]]]:
+        """Read and parse URL lines from input file."""
         try:
             with open(self.file_path, 'r') as file:
-                return [line.strip() for line in file if line.strip()]
+                lines = []
+                for line_num, line in enumerate(file, 1):
+                    try:
+                        code_url, dataset_url, model_url = self.parse_input_line(line)
+                        if model_url:  # Only process lines with model URLs
+                            lines.append((code_url, dataset_url, model_url))
+                    except Exception as e:
+                        print(f"Warning: Failed to parse line {line_num}: {e}")
+                        continue
+                return lines
         except FileNotFoundError:
             print(f"ERROR: The file '{self.file_path}' was not found.")
             return []
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred reading file: {e}")
             return []
-    
-    def process_urls(self) -> List[Dict[str, Any]]:
-        """Process URLs and return basic metadata."""
-        urls = self.read_urls()
-        results = []
-        
-        for url in urls:
-            try:
-                url_type = process_url(url)
-                handler = get_handler(url_type)
-                        
-                if handler:
-                    model_context = handler.process_url(url)
-                    
-                    result = {
-                        "url": model_context.model_url,
-                        "type": url_type.value,
-                        "model_info": model_context.model_info,
-                        "dataset_url": model_context.dataset_url,
-                        "code_url": model_context.code_url,
-                        "has_metadata": model_context.huggingface_metadata is not None
-                    }
-                    results.append(result)
-                    
-                else:
-                    results.append({
-                        "url": url,
-                        "type": URLType.UNKNOWN.value,
-                        "info": {"status": "no handler available"}
-                    })
-                    
-            except Exception as e:
-                print(f"Error processing URL {url}: {e}")
-                results.append({
-                    "url": url,
-                    "type": URLType.UNKNOWN.value,
-                    "info": {"status": f"error: {str(e)}"}
-                })
-        
-        return results
     
     def process_urls_with_metrics(self) -> List[ModelResult]:
         """Process URLs with full metric calculation."""
-        urls = self.read_urls()
+        url_lines = self.read_url_lines()
         model_results = []
         
-        for url in urls:
+        for code_url, dataset_url, model_url in url_lines:
             try:
-                url_type = process_url(url)
-                handler = get_handler(url_type)
+                # Create model context
+                model_context = self._create_model_context(model_url, code_url, dataset_url)
                 
-                if handler:
-                    model_context = handler.process_url(url)
-                    
-                    dummy_metrics = self._create_dummy_metrics(model_context)
-                    
-                    net_score = sum(metric.score for metric in dummy_metrics.values()) / len(dummy_metrics)
-                    net_score_latency = sum(metric.calculation_time_ms for metric in dummy_metrics.values())
-                    
-                    for metric in dummy_metrics.values():
-                        self.results_storage.store_metric_result(url, metric)
-                    
-                    model_result = self.results_storage.finalize_model_result(url, net_score, net_score_latency)
-                    model_results.append(model_result)
-                    
-                else:
-                    print(f"Warning: No handler available for URL: {url}")
-                    
+                if not model_context:
+                    print(f"Warning: Could not create context for model: {model_url}")
+                    continue
+                
+                # Calculate all metrics
+                metrics = self._calculate_all_metrics(model_context)
+                
+                # Calculate net score using the specified weights
+                net_score = self._calculate_net_score(metrics)
+                net_score_latency = sum(metric.calculation_time_ms for metric in metrics.values())
+                
+                # Store metrics
+                for metric in metrics.values():
+                    self.results_storage.store_metric_result(model_url, metric)
+                
+                # Create and store final result
+                model_result = self.results_storage.finalize_model_result(model_url, net_score, net_score_latency)
+                model_results.append(model_result)
+                
             except Exception as e:
-                print(f"Error processing URL {url}: {e}")
+                print(f"Error processing model {model_url}: {e}")
+                continue
                 
         return model_results
     
-    def _create_dummy_metrics(self, model_context: ModelContext) -> Dict[str, MetricResult]:
-        """Create metrics with real calculators where implemented, dummy scores for others."""
-        import datetime
-        
+    def _create_model_context(self, model_url: str, code_url: Optional[str] = None, dataset_url: Optional[str] = None) -> Optional[ModelContext]:
+        """Create ModelContext from URLs."""
+        try:
+            url_type = process_url(model_url)
+            handler = get_handler(url_type)
+            
+            if not handler:
+                return None
+                
+            # Get base context from handler
+            context = handler.process_url(model_url)
+            
+            # Override with provided URLs
+            if code_url:
+                context.code_url = code_url
+            if dataset_url:
+                context.dataset_url = dataset_url
+                self.processed_datasets.add(dataset_url)
+            
+            return context
+            
+        except Exception as e:
+            print(f"Error creating context for {model_url}: {e}")
+            return None
+    
+    def _calculate_all_metrics(self, model_context: ModelContext) -> Dict[str, MetricResult]:
+        """Calculate all required metrics."""
         timestamp = datetime.datetime.now().isoformat()
         
+        # Import size calculator
+        from ..metrics.size_calculator import SizeCalculator
+        
+        # Real metric calculators
         license_calc = LicenseCalculator()
         license_score = license_calc.calculate_score(model_context)
         license_latency = license_calc.get_calculation_time()
@@ -237,8 +252,16 @@ class URLProcessor:
         busfactor_score = busfactor_calc.calculate_score(model_context)
         busfactor_latency = busfactor_calc.get_calculation_time()
         
+        size_calc = SizeCalculator()
+        size_scores = size_calc.calculate_score(model_context)  # Returns dict
+        size_latency = size_calc.get_calculation_time()
+        
+        # Create MetricResult with size scores as a dict
+        size_metric = MetricResult("Size", size_scores, size_latency, timestamp)
+        
+        # Dummy metrics for ones not yet implemented
         return {
-            "Size": MetricResult("Size", 0.8, 100, timestamp),
+            "Size": size_metric,
             "License": MetricResult("License", license_score, license_latency, timestamp),
             "RampUp": MetricResult("RampUp", 0.7, 200, timestamp),
             "BusFactor": MetricResult("BusFactor", busfactor_score, busfactor_latency, timestamp),
@@ -247,6 +270,35 @@ class URLProcessor:
             "CodeQuality": MetricResult("CodeQuality", 0.9, 180, timestamp),
             "PerformanceClaims": MetricResult("PerformanceClaims", 0.8, 220, timestamp)
         }
+    
+    def _calculate_net_score(self, metrics: Dict[str, MetricResult]) -> float:
+        """Calculate weighted net score using the formula from milestone document."""
+        weights = {
+            "License": 0.20,
+            "RampUp": 0.20, 
+            "BusFactor": 0.15,
+            "DatasetCode": 0.15,
+            "DatasetQuality": 0.10,
+            "CodeQuality": 0.10,
+            "PerformanceClaims": 0.05,
+            "Size": 0.05
+        }
+        
+        net_score = 0.0
+        for metric_name, weight in weights.items():
+            if metric_name in metrics:
+                metric_score = metrics[metric_name].score
+                
+                # Handle size score specially (it's a dict of platform scores)
+                if metric_name == "Size" and isinstance(metric_score, dict):
+                    # Use average of all platform scores as the single size score
+                    size_score = sum(metric_score.values()) / len(metric_score)
+                    net_score += weight * size_score
+                else:
+                    net_score += weight * metric_score
+        
+        return round(net_score, 3)
+
 
 class URLHandler(ABC):
     """Abstract interface for URL processing."""

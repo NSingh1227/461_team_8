@@ -19,7 +19,8 @@ class Config:
     @staticmethod
     def get_genai_token() -> Optional[str]:
         """Get Purdue GenAI Studio API token from environment or file."""
-        token = os.environ.get('GENAI_TOKEN')
+        # Use the correct environment variable name as specified in the instructions
+        token = os.environ.get('GEN_AI_STUDIO_API_KEY')
         if token:
             return token
         try:

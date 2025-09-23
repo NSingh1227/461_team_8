@@ -15,11 +15,12 @@ class LLMAnalyzer:
                  api_key: Optional[str] = None):
         self.api_url = api_url
         self.model = model
-        self.api_key = api_key or os.getenv("GENAI_API_KEY")
+        # Use the correct environment variable name
+        self.api_key = api_key or os.getenv("GEN_AI_STUDIO_API_KEY")
 
     def _post_to_genai(self, messages: list[Dict[str, str]]) -> Optional[str]:
         if not self.api_key:
-            print("[LLMAnalyzer] Missing GENAI_API_KEY. Please set it in your environment.")
+            print("[LLMAnalyzer] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.")
             return None
         try:
             payload = {"model": self.model, "messages": messages}
