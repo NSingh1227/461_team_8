@@ -13,7 +13,7 @@ import threading
 # Add the project root to the path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from src.core.rate_limiter import RateLimiter, APIService, RateLimitConfig, get_rate_limiter, reset_rate_limiter
+from src.core.rate_limiter import RateLimiter, APIService, RateLimitConfig, get_rate_limiter, reset_rate_limiter, set_rate_limiter
 from src.core.http_client import get_with_rate_limit, make_rate_limited_request
 
 
@@ -274,7 +274,9 @@ class TestRateLimiterIntegration(unittest.TestCase):
     @patch('src.core.http_client.requests.request')
     def test_quota_enforcement(self, mock_request):
         """Test that quota is properly enforced."""
+        # Set up rate limiter with test config
         rate_limiter = RateLimiter(self.test_config)
+        set_rate_limiter(rate_limiter)
         
         # Mock successful responses
         mock_response = Mock()
@@ -283,14 +285,16 @@ class TestRateLimiterIntegration(unittest.TestCase):
         
         start_time = time.time()
         
-        # Make requests beyond quota
+        # Make requests beyond quota (2 requests allowed per 1 second window)
+        # First 2 requests should be immediate, 3rd and 4th should wait
         for i in range(4):
             response = get_with_rate_limit("https://api.github.com/test", APIService.GITHUB)
             self.assertIsNotNone(response)
         
         elapsed = time.time() - start_time
         
-        # Should have taken at least 1 second due to rate limiting
+        # Should have taken at least 0.9 seconds due to rate limiting
+        # (waiting for the window to reset after 2 requests)
         self.assertGreater(elapsed, 0.9)
     
     def test_different_services_independent(self):

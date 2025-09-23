@@ -161,16 +161,23 @@ _rate_limiter_instance: Optional[RateLimiter] = None
 _instance_lock = threading.Lock()
 
 
-def get_rate_limiter() -> RateLimiter:
+def get_rate_limiter(config: Optional[Dict[APIService, RateLimitConfig]] = None) -> RateLimiter:
     """Get the global rate limiter instance (singleton pattern)."""
     global _rate_limiter_instance
     
     if _rate_limiter_instance is None:
         with _instance_lock:
             if _rate_limiter_instance is None:
-                _rate_limiter_instance = RateLimiter()
+                _rate_limiter_instance = RateLimiter(config)
     
     return _rate_limiter_instance
+
+
+def set_rate_limiter(rate_limiter: RateLimiter) -> None:
+    """Set a custom rate limiter instance (mainly for testing)."""
+    global _rate_limiter_instance
+    with _instance_lock:
+        _rate_limiter_instance = rate_limiter
 
 
 def reset_rate_limiter() -> None:
