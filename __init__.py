@@ -13,6 +13,8 @@ from .src.core.exceptions import (
     InvalidURLException,
     ConfigurationException
 )
+from .src.core.rate_limiter import RateLimiter, APIService, get_rate_limiter
+from .src.core.http_client import get_with_rate_limit, post_with_rate_limit
 
 __all__ = [
     "MetricCalculator",
@@ -24,5 +26,10 @@ __all__ = [
     "MetricCalculationException",
     "APIRateLimitException", 
     "InvalidURLException",
-    "ConfigurationException"
+    "ConfigurationException",
+    "RateLimiter",
+    "APIService", 
+    "get_rate_limiter",
+    "get_with_rate_limit",
+    "post_with_rate_limit"
 ]

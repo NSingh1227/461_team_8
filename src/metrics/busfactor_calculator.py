@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from .base import MetricCalculator, ModelContext
 from ..core.config import Config
+from ..core.http_client import get_with_rate_limit
+from ..core.rate_limiter import APIService
 
 class BusFactorCalculator(MetricCalculator):
     """Calculator for Bus Factor metric using GitHub commit data."""
@@ -86,10 +88,17 @@ class BusFactorCalculator(MetricCalculator):
             all_commits = []
             
             while True:
-                response = requests.get(url, headers=headers, params=params, timeout=30)
+                response = get_with_rate_limit(
+                    url, 
+                    APIService.GITHUB,
+                    headers=headers, 
+                    params=params, 
+                    timeout=30
+                )
                 
-                if response.status_code != 200:
-                    print(f"GitHub API error {response.status_code}: {response.text}")
+                if not response or response.status_code != 200:
+                    if response:
+                        print(f"GitHub API error {response.status_code}: {response.text}")
                     break
                 
                 commits = response.json()

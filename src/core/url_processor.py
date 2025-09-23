@@ -14,6 +14,8 @@ from ..metrics.license_calculator import LicenseCalculator
 from ..metrics.dataset_code_calculator import DatasetCodeCalculator
 from ..metrics.dataset_quality_calculator import DatasetQualityCalculator
 from ..metrics.busfactor_calculator import BusFactorCalculator
+from .http_client import get_with_rate_limit
+from .rate_limiter import APIService
 
 class URLType(Enum):
     HUGGINGFACE_MODEL = 'model'
@@ -21,7 +23,6 @@ class URLType(Enum):
     GITHUB_REPO = 'code'
     UNKNOWN = 'unknown'
 
-# Fetch metadata from HuggingFace API for models or datasets
 def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
     """Retrieve model or dataset metadata from HuggingFace API."""
     try:
@@ -44,12 +45,9 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
         
         api_url = f"https://huggingface.co/api/{api_type}/{repo_id}"
         
-        response = requests.get(api_url, timeout=10)
-        if response.status_code == 200:
+        response = get_with_rate_limit(api_url, APIService.HUGGINGFACE, timeout=10)
+        if response and response.status_code == 200:
             return response.json()
-        elif response.status_code == 429:
-            time.sleep(1)
-            return None
         else:
             return None
             
@@ -57,7 +55,6 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
         print(f"Warning: Failed to fetch HuggingFace metadata for {url}: {e}")
         return None
 
-# Fetch metadata from GitHub API for repositories
 def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
     """Retrieve repository metadata from GitHub API."""
     try:
@@ -69,12 +66,9 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
             repo = path_parts[1]
             api_url = f"https://api.github.com/repos/{owner}/{repo}"
             
-            response = requests.get(api_url, timeout=10)
-            if response.status_code == 200:
+            response = get_with_rate_limit(api_url, APIService.GITHUB, timeout=10)
+            if response and response.status_code == 200:
                 return response.json()
-            elif response.status_code == 429:
-                time.sleep(1)
-                return None
             else:
                 return None
         else:

@@ -18,7 +18,8 @@ def run_unit_tests():
         "tests/unit/test_license.py", 
         "tests/unit/test_url_processor.py",
         "tests/unit/test_dataset_code.py",
-        "tests/unit/test_dataset_quality.py"
+        "tests/unit/test_dataset_quality.py",
+        "tests/unit/test_rate_limiter.py"
     ]
     
     # Clear previous coverage
@@ -56,7 +57,7 @@ def run_unit_tests():
                           capture_output=True, text=True)
     print(result.stdout)
     
-    print(f"\n🎯 Summary: {total_tests} unit tests completed across 5 test files")
+    print(f"\n🎯 Summary: {total_tests} unit tests completed across 6 test files")
     print("📈 All unit test files now included in coverage analysis")
 
 if __name__ == "__main__":

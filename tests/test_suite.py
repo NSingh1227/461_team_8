@@ -9,6 +9,7 @@ from src.core.url_processor import URLProcessor, URLType, process_url, categoriz
 from src.metrics.license_calculator import LicenseCalculator
 from src.metrics.busfactor_calculator import BusFactorCalculator
 from src.metrics.base import ModelContext
+from src.core.rate_limiter import get_rate_limiter, reset_rate_limiter, APIService
 
 class TestSuite:
     def __init__(self, coverage_mode=False):
@@ -961,6 +962,110 @@ class TestSuite:
     # TODO: Add ResponsiveMaintainer metric tests when implemented
     
     # ============================================================
+    #  RATE LIMITER TESTS
+    # ============================================================
+    
+    def test_rate_limiter(self):
+        self.print_header("RATE LIMITER TESTS")
+        
+        # Reset rate limiter for clean testing
+        reset_rate_limiter()
+        rate_limiter = get_rate_limiter()
+        
+        test_cases = [
+            {
+                "name": "Quota Check - Initial State",
+                "service": APIService.GITHUB,
+                "expected": True,
+                "description": "Should have quota available initially"
+            },
+            {
+                "name": "Quota Status - GitHub",
+                "service": APIService.GITHUB, 
+                "expected": True,
+                "description": "Should return valid quota status"
+            },
+            {
+                "name": "Quota Check - HuggingFace",
+                "service": APIService.HUGGINGFACE,
+                "expected": True,
+                "description": "Should have quota available for HuggingFace"
+            },
+            {
+                "name": "Service Independence",
+                "service": APIService.GENAI,
+                "expected": True,
+                "description": "Different services should have independent quotas"
+            }
+        ]
+        
+        self.print_section("Rate Limiter Basic Tests")
+        
+        for test_case in test_cases:
+            try:
+                service = test_case["service"]
+                
+                if "Quota Check" in test_case["name"]:
+                    result = rate_limiter.check_quota(service)
+                    passed = result == test_case["expected"]
+                elif "Quota Status" in test_case["name"]:
+                    status = rate_limiter.get_quota_status(service)
+                    result = isinstance(status, dict) and 'service' in status
+                    passed = result == test_case["expected"]
+                else:
+                    result = rate_limiter.check_quota(service)
+                    passed = result == test_case["expected"]
+                
+                if not self.coverage_mode:
+                    print(f"{'✅ PASS' if passed else '❌ FAIL'} | {test_case['name']}")
+                    print(f"      Service: {service.value}")
+                    print(f"      Description: {test_case['description']}")
+                    print(f"      Result: {result}")
+                    print()
+                
+                if passed:
+                    self.passed_tests += 1
+                else:
+                    self.failed_tests += 1
+                self.total_tests += 1
+                
+            except Exception as e:
+                if not self.coverage_mode:
+                    print(f"❌ ERROR | {test_case['name']}: {e}")
+                self.failed_tests += 1
+                self.total_tests += 1
+        
+        # Test quota enforcement
+        self.print_section("Rate Limiter Quota Enforcement")
+        
+        try:
+            # Make several requests to test quota tracking
+            for i in range(3):
+                rate_limiter.wait_if_needed(APIService.GITHUB)
+            
+            status = rate_limiter.get_quota_status(APIService.GITHUB)
+            quota_tracking_works = status['current_requests'] == 3
+            
+            if not self.coverage_mode:
+                print(f"{'✅ PASS' if quota_tracking_works else '❌ FAIL'} | Quota Tracking")
+                print(f"      Current requests: {status['current_requests']}")
+                print(f"      Max requests: {status['max_requests']}")
+                print(f"      Quota remaining: {status['quota_remaining']}")
+                print()
+            
+            if quota_tracking_works:
+                self.passed_tests += 1
+            else:
+                self.failed_tests += 1
+            self.total_tests += 1
+                
+        except Exception as e:
+            if not self.coverage_mode:
+                print(f"❌ ERROR | Quota Enforcement Test: {e}")
+            self.failed_tests += 1
+            self.total_tests += 1
+    
+    # ============================================================
     #  NET SCORE TESTS
     # ============================================================
     
@@ -1292,6 +1397,9 @@ class TestSuite:
             
             # Bus Factor metric tests
             self.test_busfactor_calculator()
+            
+            # Rate limiter tests
+            self.test_rate_limiter()
             
             # Performance and stress tests
             self.test_metric_calculation_performance()

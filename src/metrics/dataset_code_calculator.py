@@ -3,6 +3,8 @@ from typing import Dict, Any, Optional
 from .base import MetricCalculator, ModelContext
 from ..core.config import Config
 import requests
+from ..core.http_client import get_with_rate_limit, head_with_rate_limit
+from ..core.rate_limiter import APIService
 
 class DatasetCodeCalculator(MetricCalculator):
     """Calculator for Dataset and Code Score (DAC) metric."""
@@ -75,11 +77,14 @@ class DatasetCodeCalculator(MetricCalculator):
     
     def _verify_url_accessible(self, url: str) -> bool:
         try:
-            response = requests.head(url, timeout=5, allow_redirects=True)
-            return response.status_code == 200
+            response = head_with_rate_limit(url, APIService.GENERAL_HTTP, timeout=5, allow_redirects=True)
+            if response and response.status_code == 200:
+                return True
         except Exception:
-            try:
-                response = requests.get(url, timeout=5, stream=True)
-                return response.status_code == 200
-            except Exception:
-                return False
+            pass
+        
+        try:
+            response = get_with_rate_limit(url, APIService.GENERAL_HTTP, timeout=5, stream=True)
+            return response and response.status_code == 200
+        except Exception:
+            return False

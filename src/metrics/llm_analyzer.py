@@ -2,6 +2,8 @@ import os
 import re
 import requests
 from typing import Dict, Any, Optional
+from ..core.http_client import post_with_rate_limit
+from ..core.rate_limiter import APIService
 
 
 class LLMAnalyzer:
@@ -25,12 +27,19 @@ class LLMAnalyzer:
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}"
             }
-            response = requests.post(self.api_url, json=payload, headers=headers, timeout=30)
-            if response.status_code == 200:
+            response = post_with_rate_limit(
+                self.api_url, 
+                APIService.GENAI,
+                json=payload, 
+                headers=headers, 
+                timeout=30
+            )
+            if response and response.status_code == 200:
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
             else:
-                print(f"[LLMAnalyzer] API error {response.status_code}: {response.text}")
+                if response:
+                    print(f"[LLMAnalyzer] API error {response.status_code}: {response.text}")
                 return None
         except Exception as e:
             print(f"[LLMAnalyzer] Request failed: {e}")
