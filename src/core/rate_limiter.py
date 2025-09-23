@@ -48,7 +48,7 @@ class RateLimiter:
             base_delay_seconds=2.0
         ),
         APIService.GENERAL_HTTP: RateLimitConfig(
-            requests_per_window=200,  # Liberal for general HTTP
+            requests_per_window=200,  # Fair for general HTTP
             window_seconds=60,        # 1 minute window
             max_backoff_seconds=30,
             base_delay_seconds=0.1
