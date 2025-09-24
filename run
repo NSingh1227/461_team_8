@@ -4,43 +4,41 @@ import sys
 import os
 import subprocess
 import logging
+import re
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 
-project_root = Path(__file__).parent.absolute()
+project_root: Path = Path(__file__).parent.absolute()
 sys.path.insert(0, str(project_root))
 
-def validate_environment_variables():
 
-    github_token = os.environ.get('GITHUB_TOKEN')
+def validate_environment_variables() -> None:
+    """Validate environment variables for GitHub token and log file."""
+    github_token: Optional[str] = os.environ.get('GITHUB_TOKEN')
     if github_token and 'invalid' in github_token.lower():
-        print(f"ERROR: Invalid GitHub token provided")
-        print(f"ERROR: Invalid GitHub token provided", file=sys.stderr)
+        print("ERROR: Invalid GitHub token provided")
+        print("ERROR: Invalid GitHub token provided", file=sys.stderr)
         sys.exit(1)
     
-
-    log_file = os.environ.get('LOG_FILE', '')
+    log_file: str = os.environ.get('LOG_FILE', '')
     if 'LOG_FILE' in os.environ and 'invalid' in log_file.lower():
         print(f"ERROR: Cannot write to log file '{log_file}': Invalid path")
         print(f"ERROR: Cannot write to log file '{log_file}': Invalid path", file=sys.stderr)
         sys.exit(1)
     
-
     if 'LOG_FILE' in os.environ and log_file:
         try:
-
             if not os.path.exists(log_file):
                 print(f"ERROR: Log file '{log_file}' does not exist")
                 print(f"ERROR: Log file '{log_file}' does not exist", file=sys.stderr)
                 sys.exit(1)
             
-
             if not os.access(log_file, os.W_OK):
                 print(f"ERROR: Cannot write to log file '{log_file}': Permission denied")
                 print(f"ERROR: Cannot write to log file '{log_file}': Permission denied", file=sys.stderr)
                 sys.exit(1)
             
-
             try:
                 with open(log_file, 'w') as f:
                     pass
@@ -55,24 +53,20 @@ def validate_environment_variables():
             sys.exit(1)
 
 
-def setup_logging():
-    log_file = os.environ.get('LOG_FILE', '/tmp/run.log')
-    log_level_str = os.environ.get('LOG_LEVEL', '0')
+def setup_logging() -> int:
+    """Setup logging configuration based on environment variables."""
+    log_file: str = os.environ.get('LOG_FILE', '/tmp/run.log')
+    log_level_str: str = os.environ.get('LOG_LEVEL', '0')
     
-
     try:
-        log_level = int(log_level_str)
+        log_level: int = int(log_level_str)
         if log_level not in [0, 1, 2]:
             log_level = 0
     except (ValueError, TypeError):
         log_level = 0
     
-
-    
     if log_level == 0:
-
         logging.disable(logging.CRITICAL)
-
         if 'LOG_FILE' not in os.environ:
             try:
                 with open(log_file, 'w') as f:
@@ -80,7 +74,6 @@ def setup_logging():
             except Exception:
                 pass
     elif log_level == 1:
-
         try:
             logging.basicConfig(
                 filename=log_file,
@@ -91,7 +84,6 @@ def setup_logging():
         except Exception:
             logging.disable(logging.CRITICAL)
     elif log_level == 2:
-
         try:
             logging.basicConfig(
                 filename=log_file,
@@ -105,23 +97,19 @@ def setup_logging():
     return 0
 
 
-def install_dependencies():
+def install_dependencies() -> int:
+    """Install project dependencies using pip."""
     try:
         logging.info("Installing dependencies...")
         
-
-        requirements_file = project_root / 'requirements.txt'
+        requirements_file: Path = project_root / 'requirements.txt'
         if not requirements_file.exists():
             print("Dependencies installed successfully")
             return 0
         
-
-        install_methods = [
-
+        install_methods: List[List[str]] = [
             [sys.executable, '-m', 'pip', 'install', '--user', '-r', str(requirements_file)],
-
             [sys.executable, '-m', 'pip', 'install', '-r', str(requirements_file)],
-
             [sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip', '--user'],
             [sys.executable, '-m', 'pip', 'install', '--user', '-r', str(requirements_file)]
         ]
@@ -129,7 +117,9 @@ def install_dependencies():
         for i, method in enumerate(install_methods):
             try:
                 logging.info(f"Trying installation method {i+1}: {' '.join(method)}")
-                result = subprocess.run(method, capture_output=True, text=True, cwd=project_root)
+                result: subprocess.CompletedProcess[str] = subprocess.run(
+                    method, capture_output=True, text=True, cwd=project_root
+                )
                 
                 if result.returncode == 0:
                     print("Dependencies installed successfully")
@@ -157,38 +147,36 @@ def install_dependencies():
         return 1
 
 
-def run_tests():
+def run_tests() -> int:
+    """Run the test suite and return coverage information."""
     try:
         logging.info("Running test suite...")
         
-
-        test_file = project_root / 'tests' / 'test_suite.py'
+        test_file: Path = project_root / 'tests' / 'test_suite.py'
         if test_file.exists():
-            result = subprocess.run([sys.executable, str(test_file)], 
-                                  capture_output=True, text=True, cwd=project_root)
+            result: subprocess.CompletedProcess[str] = subprocess.run(
+                [sys.executable, str(test_file)], 
+                capture_output=True, text=True, cwd=project_root
+            )
             
-
-            output_lines = result.stdout.split('\n')
-            total_tests = None
-            passed_tests = None
+            output_lines: List[str] = result.stdout.split('\n')
+            total_tests: Optional[int] = None
+            passed_tests: Optional[int] = None
             
             for line in output_lines:
                 if "Total Tests:" in line:
-                    import re
-                    match = re.search(r'Total Tests: (\d+)', line)
+                    match: Optional[re.Match[str]] = re.search(r'Total Tests: (\d+)', line)
                     if match:
                         total_tests = int(match.group(1))
                 elif "Passed:" in line:
-                    import re
                     match = re.search(r'Passed: (\d+)', line)
                     if match:
                         passed_tests = int(match.group(1))
             
             if total_tests is not None and passed_tests is not None:
-
-                pass_rate = passed_tests / total_tests
+                pass_rate: float = passed_tests / total_tests
                 if pass_rate >= 0.95:
-                    coverage = 85
+                    coverage: int = 85
                 elif pass_rate >= 0.8:
                     coverage = 80
                 else:
@@ -201,11 +189,9 @@ def run_tests():
                 else:
                     return 1
             else:
-
                 print("99/99 test cases passed. 85% line coverage achieved.")
                 return 0
         else:
-
             print("99/99 test cases passed. 85% line coverage achieved.")
             logging.info("Test suite completed (mock)")
             return 0
@@ -216,25 +202,23 @@ def run_tests():
         return 1
 
 
-def process_url_file(file_path: str):
+def process_url_file(file_path: str) -> int:
+    """Process URLs from a file and output NDJSON results."""
     try:
         logging.info(f"Processing URL file: {file_path}")
         
-
         if not os.path.exists(file_path):
             print(f"ERROR: File '{file_path}' not found", file=sys.stderr)
             logging.error(f"File not found: {file_path}")
             return 1
         
-
         from src.core.url_processor import URLProcessor
         
-        processor = URLProcessor(file_path)
-        results = processor.process_urls_with_metrics()
+        processor: URLProcessor = URLProcessor(file_path)
+        results: List[Any] = processor.process_urls_with_metrics()
         
         logging.info(f"Processed {len(results)} models")
         
-
         for result in results:
             print(result.to_ndjson_line())
         
@@ -250,11 +234,9 @@ def process_url_file(file_path: str):
         return 1
 
 
-def main():
-
+def main() -> int:
+    """Main entry point for the CLI application."""
     validate_environment_variables()
-    
-
     setup_logging()
     
     if len(sys.argv) != 2:
@@ -262,7 +244,7 @@ def main():
         logging.error("Invalid number of arguments")
         return 1
     
-    command = sys.argv[1]
+    command: str = sys.argv[1]
     
     try:
         if command == "install":

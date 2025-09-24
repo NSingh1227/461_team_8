@@ -1,22 +1,23 @@
 import sys
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from .base import MetricCalculator, ModelContext
 from .llm_analyzer import LLMAnalyzer
 
 
 class DatasetQualityCalculator(MetricCalculator):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("DatasetQuality")
-        self.llm_analyzer = LLMAnalyzer()
+        self.llm_analyzer: LLMAnalyzer = LLMAnalyzer()
 
     def calculate_score(self, context: ModelContext) -> float:
-        start_time = time.time()
-        score = 0.0
+        start_time: float = time.time()
+        score: float = 0.0
 
         try:
-            dataset_info = self._prepare_dataset_info(context)
+            dataset_info: Optional[Dict[str, Any]] = self._prepare_dataset_info(context)
             if dataset_info:
                 score = self.llm_analyzer.analyze_dataset_quality(dataset_info)
             else:
@@ -25,7 +26,7 @@ class DatasetQualityCalculator(MetricCalculator):
             print(f"[DatasetQuality] Error calculating score: {e}", file=sys.stderr)
             score = 0.0
 
-        end_time = time.time()
+        end_time: float = time.time()
         self._set_score(score, int((end_time - start_time) * 1000))
         return score
 
@@ -36,15 +37,15 @@ class DatasetQualityCalculator(MetricCalculator):
             dataset_info["dataset_url"] = context.dataset_url
 
         if context and context.huggingface_metadata:
-            datasets = context.huggingface_metadata.get("datasets", [])
+            datasets: Any = context.huggingface_metadata.get("datasets", [])
             if datasets:
                 dataset_info["datasets"] = datasets
 
-            card_data = context.huggingface_metadata.get("cardData", {})
+            card_data: Dict[str, Any] = context.huggingface_metadata.get("cardData", {})
             if card_data:
                 dataset_info.update(card_data)
 
-        readme_content = self._fetch_readme_content(context)
+        readme_content: Optional[str] = self._fetch_readme_content(context)
         if readme_content:
             dataset_info["readme"] = readme_content
 
@@ -55,13 +56,13 @@ class DatasetQualityCalculator(MetricCalculator):
             if not context or not context.huggingface_metadata:
                 return None
 
-            readme_parts = []
-            card_data = context.huggingface_metadata.get("cardData", {})
+            readme_parts: List[str] = []
+            card_data: Dict[str, Any] = context.huggingface_metadata.get("cardData", {})
 
             if "description" in card_data:
                 readme_parts.append(f"# Description\n{card_data['description']}")
 
-            datasets = context.huggingface_metadata.get("datasets", [])
+            datasets: Any = context.huggingface_metadata.get("datasets", [])
             if datasets:
                 readme_parts.append(f"## Datasets\nThis model uses: {', '.join(datasets)}")
 

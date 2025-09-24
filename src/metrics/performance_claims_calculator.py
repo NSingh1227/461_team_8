@@ -1,17 +1,17 @@
-from typing import Any, Dict, Optional
 import os
 import sys
 import time
-import requests
+from typing import List, Optional
 from urllib.parse import urlparse
-from .base import MetricCalculator, ModelContext
 
+import requests
+
+from .base import MetricCalculator, ModelContext
 
 try:
     from ..core.llm_client import ask_for_json_score
 except ImportError:
-
-    def ask_for_json_score(prompt):
+    def ask_for_json_score(prompt: str, api_url: str = "", model: str = "") -> tuple[Optional[float], Optional[str]]:
         return 0.5, "LLM client not available"
 
 
@@ -21,9 +21,9 @@ class PerformanceClaimsCalculator(MetricCalculator):
         super().__init__("PerformanceClaims")
 
     def calculate_score(self, context: ModelContext) -> float:
-        start_time = time.time()
+        start_time: float = time.time()
         try:
-            score = self._score_from_metadata_or_llm(context)
+            score: Optional[float] = self._score_from_metadata_or_llm(context)
 
             if score is None:
                 score = 0.5
@@ -32,22 +32,22 @@ class PerformanceClaimsCalculator(MetricCalculator):
             print(f"Error in PerformanceClaimsCalculator: {e}", file=sys.stderr)
             score = 0.5
 
-        end_time = time.time()
+        end_time: float = time.time()
         self._set_score(score, int((end_time - start_time) * 1000))
         return score
 
-    def _score_from_metadata_or_llm(self, context: ModelContext) -> float:
+    def _score_from_metadata_or_llm(self, context: ModelContext) -> Optional[float]:
 
-        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
 
-        url = getattr(context, "model_url", "") or ""
+        url: str = getattr(context, "model_url", "") or ""
         parsed = urlparse(url)
         
         if parsed.netloc == "huggingface.co":
 
-            model_id = parsed.path.strip("/")
+            model_id: str = parsed.path.strip("/")
 
             if "/tree/" in model_id:
                 model_id = model_id.split("/tree/")[0]
@@ -57,24 +57,24 @@ class PerformanceClaimsCalculator(MetricCalculator):
             if model_id and not model_id.startswith("datasets/"):
                 if not is_autograder and debug_enabled:
                     print("model_id: ", model_id, file=sys.stderr)
-                readme_url = f"https://huggingface.co/{model_id}/raw/main/README.md"
+                readme_url: str = f"https://huggingface.co/{model_id}/raw/main/README.md"
                 if not is_autograder and debug_enabled:
                     print("readme_url: ", readme_url, file=sys.stderr)
                 
                 try:
-                    resp = requests.get(readme_url, timeout=10)
+                    resp: requests.Response = requests.get(readme_url, timeout=10)
                     if not is_autograder and debug_enabled:
                         print("resp: ", resp, file=sys.stderr)
                     
                     if resp.status_code == 200 and isinstance(resp.text, str):
-                        content = resp.text
+                        content: str = resp.text
                         if not is_autograder and debug_enabled:
                             print("content: ", content[:200] + "..." if len(content) > 200 else content, file=sys.stderr)
                         
 
-                        heuristic = self._heuristic_readme_score(content.lower())
+                        heuristic: float = self._heuristic_readme_score(content.lower())
                         
-                        prompt = (
+                        prompt: str = (
                             "Evaluate performance claims in this README.\n"
                             "Rate 0..1 based on standardized benchmarks, citations/links, and reproducibility.\n"
                             "Return {\"score\": float, \"rationale\": string}.\n\n"
@@ -104,22 +104,24 @@ class PerformanceClaimsCalculator(MetricCalculator):
             if not is_autograder and debug_enabled:
                 print("Not an HF model", file=sys.stderr)
             return 0.3
+        
+        return None
 
     def _heuristic_readme_score(self, content: str) -> float:
-        score = 0.0
+        score: float = 0.0
         
 
-        benchmark_terms = ["benchmark", "leaderboard", "sota", "glue", "superglue", "mmlu"]
+        benchmark_terms: List[str] = ["benchmark", "leaderboard", "sota", "glue", "superglue", "mmlu"]
         if any(term in content for term in benchmark_terms):
             score += 0.4
         
 
-        metric_terms = ["accuracy", "f1", "bleu", "rouge", "perplexity", "exact match"]
+        metric_terms: List[str] = ["accuracy", "f1", "bleu", "rouge", "perplexity", "exact match"]
         if any(term in content for term in metric_terms):
             score += 0.3
         
 
-        citation_terms = ["citation", "arxiv", "doi", "paper"]
+        citation_terms: List[str] = ["citation", "arxiv", "doi", "paper"]
         if any(term in content for term in citation_terms):
             score += 0.2
         

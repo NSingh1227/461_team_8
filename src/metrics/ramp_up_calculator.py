@@ -1,43 +1,45 @@
 import sys
+import tempfile
 import time
-from typing import Optional
-from .base import MetricCalculator, ModelContext
-from huggingface_hub import hf_hub_download
-from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
+from typing import Dict, List, Optional
 from urllib.parse import urlparse
+
+from huggingface_hub import hf_hub_download
+from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError
+
+from .base import MetricCalculator, ModelContext
 
 
 class RampUpCalculator(MetricCalculator):
+    """Calculator for ramp-up time metric - measures ease of getting started."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("RampUp")
     
     def calculate_score(self, context: ModelContext) -> float:
-        start_time = time.time()
+        """Calculate ramp-up score based on documentation quality."""
+        start_time: float = time.time()
         
         try:
-
-            model_url = getattr(context, "model_url", "") or ""
+            model_url: str = getattr(context, "model_url", "") or ""
             if "huggingface.co" in model_url:
-                score = self._score_huggingface_model(model_url)
+                score: float = self._score_huggingface_model(model_url)
             else:
-
                 score = 0.5
         except Exception as e:
             print(f"Error calculating ramp-up score: {e}", file=sys.stderr)
             score = 0.5
         
-        end_time = time.time()
+        end_time: float = time.time()
         self._set_score(score, int((end_time - start_time) * 1000))
         return score
     
     def _score_huggingface_model(self, model_url: str) -> float:
+        """Score Hugging Face model based on README quality."""
         try:
-
             parsed = urlparse(model_url)
-            repo_id = parsed.path.strip("/")
+            repo_id: str = parsed.path.strip("/")
             
-
             if "/tree/" in repo_id:
                 repo_id = repo_id.split("/tree/")[0]
             if "/blob/" in repo_id:
@@ -46,12 +48,10 @@ class RampUpCalculator(MetricCalculator):
             if not repo_id:
                 return 0.3
             
-
-            readme_content = None
+            readme_content: Optional[str] = None
             try:
-                import tempfile
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    readme_path = hf_hub_download(
+                    readme_path: str = hf_hub_download(
                         repo_id=repo_id,
                         filename="README.md",
                         repo_type="model",
@@ -67,35 +67,78 @@ class RampUpCalculator(MetricCalculator):
             if not readme_content:
                 return 0.2
             
-
-            score = self._analyze_readme_quality(readme_content)
+            score: float = self._analyze_readme_quality(readme_content)
             return max(0.2, min(1.0, score))
             
         except Exception:
             return 0.3
     
     def _analyze_readme_quality(self, content: str) -> float:
-        content_lower = content.lower()
-        score = 0.3
+        """Analyze README content for quality indicators."""
+        content_lower: str = content.lower()
+        score: float = 0.3
         
-
         if any(term in content_lower for term in ["install", "pip install", "setup"]):
             score += 0.2
         
-
         if any(term in content_lower for term in ["usage", "example", "how to"]):
             score += 0.2
         
-
         if "```" in content or "\n    " in content:
             score += 0.15
         
-
         if any(term in content_lower for term in ["parameters", "api", "configuration"]):
             score += 0.1
         
-
         if "getting started" in content_lower or "quick start" in content_lower:
             score += 0.05
         
         return score
+    
+    def _verify_tokenizer_files(self, repo_id: str) -> Dict[str, bool]:
+        """Verify presence of tokenizer files."""
+        tokenizer_files: List[str] = [
+            "tokenizer.json",
+            "vocab.json", 
+            "tokenizer_config.json",
+            "special_tokens_map.json",
+            "merges.txt",
+            "vocab.txt"
+        ]
+        
+        verification_results: Dict[str, bool] = {}
+        
+        for filename in tokenizer_files:
+            try:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    hf_hub_download(
+                        repo_id=repo_id,
+                        filename=filename,
+                        repo_type="model",
+                        cache_dir=tmpdir
+                    )
+                    verification_results[filename] = True
+            except (HfHubHTTPError, RepositoryNotFoundError, Exception):
+                verification_results[filename] = False
+        
+        return verification_results
+    
+    def _analyze_tokenizer_completeness(self, tokenizer_results: Dict[str, bool]) -> float:
+        """Analyze tokenizer file completeness."""
+        if not any(tokenizer_results.values()):
+            return 0.0
+        
+        # Weight different tokenizer files
+        weights: Dict[str, float] = {
+            "tokenizer.json": 0.4,
+            "tokenizer_config.json": 0.3,
+            "vocab.json": 0.2,
+            "special_tokens_map.json": 0.1
+        }
+        
+        score: float = 0.0
+        for filename, weight in weights.items():
+            if tokenizer_results.get(filename, False):
+                score += weight
+        
+        return min(1.0, score)

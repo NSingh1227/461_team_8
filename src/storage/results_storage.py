@@ -1,14 +1,13 @@
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
 import json
-from datetime import datetime
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 
 @dataclass
 class MetricResult:
     metric_name: str
-    score: float
+    score: Any  # Can be float or Dict[str, float] for Size metric
     calculation_time_ms: int
     timestamp: str
     

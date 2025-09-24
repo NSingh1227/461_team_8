@@ -1,11 +1,11 @@
-import requests
 import sys
-import time
-from typing import Optional, Dict, Any
-from .rate_limiter import get_rate_limiter, APIService
+from typing import Any, Optional
 
+import requests
 
-_session = requests.Session()
+from .rate_limiter import APIService, get_rate_limiter
+
+_session: requests.Session = requests.Session()
 _session.headers.update({
     'User-Agent': 'ECE461-Team8-ModelAnalyzer/1.0'
 })
@@ -16,27 +16,23 @@ def make_rate_limited_request(
     url: str, 
     service: APIService,
     max_retries: int = 3,
-    **kwargs
+    **kwargs: Any
 ) -> Optional[requests.Response]:
+    """Make a rate-limited HTTP request with retry logic."""
     rate_limiter = get_rate_limiter()
     
     for attempt in range(max_retries + 1):
         try:
-
             rate_limiter.wait_if_needed(service)
             
-
-            response = _session.request(method, url, **kwargs)
+            response: requests.Response = _session.request(method, url, **kwargs)
             
-
             if response.status_code == 200:
-
                 rate_limiter.reset_failures(service)
                 return response
                 
             elif response.status_code == 429:
-
-                retry_after = None
+                retry_after: Optional[int] = None
                 if 'Retry-After' in response.headers:
                     try:
                         retry_after = int(response.headers['Retry-After'])
@@ -44,12 +40,9 @@ def make_rate_limited_request(
                         pass
                 
                 rate_limiter.handle_rate_limit_response(service, retry_after)
-                
-
                 continue
                 
             elif response.status_code in [500, 502, 503, 504]:
-
                 if attempt < max_retries:
                     rate_limiter.handle_rate_limit_response(service)
                     continue
@@ -58,7 +51,6 @@ def make_rate_limited_request(
                     return response
                     
             else:
-
                 return response
                 
         except requests.exceptions.RequestException as e:
@@ -73,13 +65,16 @@ def make_rate_limited_request(
     return None
 
 
-def get_with_rate_limit(url: str, service: APIService, **kwargs) -> Optional[requests.Response]:
+def get_with_rate_limit(url: str, service: APIService, **kwargs: Any) -> Optional[requests.Response]:
+    """Make a rate-limited GET request."""
     return make_rate_limited_request('GET', url, service, **kwargs)
 
 
-def post_with_rate_limit(url: str, service: APIService, **kwargs) -> Optional[requests.Response]:
+def post_with_rate_limit(url: str, service: APIService, **kwargs: Any) -> Optional[requests.Response]:
+    """Make a rate-limited POST request."""
     return make_rate_limited_request('POST', url, service, **kwargs)
 
 
-def head_with_rate_limit(url: str, service: APIService, **kwargs) -> Optional[requests.Response]:
+def head_with_rate_limit(url: str, service: APIService, **kwargs: Any) -> Optional[requests.Response]:
+    """Make a rate-limited HEAD request."""
     return make_rate_limited_request('HEAD', url, service, **kwargs)

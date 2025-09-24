@@ -1,8 +1,9 @@
-import os
-import sys
-import re
 import json
-from typing import Dict, Any, Optional, Tuple
+import os
+import re
+import sys
+from typing import Any, Dict, List, Optional, Tuple
+
 from .http_client import post_with_rate_limit
 from .rate_limiter import APIService
 
@@ -10,24 +11,24 @@ from .rate_limiter import APIService
 def ask_for_json_score(prompt: str, 
                       api_url: str = "https://genai.rcac.purdue.edu/api/chat/completions",
                       model: str = "llama3.1:latest") -> Tuple[Optional[float], Optional[str]]:
-    api_key = os.getenv("GEN_AI_STUDIO_API_KEY")
+    """Ask LLM for a JSON score based on the given prompt."""
+    api_key: Optional[str] = os.getenv("GEN_AI_STUDIO_API_KEY")
     if not api_key:
-
-        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
         if not is_autograder and debug_enabled:
             print("[LLMClient] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
         return None, "API key not available"
     
     try:
-        messages = [
+        messages: List[Dict[str, str]] = [
             {"role": "system", "content": "You are an AI model evaluator. Always respond with valid JSON."},
             {"role": "user", "content": prompt}
         ]
         
-        payload = {"model": model, "messages": messages}
-        headers = {
+        payload: Dict[str, Any] = {"model": model, "messages": messages}
+        headers: Dict[str, str] = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}"
         }
@@ -41,12 +42,11 @@ def ask_for_json_score(prompt: str,
         )
         
         if response and response.status_code == 200:
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
+            data: Dict[str, Any] = response.json()
+            content: str = data["choices"][0]["message"]["content"]
             return _extract_json_score(content)
         else:
             if response:
-
                 is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
                 debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
                 
@@ -55,7 +55,6 @@ def ask_for_json_score(prompt: str,
             return None, "API request failed"
             
     except Exception as e:
-
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
@@ -65,50 +64,46 @@ def ask_for_json_score(prompt: str,
 
 
 def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
+    """Extract score from LLM response content."""
     if not content:
         return None, "Empty response"
     
     try:
-
-        data = json.loads(content.strip())
-        score = data.get("score")
-        rationale = data.get("rationale", "")
+        data: Dict[str, Any] = json.loads(content.strip())
+        score: Any = data.get("score")
+        rationale: str = str(data.get("rationale", ""))
         
         if isinstance(score, (int, float)):
-            return float(score), str(rationale)
+            return float(score), rationale
         
     except json.JSONDecodeError:
         pass
     
-
-    json_match = re.search(r'\{[^}]*"score"[^}]*\}', content, re.DOTALL)
+    json_match: Optional[re.Match[str]] = re.search(r'\{[^}]*"score"[^}]*\}', content, re.DOTALL)
     if json_match:
         try:
             data = json.loads(json_match.group())
             score = data.get("score")
-            rationale = data.get("rationale", "")
+            rationale = str(data.get("rationale", ""))
             
             if isinstance(score, (int, float)):
-                return float(score), str(rationale)
+                return float(score), rationale
         except json.JSONDecodeError:
             pass
     
-
-
-    score_match = re.search(r'Score:\s*(\d+(?:\.\d+)?)', content, re.IGNORECASE)
+    score_match: Optional[re.Match[str]] = re.search(r'Score:\s*(\d+(?:\.\d+)?)', content, re.IGNORECASE)
     if score_match:
         try:
-            score = float(score_match.group(1))
-            return score, content.strip()
+            score_value: float = float(score_match.group(1))
+            return score_value, content.strip()
         except ValueError:
             pass
     
-
     score_match = re.search(r'\b(\d+(?:\.\d+)?)\b', content)
     if score_match:
         try:
-            score = float(score_match.group(1))
-            return score, content.strip()
+            score_value = float(score_match.group(1))
+            return score_value, content.strip()
         except ValueError:
             pass
     

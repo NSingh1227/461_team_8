@@ -1,8 +1,8 @@
 import os
-import sys
 import re
-import requests
-from typing import Dict, Any, Optional
+import sys
+from typing import Any, Dict, List, Optional
+
 from ..core.http_client import post_with_rate_limit
 from ..core.rate_limiter import APIService
 
@@ -12,24 +12,23 @@ class LLMAnalyzer:
     def __init__(self,
                  api_url: str = "https://genai.rcac.purdue.edu/api/chat/completions",
                  model: str = "llama3.1:latest",
-                 api_key: Optional[str] = None):
-        self.api_url = api_url
-        self.model = model
+                 api_key: Optional[str] = None) -> None:
+        self.api_url: str = api_url
+        self.model: str = model
 
-        self.api_key = api_key or os.getenv("GEN_AI_STUDIO_API_KEY")
+        self.api_key: Optional[str] = api_key or os.getenv("GEN_AI_STUDIO_API_KEY")
 
-    def _post_to_genai(self, messages: list[Dict[str, str]]) -> Optional[str]:
-
-        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+    def _post_to_genai(self, messages: List[Dict[str, str]]) -> Optional[str]:
+        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
         if not self.api_key:
             if not is_autograder and debug_enabled:
                 print("[LLMAnalyzer] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
             return None
         try:
-            payload = {"model": self.model, "messages": messages}
-            headers = {
+            payload: Dict[str, Any] = {"model": self.model, "messages": messages}
+            headers: Dict[str, str] = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}"
             }
@@ -41,11 +40,10 @@ class LLMAnalyzer:
                 timeout=30
             )
             if response and response.status_code == 200:
-                data = response.json()
+                data: Dict[str, Any] = response.json()
                 return data["choices"][0]["message"]["content"]
             else:
                 if response:
-
                     is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
                     debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
                     
@@ -53,7 +51,6 @@ class LLMAnalyzer:
                         print(f"[LLMAnalyzer] API error {response.status_code}: {response.text}", file=sys.stderr)
                 return None
         except Exception as e:
-
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
             
@@ -62,24 +59,23 @@ class LLMAnalyzer:
             return None
 
     def analyze_dataset_quality(self, dataset_info: Dict[str, Any]) -> float:
-        user_prompt = (
+        user_prompt: str = (
             "Analyze the following dataset information and return ONLY "
             "a numeric quality score between 0.0 and 1.0:\n\n"
             f"{dataset_info}"
         )
-        messages = [
+        messages: List[Dict[str, str]] = [
             {"role": "system", "content": "You are an evaluator that scores dataset quality."},
             {"role": "user", "content": user_prompt}
         ]
-        content = self._post_to_genai(messages)
+        content: Optional[str] = self._post_to_genai(messages)
         return self._extract_score(content)
 
     def _extract_score(self, content: Optional[str]) -> float:
         if not content:
             return 0.0
         try:
-
-            match = re.search(r"-?\d+(?:\.\d+)?", content.strip())
+            match: Optional[re.Match[str]] = re.search(r"-?\d+(?:\.\d+)?", content.strip())
             if match:
                 return round(float(match.group(0)), 2)
         except Exception:

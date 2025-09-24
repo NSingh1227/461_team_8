@@ -1,18 +1,22 @@
-from typing import Dict, Optional
+import re
 import sys
 import time
-import re
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
+
 from huggingface_hub import HfApi, hf_hub_download
-from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
-from .base import MetricCalculator, ModelContext
+from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError
+
 from ..core.config import Config
 from ..core.http_client import get_with_rate_limit
 from ..core.rate_limiter import APIService
+from .base import MetricCalculator, ModelContext
+
 
 class LicenseCalculator(MetricCalculator):
+    """Calculator for license compatibility metric."""
+    
     LGPL_license_compatibility: Dict[str, float] = {
-
         'mit': 1.0, 'mit license': 1.0,
         'apache': 1.0, 'apache 2.0': 1.0, 'apache-2.0': 1.0, 'apache-2': 1.0,
         'bsd': 1.0, 'bsd-3-clause': 1.0, 'bsd-2-clause': 1.0, 'bsd-3': 1.0, 'bsd-2': 1.0,
@@ -20,7 +24,6 @@ class LicenseCalculator(MetricCalculator):
         'public domain': 1.0, 'public-domain': 1.0,
         'unlicense': 1.0, 'cc0': 1.0, 'creative commons': 1.0,
         'isc': 1.0, 'zlib': 1.0, 'boost': 1.0,
-
         'gpl': 0.0, 'gpl-2.0': 0.0, 'gpl-3.0': 0.0, 'gpl-2': 0.0, 'gpl-3': 0.0,
         'agpl': 0.0, 'agpl-3.0': 0.0, 'agpl-3': 0.0,
         'gemma': 0.0, 'gemma license': 0.0,
@@ -30,25 +33,27 @@ class LicenseCalculator(MetricCalculator):
 
     def __init__(self) -> None:
         super().__init__("License")
-        self.hf_api = HfApi()
+        self.hf_api: HfApi = HfApi()
     
     def calculate_score(self, context: ModelContext) -> float:
-        start_time = time.time()
+        """Calculate license compatibility score."""
+        start_time: float = time.time()
         
         try:
-            license_text = self._extract_license_from_context(context)
-            score = self._calculate_compatibility_score(license_text)
+            license_text: Optional[str] = self._extract_license_from_context(context)
+            score: float = self._calculate_compatibility_score(license_text)
         except Exception as e:
             print(f"Error calculating license score: {e}", file=sys.stderr)
             score = 0.5
         
-        end_time = time.time()
-        calculation_time_ms = int((end_time - start_time) * 1000)
+        end_time: float = time.time()
+        calculation_time_ms: int = int((end_time - start_time) * 1000)
         self._set_score(score, calculation_time_ms)
         
         return score
     
     def _extract_license_from_context(self, context: ModelContext) -> Optional[str]:
+        """Extract license information from model context."""
         if context.model_url.startswith("https://huggingface.co"):
             return self._extract_huggingface_license(context)
         elif context.model_url.startswith("https://github.com"):
@@ -57,9 +62,10 @@ class LicenseCalculator(MetricCalculator):
             return None
 
     def _extract_huggingface_license(self, context: ModelContext) -> Optional[str]:
+        """Extract license from Hugging Face metadata."""
         if context.huggingface_metadata:
             if 'cardData' in context.huggingface_metadata:
-                card_data = context.huggingface_metadata['cardData']
+                card_data: Dict[str, Any] = context.huggingface_metadata['cardData']
                 if 'license' in card_data:
                     return str(card_data['license']).lower().strip()
             
@@ -69,46 +75,44 @@ class LicenseCalculator(MetricCalculator):
                         return tag.replace('license:', '').strip().lower()
         
         try:
-            repo_id = self._extract_repo_id(context.model_url)
-            readme_content = self._fetch_readme_from_hf_api(repo_id)
+            repo_id: str = self._extract_repo_id(context.model_url)
+            readme_content: str = self._fetch_readme_from_hf_api(repo_id)
             return self._extract_license_from_readme(readme_content)
         except Exception as e:
             print(f"Failed to fetch README for license: {e}", file=sys.stderr)
             return None
 
     def _extract_github_license(self, context: ModelContext) -> Optional[str]:
-
+        """Extract license from GitHub metadata."""
         if (context.model_info and 
             'github_metadata' in context.model_info and 
             context.model_info['github_metadata']):
             
-            github_data = context.model_info['github_metadata']
+            github_data: Dict[str, Any] = context.model_info['github_metadata']
             if 'license' in github_data and github_data['license']:
-                license_info = github_data['license']
+                license_info: Dict[str, Any] = github_data['license']
                 if 'spdx_id' in license_info and license_info['spdx_id']:
                     return license_info['spdx_id'].lower().strip()
                 elif 'name' in license_info and license_info['name']:
                     return license_info['name'].lower().strip()
         
-
         try:
             if context.model_url and context.model_url.startswith("https://github.com"):
                 parsed_url = urlparse(context.model_url)
-                path_parts = parsed_url.path.strip('/').split('/')
+                path_parts: List[str] = parsed_url.path.strip('/').split('/')
                 if len(path_parts) >= 2:
-                    owner = path_parts[0]
-                    repo = path_parts[1]
-                    api_url = f"https://api.github.com/repos/{owner}/{repo}"
+                    owner: str = path_parts[0]
+                    repo: str = path_parts[1]
+                    api_url: str = f"https://api.github.com/repos/{owner}/{repo}"
                     
-
-                    headers = {}
-                    github_token = Config.get_github_token()
+                    headers: Dict[str, str] = {}
+                    github_token: Optional[str] = Config.get_github_token()
                     if github_token:
                         headers['Authorization'] = f'token {github_token}'
                     
                     response = get_with_rate_limit(api_url, APIService.GITHUB, headers=headers, timeout=5)
                     if response and response.status_code == 200:
-                        data = response.json()
+                        data: Dict[str, Any] = response.json()
                         if 'license' in data and data['license']:
                             license_info = data['license']
                             if 'spdx_id' in license_info and license_info['spdx_id']:
@@ -122,6 +126,7 @@ class LicenseCalculator(MetricCalculator):
         return None
     
     def _calculate_compatibility_score(self, license_text: Optional[str]) -> float:
+        """Calculate compatibility score based on license text."""
         if not license_text:
             return 0.5
 
@@ -137,17 +142,19 @@ class LicenseCalculator(MetricCalculator):
         return 0.5
     
     def _extract_license_from_readme(self, readme_content: str) -> Optional[str]:
-        license_pattern = r'license:\s*([^\n]*)'
-        match = re.search(license_pattern, readme_content.lower())
+        """Extract license information from README content."""
+        license_pattern: str = r'license:\s*([^\n]*)'
+        match: Optional[re.Match[str]] = re.search(license_pattern, readme_content.lower())
 
         if match: 
-            license = match.group(1).lower().strip()
+            license: str = match.group(1).lower().strip()
             return license
         return None
 
     def _extract_repo_id(self, model_url: str) -> str:
+        """Extract repository ID from Hugging Face URL."""
         if "huggingface.co/" in model_url:
-            repo_id = "/".join(model_url.split("huggingface.co/")[1].split("/"))
+            repo_id: str = "/".join(model_url.split("huggingface.co/")[1].split("/"))
 
             if "/tree/" in repo_id:
                 repo_id = repo_id.split("/tree/")[0]
@@ -158,8 +165,9 @@ class LicenseCalculator(MetricCalculator):
             raise ValueError(f"Invalid Hugging Face URL: {model_url}")
 
     def _fetch_readme_from_hf_api(self, repo_id: str) -> str:
+        """Fetch README content from Hugging Face API."""
         try:
-            readme_path = hf_hub_download(
+            readme_path: str = hf_hub_download(
                 repo_id=repo_id,
                 filename="README.md",
                 repo_type="model",
@@ -167,7 +175,7 @@ class LicenseCalculator(MetricCalculator):
             )
 
             with open(readme_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+                content: str = f.read()
             
             return content
         
