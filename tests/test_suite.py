@@ -8,8 +8,19 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from src.core.url_processor import URLProcessor, URLType, process_url, categorize_url, is_valid_url
 from src.metrics.license_calculator import LicenseCalculator
 from src.metrics.busfactor_calculator import BusFactorCalculator
+from src.metrics.size_calculator import SizeCalculator
+from src.metrics.ramp_up_calculator import RampUpCalculator
+from src.metrics.code_quality_calculator import CodeQualityCalculator
+from src.metrics.dataset_code_calculator import DatasetCodeCalculator
+from src.metrics.dataset_quality_calculator import DatasetQualityCalculator
+from src.metrics.performance_claims_calculator import PerformanceClaimsCalculator
+from src.metrics.llm_analyzer import LLMAnalyzer
 from src.metrics.base import ModelContext
 from src.core.rate_limiter import get_rate_limiter, reset_rate_limiter, APIService
+from src.core.http_client import get_with_rate_limit, head_with_rate_limit
+from src.core.llm_client import ask_for_json_score
+from src.core.config import Config
+from src.core.exceptions import *
 
 class TestSuite:
     def __init__(self, coverage_mode=False):
@@ -1433,6 +1444,19 @@ class TestSuite:
             self.test_results_storage_edge_cases()
             self.test_results_storage_functionality()
             
+            # Comprehensive calculator tests for improved coverage
+            self.test_size_calculator_comprehensive()
+            self.test_ramp_up_calculator_comprehensive()
+            self.test_code_quality_calculator_comprehensive()
+            self.test_dataset_code_calculator_comprehensive()
+            self.test_dataset_quality_calculator_comprehensive()
+            self.test_performance_claims_calculator_comprehensive()
+            self.test_llm_analyzer_comprehensive()
+            self.test_http_client_comprehensive()
+            self.test_config_comprehensive()
+            self.test_exceptions_comprehensive()
+            self.test_url_processor_comprehensive()
+            
         except Exception as e:
             if not self.coverage_mode:
                 print(f"❌ CRITICAL ERROR: {e}")
@@ -1443,6 +1467,408 @@ class TestSuite:
             sys.exit(1)
         else:
             sys.exit(0)
+    
+    # ============================================================
+    #  COMPREHENSIVE CALCULATOR TESTS FOR IMPROVED COVERAGE
+    # ============================================================
+    
+    def test_size_calculator_comprehensive(self):
+        """Test SizeCalculator with various scenarios."""
+        self.print_header("SIZE CALCULATOR COMPREHENSIVE TESTS")
+        
+        calculator = SizeCalculator()
+        
+        # Test with valid Hugging Face model
+        context = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url=None,
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context)
+            self.print_test_result("Size Calculator - Valid HF Model", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Size Calculator - Valid HF Model", "No exception", f"Exception: {e}", False)
+        
+        # Test with GitHub model
+        context_github = ModelContext(
+            model_url="https://github.com/google-research/bert",
+            code_url="https://github.com/google-research/bert",
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context_github)
+            self.print_test_result("Size Calculator - GitHub Model", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Size Calculator - GitHub Model", "No exception", f"Exception: {e}", False)
+        
+        # Test with invalid URL
+        context_invalid = ModelContext(
+            model_url="https://invalid-url.com/model",
+            code_url=None,
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context_invalid)
+            self.print_test_result("Size Calculator - Invalid URL", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Size Calculator - Invalid URL", "No exception", f"Exception: {e}", False)
+    
+    def test_ramp_up_calculator_comprehensive(self):
+        """Test RampUpCalculator with various scenarios."""
+        self.print_header("RAMP UP CALCULATOR COMPREHENSIVE TESTS")
+        
+        calculator = RampUpCalculator()
+        
+        # Test with valid Hugging Face model
+        context = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url=None,
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context)
+            self.print_test_result("Ramp Up Calculator - Valid HF Model", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Ramp Up Calculator - Valid HF Model", "No exception", f"Exception: {e}", False)
+        
+        # Test with GitHub model
+        context_github = ModelContext(
+            model_url="https://github.com/google-research/bert",
+            code_url="https://github.com/google-research/bert",
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context_github)
+            self.print_test_result("Ramp Up Calculator - GitHub Model", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Ramp Up Calculator - GitHub Model", "No exception", f"Exception: {e}", False)
+    
+    def test_code_quality_calculator_comprehensive(self):
+        """Test CodeQualityCalculator with various scenarios."""
+        self.print_header("CODE QUALITY CALCULATOR COMPREHENSIVE TESTS")
+        
+        calculator = CodeQualityCalculator()
+        
+        # Test with GitHub metadata
+        context = ModelContext(
+            model_url="https://github.com/google-research/bert",
+            code_url="https://github.com/google-research/bert",
+            dataset_url=None,
+            model_info={'github_metadata': {
+                'language': 'Python',
+                'stargazers_count': 1500,
+                'updated_at': '2024-01-01T00:00:00Z',
+                'description': 'BERT implementation',
+                'archived': False,
+                'topics': ['nlp', 'bert', 'transformer']
+            }}
+        )
+        
+        try:
+            score = calculator.calculate_score(context)
+            self.print_test_result("Code Quality Calculator - GitHub Metadata", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Code Quality Calculator - GitHub Metadata", "No exception", f"Exception: {e}", False)
+        
+        # Test with Hugging Face metadata
+        context_hf = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url=None,
+            dataset_url=None,
+            model_info={},
+            huggingface_metadata={
+                'downloads': 1000000,
+                'likes': 150,
+                'tags': ['bert', 'nlp', 'transformer']
+            }
+        )
+        
+        try:
+            score = calculator.calculate_score(context_hf)
+            self.print_test_result("Code Quality Calculator - HF Metadata", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Code Quality Calculator - HF Metadata", "No exception", f"Exception: {e}", False)
+    
+    def test_dataset_code_calculator_comprehensive(self):
+        """Test DatasetCodeCalculator with various scenarios."""
+        self.print_header("DATASET CODE CALCULATOR COMPREHENSIVE TESTS")
+        
+        calculator = DatasetCodeCalculator()
+        
+        # Test with both dataset and code URLs
+        context = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url="https://github.com/google-research/bert",
+            dataset_url="https://huggingface.co/datasets/bookcorpus",
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context)
+            self.print_test_result("Dataset Code Calculator - Both URLs", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Dataset Code Calculator - Both URLs", "No exception", f"Exception: {e}", False)
+        
+        # Test with only dataset URL
+        context_dataset = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url=None,
+            dataset_url="https://huggingface.co/datasets/bookcorpus",
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context_dataset)
+            self.print_test_result("Dataset Code Calculator - Dataset Only", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Dataset Code Calculator - Dataset Only", "No exception", f"Exception: {e}", False)
+        
+        # Test with only code URL
+        context_code = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url="https://github.com/google-research/bert",
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context_code)
+            self.print_test_result("Dataset Code Calculator - Code Only", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Dataset Code Calculator - Code Only", "No exception", f"Exception: {e}", False)
+    
+    def test_dataset_quality_calculator_comprehensive(self):
+        """Test DatasetQualityCalculator with various scenarios."""
+        self.print_header("DATASET QUALITY CALCULATOR COMPREHENSIVE TESTS")
+        
+        calculator = DatasetQualityCalculator()
+        
+        # Test with dataset URL
+        context = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url=None,
+            dataset_url="https://huggingface.co/datasets/bookcorpus",
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context)
+            self.print_test_result("Dataset Quality Calculator - With Dataset", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Dataset Quality Calculator - With Dataset", "No exception", f"Exception: {e}", False)
+        
+        # Test without dataset URL
+        context_no_dataset = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url=None,
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context_no_dataset)
+            self.print_test_result("Dataset Quality Calculator - No Dataset", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Dataset Quality Calculator - No Dataset", "No exception", f"Exception: {e}", False)
+    
+    def test_performance_claims_calculator_comprehensive(self):
+        """Test PerformanceClaimsCalculator with various scenarios."""
+        self.print_header("PERFORMANCE CLAIMS CALCULATOR COMPREHENSIVE TESTS")
+        
+        calculator = PerformanceClaimsCalculator()
+        
+        # Test with Hugging Face model
+        context = ModelContext(
+            model_url="https://huggingface.co/google-bert/bert-base-uncased",
+            code_url=None,
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context)
+            self.print_test_result("Performance Claims Calculator - HF Model", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Performance Claims Calculator - HF Model", "No exception", f"Exception: {e}", False)
+        
+        # Test with GitHub model
+        context_github = ModelContext(
+            model_url="https://github.com/google-research/bert",
+            code_url="https://github.com/google-research/bert",
+            dataset_url=None,
+            model_info={}
+        )
+        
+        try:
+            score = calculator.calculate_score(context_github)
+            self.print_test_result("Performance Claims Calculator - GitHub Model", 
+                                 "0.0-1.0 range", f"{score:.2f}", 0.0 <= score <= 1.0)
+        except Exception as e:
+            self.print_test_result("Performance Claims Calculator - GitHub Model", "No exception", f"Exception: {e}", False)
+    
+    def test_llm_analyzer_comprehensive(self):
+        """Test LLMAnalyzer with various scenarios."""
+        self.print_header("LLM ANALYZER COMPREHENSIVE TESTS")
+        
+        analyzer = LLMAnalyzer()
+        
+        # Test analyze_dataset_quality
+        try:
+            result = analyzer.analyze_dataset_quality({"description": "Test dataset description"})
+            self.print_test_result("LLM Analyzer - Dataset Quality", 
+                                 "Float score", str(type(result)), isinstance(result, float))
+        except Exception as e:
+            self.print_test_result("LLM Analyzer - Dataset Quality", "No exception", f"Exception: {e}", False)
+        
+        # Test _post_to_genai method (private method)
+        try:
+            # This will likely fail due to missing API key, but we can test the method exists
+            result = analyzer._post_to_genai([{"role": "user", "content": "test"}])
+            self.print_test_result("LLM Analyzer - Post to GenAI", 
+                                 "String or None", str(type(result)), isinstance(result, (str, type(None))))
+        except Exception as e:
+            self.print_test_result("LLM Analyzer - Post to GenAI", "No exception", f"Exception: {e}", False)
+        
+        # Test _extract_score method (private method)
+        try:
+            result = analyzer._extract_score("Score: 0.8")
+            self.print_test_result("LLM Analyzer - Extract Score", 
+                                 "Float score", str(type(result)), isinstance(result, float))
+        except Exception as e:
+            self.print_test_result("LLM Analyzer - Extract Score", "No exception", f"Exception: {e}", False)
+    
+    def test_http_client_comprehensive(self):
+        """Test HTTP client functionality."""
+        self.print_header("HTTP CLIENT COMPREHENSIVE TESTS")
+        
+        # Test get_with_rate_limit
+        try:
+            response = get_with_rate_limit("https://httpbin.org/get", APIService.GITHUB, timeout=5)
+            success = response is not None and hasattr(response, 'status_code')
+            self.print_test_result("HTTP Client - GET Request", 
+                                 "Valid response", f"Response: {response is not None}", success)
+        except Exception as e:
+            self.print_test_result("HTTP Client - GET Request", "No exception", f"Exception: {e}", False)
+        
+        # Test head_with_rate_limit
+        try:
+            response = head_with_rate_limit("https://httpbin.org/get", APIService.GITHUB, timeout=5)
+            success = response is not None and hasattr(response, 'status_code')
+            self.print_test_result("HTTP Client - HEAD Request", 
+                                 "Valid response", f"Response: {response is not None}", success)
+        except Exception as e:
+            self.print_test_result("HTTP Client - HEAD Request", "No exception", f"Exception: {e}", False)
+    
+    def test_config_comprehensive(self):
+        """Test Config class functionality."""
+        self.print_header("CONFIG COMPREHENSIVE TESTS")
+        
+        # Test get_github_token
+        try:
+            token = Config.get_github_token()
+            self.print_test_result("Config - GitHub Token", 
+                                 "String or None", str(type(token)), isinstance(token, (str, type(None))))
+        except Exception as e:
+            self.print_test_result("Config - GitHub Token", "No exception", f"Exception: {e}", False)
+        
+        # Test get_genai_token (correct method name)
+        try:
+            key = Config.get_genai_token()
+            self.print_test_result("Config - GenAI Token", 
+                                 "String or None", str(type(key)), isinstance(key, (str, type(None))))
+        except Exception as e:
+            self.print_test_result("Config - GenAI Token", "No exception", f"Exception: {e}", False)
+    
+    def test_exceptions_comprehensive(self):
+        """Test custom exceptions."""
+        self.print_header("EXCEPTIONS COMPREHENSIVE TESTS")
+        
+        # Test MetricCalculationException
+        try:
+            raise MetricCalculationException("TestMetric", "Test error")
+        except MetricCalculationException as e:
+            self.print_test_result("Exception - MetricCalculationException", 
+                                 "Exception raised", str(e), "Test error" in str(e))
+        
+        # Test APIRateLimitException
+        try:
+            raise APIRateLimitException("TestAPI", 60)
+        except APIRateLimitException as e:
+            self.print_test_result("Exception - APIRateLimitException", 
+                                 "Exception raised", str(e), "TestAPI" in str(e))
+        
+        # Test InvalidURLException
+        try:
+            raise InvalidURLException("bad-url", "malformed")
+        except InvalidURLException as e:
+            self.print_test_result("Exception - InvalidURLException", 
+                                 "Exception raised", str(e), "bad-url" in str(e))
+    
+    def test_url_processor_comprehensive(self):
+        """Test URLProcessor with comprehensive scenarios."""
+        self.print_header("URL PROCESSOR COMPREHENSIVE TESTS")
+        
+        # Test URLProcessor initialization
+        try:
+            processor = URLProcessor("sample_input.txt")
+            self.print_test_result("URL Processor - Initialization", 
+                                 "URLProcessor instance", str(type(processor)), isinstance(processor, URLProcessor))
+        except Exception as e:
+            self.print_test_result("URL Processor - Initialization", "No exception", f"Exception: {e}", False)
+        
+        # Test URL categorization
+        try:
+            url_type = categorize_url("https://huggingface.co/google-bert/bert-base-uncased")
+            self.print_test_result("URL Processor - HF Categorization", 
+                                 "URLType.HUGGINGFACE_MODEL", str(url_type), url_type == URLType.HUGGINGFACE_MODEL)
+        except Exception as e:
+            self.print_test_result("URL Processor - HF Categorization", "No exception", f"Exception: {e}", False)
+        
+        try:
+            url_type = categorize_url("https://github.com/google-research/bert")
+            self.print_test_result("URL Processor - GitHub Categorization", 
+                                 "URLType.GITHUB_REPO", str(url_type), url_type == URLType.GITHUB_REPO)
+        except Exception as e:
+            self.print_test_result("URL Processor - GitHub Categorization", "No exception", f"Exception: {e}", False)
+        
+        # Test URL validation
+        try:
+            is_valid = is_valid_url("https://huggingface.co/google-bert/bert-base-uncased")
+            self.print_test_result("URL Processor - Valid URL", 
+                                 "True", str(is_valid), is_valid == True)
+        except Exception as e:
+            self.print_test_result("URL Processor - Valid URL", "No exception", f"Exception: {e}", False)
+        
+        try:
+            is_valid = is_valid_url("invalid-url")
+            self.print_test_result("URL Processor - Invalid URL", 
+                                 "False", str(is_valid), is_valid == False)
+        except Exception as e:
+            self.print_test_result("URL Processor - Invalid URL", "No exception", f"Exception: {e}", False)
 
 if __name__ == "__main__":
     coverage_mode = "--coverage" in sys.argv
