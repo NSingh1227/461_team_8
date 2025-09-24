@@ -1,3 +1,4 @@
+import sys
 import time
 from typing import Dict, Any, Optional
 from .base import MetricCalculator, ModelContext
@@ -20,9 +21,9 @@ class DatasetQualityCalculator(MetricCalculator):
             if dataset_info:
                 score = self.llm_analyzer.analyze_dataset_quality(dataset_info)
             else:
-                print("[DatasetQuality] No dataset info available → default 0.0")
+                print("[DatasetQuality] No dataset info available → default 0.0", file=sys.stderr)
         except Exception as e:
-            print(f"[DatasetQuality] Error calculating score: {e}")
+            print(f"[DatasetQuality] Error calculating score: {e}", file=sys.stderr)
             score = 0.0
 
         end_time = time.time()
@@ -67,5 +68,5 @@ class DatasetQualityCalculator(MetricCalculator):
 
             return "\n\n".join(readme_parts) if readme_parts else None
         except Exception as e:
-            print(f"[DatasetQuality] Error building README: {e}")
+            print(f"[DatasetQuality] Error building README: {e}", file=sys.stderr)
             return None

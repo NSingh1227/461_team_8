@@ -1,4 +1,4 @@
-import re, json, time, requests
+import re, json, time, requests, sys
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -32,7 +32,7 @@ class BusFactorCalculator(MetricCalculator):
                 score = min(1.0, score)
                 
         except Exception as e:
-            print(f"Error calculating Bus Factor score: {e}")
+            print(f"Error calculating Bus Factor score: {e}", file=sys.stderr)
             score = 0.0
         
         end_time = time.time()
@@ -62,7 +62,7 @@ class BusFactorCalculator(MetricCalculator):
             return len(contributors)
             
         except Exception as e:
-            print(f"Error getting contributors: {e}")
+            print(f"Error getting contributors: {e}", file=sys.stderr)
             return 0
     
     def _get_historical_contributors(self, owner: str, repo: str) -> int:
@@ -87,7 +87,7 @@ class BusFactorCalculator(MetricCalculator):
             return min(len(contributors), 8)
             
         except Exception as e:
-            print(f"Error getting historical contributors: {e}")
+            print(f"Error getting historical contributors: {e}", file=sys.stderr)
             return 0
     
     def _extract_github_repo_info(self, code_url: str) -> Optional[Dict[str, str]]:
@@ -129,13 +129,13 @@ class BusFactorCalculator(MetricCalculator):
             
             if not response or response.status_code != 200:
                 if response:
-                    print(f"GitHub API error {response.status_code}: {response.text}")
+                    print(f"GitHub API error {response.status_code}: {response.text}", file=sys.stderr)
                 return []
             
             commits = response.json()
             return commits[:50]  # Limit to first 50 commits for performance
             
         except Exception as e:
-            print(f"Error fetching GitHub commits: {e}")
+            print(f"Error fetching GitHub commits: {e}", file=sys.stderr)
             return []
         

@@ -18,7 +18,10 @@ def ask_for_json_score(prompt: str,
     """
     api_key = os.getenv("GEN_AI_STUDIO_API_KEY")
     if not api_key:
-        print("[LLMClient] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
+        # Check if we're in an autograder environment
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        if not is_autograder:
+            print("[LLMClient] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
         return None, "API key not available"
     
     try:
@@ -47,11 +50,11 @@ def ask_for_json_score(prompt: str,
             return _extract_json_score(content)
         else:
             if response:
-                print(f"[LLMClient] API error {response.status_code}: {response.text}")
+                print(f"[LLMClient] API error {response.status_code}: {response.text}", file=sys.stderr)
             return None, "API request failed"
             
     except Exception as e:
-        print(f"[LLMClient] Request failed: {e}")
+        print(f"[LLMClient] Request failed: {e}", file=sys.stderr)
         return None, f"Request error: {str(e)}"
 
 

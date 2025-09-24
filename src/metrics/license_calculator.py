@@ -1,4 +1,5 @@
 from typing import Dict, Optional
+import sys
 import time
 import re
 from urllib.parse import urlparse
@@ -39,7 +40,7 @@ class LicenseCalculator(MetricCalculator):
             license_text = self._extract_license_from_context(context)
             score = self._calculate_compatibility_score(license_text)
         except Exception as e:
-            print(f"Error calculating license score: {e}")
+            print(f"Error calculating license score: {e}", file=sys.stderr)
             score = 0.5
         
         end_time = time.time()
@@ -73,7 +74,7 @@ class LicenseCalculator(MetricCalculator):
             readme_content = self._fetch_readme_from_hf_api(repo_id)
             return self._extract_license_from_readme(readme_content)
         except Exception as e:
-            print(f"Failed to fetch README for license: {e}")
+            print(f"Failed to fetch README for license: {e}", file=sys.stderr)
             return None
 
     def _extract_github_license(self, context: ModelContext) -> Optional[str]:
@@ -116,7 +117,7 @@ class LicenseCalculator(MetricCalculator):
                             elif 'name' in license_info and license_info['name']:
                                 return license_info['name'].lower().strip()
         except Exception as e:
-            print(f"GitHub license extraction error: {e}")
+            print(f"GitHub license extraction error: {e}", file=sys.stderr)
             pass
         
         return None
@@ -172,5 +173,5 @@ class LicenseCalculator(MetricCalculator):
             return content
         
         except (RepositoryNotFoundError, HfHubHTTPError) as e:
-            print(f"Could not fetch README content for {repo_id}: {e}")
+            print(f"Could not fetch README content for {repo_id}: {e}", file=sys.stderr)
             return ""

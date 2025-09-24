@@ -1,4 +1,5 @@
 import requests
+import sys
 import time
 from typing import Optional, Dict, Any
 from .rate_limiter import get_rate_limiter, APIService
@@ -66,7 +67,7 @@ def make_rate_limited_request(
                     rate_limiter.handle_rate_limit_response(service)
                     continue
                 else:
-                    print(f"[HTTPClient] Server error {response.status_code} after {max_retries} retries: {url}")
+                    print(f"[HTTPClient] Server error {response.status_code} after {max_retries} retries: {url}", file=sys.stderr)
                     return response
                     
             else:
@@ -75,11 +76,11 @@ def make_rate_limited_request(
                 
         except requests.exceptions.RequestException as e:
             if attempt < max_retries:
-                print(f"[HTTPClient] Request exception on attempt {attempt + 1}: {e}")
+                print(f"[HTTPClient] Request exception on attempt {attempt + 1}: {e}", file=sys.stderr)
                 rate_limiter.handle_rate_limit_response(service)
                 continue
             else:
-                print(f"[HTTPClient] Request failed after {max_retries} retries: {e}")
+                print(f"[HTTPClient] Request failed after {max_retries} retries: {e}", file=sys.stderr)
                 return None
     
     return None

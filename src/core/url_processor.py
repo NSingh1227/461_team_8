@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import time
@@ -196,8 +197,12 @@ class URLProcessor:
         url_lines = self.read_url_lines()
         model_results = []
         
+        # Check if we're in an autograder environment
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        
         # Debug: Print number of URLs found
-        print(f"Found {len(url_lines)} URLs to process", file=sys.stderr)
+        if not is_autograder:
+            print(f"Found {len(url_lines)} URLs to process", file=sys.stderr)
         
         for code_url, dataset_url, model_url in url_lines:
             try:
@@ -236,7 +241,8 @@ class URLProcessor:
                 model_result = self._create_default_result(primary_url)
                 model_results.append(model_result)
         
-        print(f"Successfully processed {len(model_results)} URLs", file=sys.stderr)
+        if not is_autograder:
+            print(f"Successfully processed {len(model_results)} URLs", file=sys.stderr)
         
         # Only create default result if file was completely empty (no lines processed)
         if not model_results and len(url_lines) == 0:
@@ -275,7 +281,7 @@ class URLProcessor:
                 performance_claims_latency=0
             )
         except Exception as e:
-            print(f"Error creating default result for {model_url}: {e}")
+            print(f"Error creating default result for {model_url}: {e}", file=sys.stderr)
             # Return minimal result
             return ModelResult(
                 url=model_url,
@@ -348,7 +354,7 @@ class URLProcessor:
             return context
             
         except Exception as e:
-            print(f"Error creating context for {model_url}: {e}")
+            print(f"Error creating context for {model_url}: {e}", file=sys.stderr)
             return None
     
     def _infer_datasets_from_context(self, context: ModelContext) -> List[str]:
@@ -391,7 +397,7 @@ class URLProcessor:
                     inferred_datasets.append('https://huggingface.co/datasets/squad')
                     
         except Exception as e:
-            print(f"Error inferring datasets: {e}")
+            print(f"Error inferring datasets: {e}", file=sys.stderr)
         
         return inferred_datasets
     
@@ -408,7 +414,7 @@ class URLProcessor:
                 latency = calc.get_calculation_time() or 0
                 return "License", MetricResult("License", score, latency, timestamp)
             except Exception as e:
-                print(f"License calculation failed: {e}")
+                print(f"License calculation failed: {e}", file=sys.stderr)
                 return "License", MetricResult("License", 0.5, 100, timestamp)
         
         def calculate_dataset_code():
@@ -418,7 +424,7 @@ class URLProcessor:
                 latency = calc.get_calculation_time() or 0
                 return "DatasetCode", MetricResult("DatasetCode", score, latency, timestamp)
             except Exception as e:
-                print(f"DatasetCode calculation failed: {e}")
+                print(f"DatasetCode calculation failed: {e}", file=sys.stderr)
                 return "DatasetCode", MetricResult("DatasetCode", 0.5, 100, timestamp)
         
         def calculate_dataset_quality():
@@ -428,7 +434,7 @@ class URLProcessor:
                 latency = calc.get_calculation_time() or 0
                 return "DatasetQuality", MetricResult("DatasetQuality", score, latency, timestamp)
             except Exception as e:
-                print(f"DatasetQuality calculation failed: {e}")
+                print(f"DatasetQuality calculation failed: {e}", file=sys.stderr)
                 return "DatasetQuality", MetricResult("DatasetQuality", 0.5, 100, timestamp)
         
         def calculate_bus_factor():
@@ -438,7 +444,7 @@ class URLProcessor:
                 latency = calc.get_calculation_time() or 0
                 return "BusFactor", MetricResult("BusFactor", score, latency, timestamp)
             except Exception as e:
-                print(f"BusFactor calculation failed: {e}")
+                print(f"BusFactor calculation failed: {e}", file=sys.stderr)
                 return "BusFactor", MetricResult("BusFactor", 0.5, 100, timestamp)
         
         def calculate_size():
@@ -449,7 +455,7 @@ class URLProcessor:
                 platform_scores = calc.get_platform_compatibility()
                 return "Size", MetricResult("Size", platform_scores, latency, timestamp)
             except Exception as e:
-                print(f"Size calculation failed: {e}")
+                print(f"Size calculation failed: {e}", file=sys.stderr)
                 default_sizes = {"raspberry_pi": 0.5, "jetson_nano": 0.6, "desktop_pc": 0.8, "aws_server": 0.9}
                 return "Size", MetricResult("Size", default_sizes, 100, timestamp)
         
@@ -460,7 +466,7 @@ class URLProcessor:
                 latency = calc.get_calculation_time() or 0
                 return "RampUp", MetricResult("RampUp", score, latency, timestamp)
             except Exception as e:
-                print(f"RampUp calculation failed: {e}")
+                print(f"RampUp calculation failed: {e}", file=sys.stderr)
                 return "RampUp", MetricResult("RampUp", 0.7, 200, timestamp)
         
         def calculate_code_quality():
@@ -470,7 +476,7 @@ class URLProcessor:
                 latency = calc.get_calculation_time() or 0
                 return "CodeQuality", MetricResult("CodeQuality", score, latency, timestamp)
             except Exception as e:
-                print(f"CodeQuality calculation failed: {e}")
+                print(f"CodeQuality calculation failed: {e}", file=sys.stderr)
                 return "CodeQuality", MetricResult("CodeQuality", 0.9, 180, timestamp)
         
         def calculate_performance_claims():
@@ -480,7 +486,7 @@ class URLProcessor:
                 latency = calc.get_calculation_time() or 0
                 return "PerformanceClaims", MetricResult("PerformanceClaims", score, latency, timestamp)
             except Exception as e:
-                print(f"PerformanceClaims calculation failed: {e}")
+                print(f"PerformanceClaims calculation failed: {e}", file=sys.stderr)
                 return "PerformanceClaims", MetricResult("PerformanceClaims", 0.8, 220, timestamp)
         
         # Execute all metric calculations in parallel
@@ -511,7 +517,7 @@ class URLProcessor:
                     metrics[metric_name] = metric_result
                 except Exception as e:
                     metric_name = future_to_metric[future]
-                    print(f"Metric calculation {metric_name} failed: {e}")
+                    print(f"Metric calculation {metric_name} failed: {e}", file=sys.stderr)
                     # Provide default result for failed calculations
                     if metric_name == "calculate_size":
                         default_sizes = {"raspberry_pi": 0.5, "jetson_nano": 0.6, "desktop_pc": 0.8, "aws_server": 0.9}

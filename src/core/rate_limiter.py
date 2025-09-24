@@ -1,4 +1,5 @@
 import time
+import sys
 import threading
 from typing import Dict, Optional, List
 from dataclasses import dataclass, field
@@ -101,7 +102,7 @@ class RateLimiter:
                 wait_time = config.window_seconds - (time.time() - oldest_request)
                 
                 if wait_time > 0:
-                    print(f"[RateLimiter] {service.value} quota exceeded. Waiting {wait_time:.1f}s")
+                    print(f"[RateLimiter] {service.value} quota exceeded. Waiting {wait_time:.1f}s", file=sys.stderr)
                     time.sleep(wait_time)
                     # Clean up again after waiting
                     self._cleanup_old_requests(service)
@@ -118,13 +119,13 @@ class RateLimiter:
             # Use retry_after from response if provided, otherwise calculate backoff
             if retry_after:
                 wait_time = min(retry_after, config.max_backoff_seconds)
-                print(f"[RateLimiter] {service.value} rate limited. Server requested {retry_after}s wait, using {wait_time}s")
+                print(f"[RateLimiter] {service.value} rate limited. Server requested {retry_after}s wait, using {wait_time}s", file=sys.stderr)
             else:
                 # Exponential backoff: base_delay * 2^(failures-1) + jitter
                 backoff = config.base_delay_seconds * (2 ** (self._failure_counts[service] - 1))
                 jitter = random.uniform(0, backoff * 0.1)  # 10% jitter
                 wait_time = min(backoff + jitter, config.max_backoff_seconds)
-                print(f"[RateLimiter] {service.value} rate limited. Exponential backoff: {wait_time:.1f}s (attempt {self._failure_counts[service]})")
+                print(f"[RateLimiter] {service.value} rate limited. Exponential backoff: {wait_time:.1f}s (attempt {self._failure_counts[service]})", file=sys.stderr)
             
             time.sleep(wait_time)
     

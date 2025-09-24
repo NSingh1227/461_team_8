@@ -1,3 +1,4 @@
+import sys
 import time
 from typing import Dict, Any, Optional
 from .base import MetricCalculator, ModelContext
@@ -26,7 +27,7 @@ class DatasetCodeCalculator(MetricCalculator):
                 else:
                     score = 0.0
         except Exception as e:
-            print(f"Error calculating DAC score: {e}")
+            print(f"Error calculating DAC score: {e}", file=sys.stderr)
             score = 0.5
 
         end_time = time.time()

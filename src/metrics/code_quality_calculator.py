@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any
+import sys
 import time
 from .base import MetricCalculator, ModelContext
 
@@ -23,7 +24,7 @@ class CodeQualityCalculator(MetricCalculator):
                 # Fallback to Hugging Face metadata
                 score = self._score_from_hf_metadata(context)
         except Exception as e:
-            print(f"CodeQuality calculation error: {e}")
+            print(f"CodeQuality calculation error: {e}", file=sys.stderr)
             score = 0.5
 
         end_time = time.time()
