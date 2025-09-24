@@ -212,9 +212,7 @@ class URLProcessor:
                 
                 if not model_context:
                     print(f"Warning: Could not create context for URL: {primary_url}")
-                    # Create a default result for invalid URLs instead of skipping
-                    model_result = self._create_default_result(primary_url)
-                    model_results.append(model_result)
+                    # Skip invalid URLs instead of creating default results
                     continue
                 
                 # Calculate all metrics
@@ -240,9 +238,9 @@ class URLProcessor:
         
         print(f"Successfully processed {len(model_results)} URLs", file=sys.stderr)
         
-        # Ensure we always have at least one result to prevent empty output
-        if not model_results:
-            print("Warning: No valid URLs found, creating default result", file=sys.stderr)
+        # Only create default result if file was completely empty (no lines processed)
+        if not model_results and len(url_lines) == 0:
+            print("Warning: Empty file, creating default result", file=sys.stderr)
             default_result = self._create_default_result("unknown")
             model_results.append(default_result)
         
