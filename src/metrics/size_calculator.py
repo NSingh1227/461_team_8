@@ -110,46 +110,57 @@ class SizeCalculator(MetricCalculator):
             info = api.model_info(repo_id)
             siblings = getattr(info, "siblings", None)
 
-            # Collect candidate artifact filenames
-            candidate_files: List[str] = []
+            # Collect candidate artifact filenames and their sizes
+            total_bytes = 0
             if isinstance(siblings, list):
                 for s in siblings:
                     filename = getattr(s, "rfilename", "") or (s.get("rfilename") if isinstance(s, dict) else "")
-                    if filename and self._looks_like_artifact(str(filename)):
-                        candidate_files.append(str(filename))
+                    size_bytes = getattr(s, "size", None) or (s.get("size") if isinstance(s, dict) else None)
+                    
+                    if filename and self._looks_like_artifact(str(filename)) and size_bytes:
+                        total_bytes += int(size_bytes)
 
-            # If siblings unavailable or empty, try common names
-            if not candidate_files:
-                candidate_files = [
-                    "pytorch_model.bin",
-                    "model.safetensors",
-                    "tf_model.h5",
-                    "model.onnx",
-                ]
-
-            # Download candidates to a temp dir and sum sizes
-            import tempfile
-            total_bytes = 0
-            with tempfile.TemporaryDirectory() as tmpdir:
-                for fname in candidate_files:
-                    try:
-                        local_path = hf_hub_download(
-                            repo_id=repo_id,
-                            filename=fname,
-                            repo_type="model",
-                            cache_dir=tmpdir
-                        )
-                        if os.path.exists(local_path):
-                            total_bytes += os.path.getsize(local_path)
-                    except Exception:
-                        # File not found or other issue; skip to next candidate
-                        continue
-
+            # If we got sizes from metadata, use them
             if total_bytes > 0:
                 return total_bytes / (1024 * 1024)
-            return None
+            
+            # Fallback: estimate based on model type and common patterns
+            return self._estimate_size_from_model_type(repo_id)
+            
         except (HfHubHTTPError, RepositoryNotFoundError, Exception):
             return None
+
+    def _estimate_size_from_model_type(self, repo_id: str) -> Optional[float]:
+        """Estimate model size based on model type and common patterns."""
+        try:
+            api = HfApi()
+            info = api.model_info(repo_id)
+            
+            # Get model config to estimate size
+            config = getattr(info, "config", None)
+            if config:
+                # Estimate based on model architecture
+                if "num_parameters" in config:
+                    num_params = config["num_parameters"]
+                    # Rough estimate: 4 bytes per parameter for float32
+                    estimated_bytes = num_params * 4
+                    return estimated_bytes / (1024 * 1024)
+            
+            # Fallback estimates based on model name patterns
+            repo_lower = repo_id.lower()
+            if "tiny" in repo_lower or "small" in repo_lower:
+                return 50  # ~50MB for tiny models
+            elif "base" in repo_lower or "medium" in repo_lower:
+                return 500  # ~500MB for base models
+            elif "large" in repo_lower:
+                return 2000  # ~2GB for large models
+            elif "xl" in repo_lower or "xxl" in repo_lower:
+                return 5000  # ~5GB for XL models
+            else:
+                return 1000  # Default estimate
+                
+        except Exception:
+            return 1000  # Default fallback
 
     
 

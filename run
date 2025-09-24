@@ -18,34 +18,68 @@ sys.path.insert(0, str(project_root))
 def setup_logging():
     """Setup logging based on LOG_FILE and LOG_LEVEL environment variables."""
     log_file = os.environ.get('LOG_FILE', '/tmp/run.log')
-    log_level = int(os.environ.get('LOG_LEVEL', '0'))
+    log_level_str = os.environ.get('LOG_LEVEL', '0')
     
-    # Create log directory if it doesn't exist
-    log_dir = os.path.dirname(log_file)
-    os.makedirs(log_dir, exist_ok=True)
+    # Validate log level
+    try:
+        log_level = int(log_level_str)
+        if log_level not in [0, 1, 2]:
+            log_level = 0  # Default to silent
+    except (ValueError, TypeError):
+        log_level = 0  # Default to silent
+    
+    # Validate log file path
+    try:
+        # Create log directory if it doesn't exist
+        log_dir = os.path.dirname(log_file)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        
+        # Test if we can write to the log file
+        with open(log_file, 'w') as f:
+            pass
+    except (OSError, PermissionError, FileNotFoundError):
+        # Fallback to a safe location
+        log_file = '/tmp/run.log'
+        try:
+            with open(log_file, 'w') as f:
+                pass
+        except Exception:
+            # If even /tmp fails, disable logging completely
+            logging.disable(logging.CRITICAL)
+            return
     
     if log_level == 0:
         # Silent mode - no logging
         logging.disable(logging.CRITICAL)
         # Create empty log file
-        with open(log_file, 'w') as f:
+        try:
+            with open(log_file, 'w') as f:
+                pass
+        except Exception:
             pass
     elif log_level == 1:
         # Informational messages
-        logging.basicConfig(
-            filename=log_file,
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            filemode='w'
-        )
+        try:
+            logging.basicConfig(
+                filename=log_file,
+                level=logging.INFO,
+                format='%(asctime)s - %(levelname)s - %(message)s',
+                filemode='w'
+            )
+        except Exception:
+            logging.disable(logging.CRITICAL)
     elif log_level == 2:
         # Debug messages
-        logging.basicConfig(
-            filename=log_file,
-            level=logging.DEBUG,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            filemode='w'
-        )
+        try:
+            logging.basicConfig(
+                filename=log_file,
+                level=logging.DEBUG,
+                format='%(asctime)s - %(levelname)s - %(message)s',
+                filemode='w'
+            )
+        except Exception:
+            logging.disable(logging.CRITICAL)
 
 
 def install_dependencies():
@@ -84,7 +118,7 @@ def run_tests():
         logging.info("Running test suite...")
         
         # Try to run actual tests if they exist
-        test_file = project_root / 'tests' / 'basic_test_suite.py'
+        test_file = project_root / 'tests' / 'test_suite.py'
         if test_file.exists():
             result = subprocess.run([sys.executable, str(test_file)], 
                                   capture_output=True, text=True)

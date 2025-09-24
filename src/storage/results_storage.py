@@ -48,7 +48,7 @@ class ModelResult:
             
             if 'huggingface.co' in parsed_url.netloc:
                 if len(path_parts) >= 2:
-                    return path_parts[-1]  # Last part is usually the model name
+                    return path_parts[1]  # Second part is the model name (owner/model)
                 else:
                     return path_parts[0] if path_parts else "unknown"
             elif 'github.com' in parsed_url.netloc:

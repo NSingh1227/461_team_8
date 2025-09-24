@@ -21,7 +21,12 @@ class BusFactorCalculator(MetricCalculator):
                 score = 0.0
             else:
                 contributors_count = self._get_contributors_last_12_months(context.code_url)
-                score = min(1.0, contributors_count / 10.0)
+                # Use a more nuanced scoring: 0-5 contributors = 0.0-0.5, 5-15 contributors = 0.5-1.0
+                if contributors_count <= 5:
+                    score = contributors_count / 10.0
+                else:
+                    score = 0.5 + (contributors_count - 5) / 20.0
+                score = min(1.0, score)
                 
         except Exception as e:
             print(f"Error calculating Bus Factor score: {e}")
@@ -41,7 +46,8 @@ class BusFactorCalculator(MetricCalculator):
             
             commits = self._fetch_github_commits_last_12_months(repo_info['owner'], repo_info['repo'])
             if not commits:
-                return 0
+                # If no recent commits, try to get historical contributors
+                return self._get_historical_contributors(repo_info['owner'], repo_info['repo'])
             
             contributors = set()
             for commit in commits:
@@ -54,6 +60,31 @@ class BusFactorCalculator(MetricCalculator):
             
         except Exception as e:
             print(f"Error getting contributors: {e}")
+            return 0
+    
+    def _get_historical_contributors(self, owner: str, repo: str) -> int:
+        """Get historical contributors when no recent commits are found."""
+        try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/contributors"
+            headers = {'Accept': 'application/vnd.github.v3+json'}
+            github_token = Config.get_github_token()
+            if github_token:
+                headers['Authorization'] = f'token {github_token}'
+            
+            params = {'per_page': 30, 'page': 1}  # Reduced from 100 to 30 for faster response
+            
+            response = get_with_rate_limit(url, APIService.GITHUB, headers=headers, params=params, timeout=15)
+            
+            if not response or response.status_code != 200:
+                return 0
+            
+            contributors = response.json()
+            # Return a reasonable estimate based on historical contributors
+            # Cap at 10 to match the scoring formula
+            return min(len(contributors), 10)
+            
+        except Exception as e:
+            print(f"Error getting historical contributors: {e}")
             return 0
     
     def _extract_github_repo_info(self, code_url: str) -> Optional[Dict[str, str]]:
@@ -81,41 +112,25 @@ class BusFactorCalculator(MetricCalculator):
             
             params = {
                 'since': since_date,
-                'per_page': 100,
+                'per_page': 50,  # Reduced for faster response
                 'page': 1
             }
             
-            all_commits = []
+            response = get_with_rate_limit(
+                url, 
+                APIService.GITHUB,
+                headers=headers, 
+                params=params, 
+                timeout=15  # Reduced timeout
+            )
             
-            while True:
-                response = get_with_rate_limit(
-                    url, 
-                    APIService.GITHUB,
-                    headers=headers, 
-                    params=params, 
-                    timeout=30
-                )
-                
-                if not response or response.status_code != 200:
-                    if response:
-                        print(f"GitHub API error {response.status_code}: {response.text}")
-                    break
-                
-                commits = response.json()
-                if not commits:
-                    break
-                
-                all_commits.extend(commits)
-                
-                if len(commits) < 100:
-                    break
-                
-                params['page'] += 1
-                
-                if len(all_commits) >= 500:
-                    break
+            if not response or response.status_code != 200:
+                if response:
+                    print(f"GitHub API error {response.status_code}: {response.text}")
+                return []
             
-            return all_commits
+            commits = response.json()
+            return commits[:100]  # Limit to first 100 commits for performance
             
         except Exception as e:
             print(f"Error fetching GitHub commits: {e}")

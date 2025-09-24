@@ -139,13 +139,18 @@ class URLProcessor:
         if not line or line.startswith('#'):
             return None, None, None
         
-        # Split by comma and clean up
-        parts = [part.strip() if part.strip() else None for part in line.split(',')]
+        # Handle empty fields properly - split by comma and strip whitespace
+        parts = [part.strip() for part in line.split(',')]
         
-        # Ensure we have exactly 3 parts
+        # If there's only one part (no commas), treat it as a model URL
+        if len(parts) == 1:
+            return None, None, parts[0] if parts[0] else None
+        
+        # Ensure we have exactly 3 parts, padding with empty string if needed
         while len(parts) < 3:
-            parts.append(None)
+            parts.append('')
         
+        # Clean up each part - convert empty strings to None
         code_url = parts[0] if parts[0] else None
         dataset_url = parts[1] if parts[1] else None
         model_url = parts[2] if parts[2] else None
@@ -188,6 +193,9 @@ class URLProcessor:
                 
                 if not model_context:
                     print(f"Warning: Could not create context for model: {model_url}")
+                    # Create a default result for failed context creation
+                    model_result = self._create_default_result(model_url)
+                    model_results.append(model_result)
                     continue
                 
                 # Calculate all metrics
@@ -207,10 +215,87 @@ class URLProcessor:
                 
             except Exception as e:
                 print(f"Error processing model {model_url}: {e}")
-                continue
+                # Create a default result for failed processing
+                model_result = self._create_default_result(model_url)
+                model_results.append(model_result)
         
         print(f"Successfully processed {len(model_results)} models", file=sys.stderr)
         return model_results
+    
+    def _create_default_result(self, model_url: str) -> ModelResult:
+        """Create a default result for failed URL processing."""
+        try:
+            # Extract model name from URL
+            model_name = self._extract_model_name_from_url(model_url)
+            
+            # Create default result with all metrics at 0.0
+            return ModelResult(
+                url=model_url,
+                net_score=0.0,
+                net_score_latency=0,
+                size_score={"raspberry_pi": 0.0, "jetson_nano": 0.0, "desktop_pc": 0.0, "aws_server": 0.0},
+                size_latency=0,
+                license_score=0.0,
+                license_latency=0,
+                ramp_up_score=0.0,
+                ramp_up_latency=0,
+                bus_factor_score=0.0,
+                bus_factor_latency=0,
+                dataset_code_score=0.0,
+                dataset_code_latency=0,
+                dataset_quality_score=0.0,
+                dataset_quality_latency=0,
+                code_quality_score=0.0,
+                code_quality_latency=0,
+                performance_claims_score=0.0,
+                performance_claims_latency=0
+            )
+        except Exception as e:
+            print(f"Error creating default result for {model_url}: {e}")
+            # Return minimal result
+            return ModelResult(
+                url=model_url,
+                net_score=0.0,
+                net_score_latency=0,
+                size_score={"raspberry_pi": 0.0, "jetson_nano": 0.0, "desktop_pc": 0.0, "aws_server": 0.0},
+                size_latency=0,
+                license_score=0.0,
+                license_latency=0,
+                ramp_up_score=0.0,
+                ramp_up_latency=0,
+                bus_factor_score=0.0,
+                bus_factor_latency=0,
+                dataset_code_score=0.0,
+                dataset_code_latency=0,
+                dataset_quality_score=0.0,
+                dataset_quality_latency=0,
+                code_quality_score=0.0,
+                code_quality_latency=0,
+                performance_claims_score=0.0,
+                performance_claims_latency=0
+            )
+    
+    def _extract_model_name_from_url(self, url: str) -> str:
+        """Extract model name from URL."""
+        try:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(url)
+            path_parts = parsed_url.path.strip('/').split('/')
+            
+            if 'huggingface.co' in parsed_url.netloc:
+                if len(path_parts) >= 2:
+                    return path_parts[1]  # Second part is the model name (owner/model)
+                else:
+                    return path_parts[0] if path_parts else "unknown"
+            elif 'github.com' in parsed_url.netloc:
+                if len(path_parts) >= 2:
+                    return path_parts[1]  # Repo name
+                else:
+                    return "unknown"
+            else:
+                return "unknown"
+        except Exception:
+            return "unknown"
     
     def _create_model_context(self, model_url: str, code_url: Optional[str] = None, dataset_url: Optional[str] = None) -> Optional[ModelContext]:
         """Create ModelContext from URLs."""
@@ -347,8 +432,8 @@ class URLProcessor:
                 
                 # Handle size score specially (it's a dict of platform scores)
                 if metric_name == "Size" and isinstance(metric_score, dict):
-                    # Use average of all platform scores as the single size score
-                    size_score = sum(metric_score.values()) / len(metric_score) if metric_score else 0.5
+                    # Use the maximum platform score as the single size score (best compatibility)
+                    size_score = max(metric_score.values()) if metric_score else 0.5
                     net_score += weight * size_score
                 else:
                     net_score += weight * metric_score

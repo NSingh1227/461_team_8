@@ -8,27 +8,20 @@ from .base import MetricCalculator, ModelContext
 class LicenseCalculator(MetricCalculator):
     """Calculator for LGPL v2.1 license compatibility scoring."""
     LGPL_license_compatibility: Dict[str, float] = {
-        'mit': 1.0,
-        'apache': 1.0,
-        'apache 2.0': 1.0,
-        'apache-2.0': 1.0,
-        'bsd': 1.0,
-        'bsd-3-clause': 1.0,
-        'bsd-2-clause': 1.0,
-        'lgpl': 1.0,
-        'lgpl-2.1': 1.0,
-        'lgpl-3.0': 1.0,
-        'public domain': 1.0,
-        'unlicense': 1.0,
-        'gpl': 0.0,
-        'gpl-2.0': 0.0,
-        'gpl-3.0': 0.0,
-        'agpl': 0.0,
-        'agpl-3.0': 0.0,
-        'gemma': 0.0,
-        'proprietary': 0.0,
-        'commercial': 0.0,
-        'all rights reserved': 0.0,
+        # Compatible with LGPL v2.1 (score 1.0)
+        'mit': 1.0, 'mit license': 1.0,
+        'apache': 1.0, 'apache 2.0': 1.0, 'apache-2.0': 1.0, 'apache-2': 1.0,
+        'bsd': 1.0, 'bsd-3-clause': 1.0, 'bsd-2-clause': 1.0, 'bsd-3': 1.0, 'bsd-2': 1.0,
+        'lgpl': 1.0, 'lgpl-2.1': 1.0, 'lgpl-3.0': 1.0, 'lgpl-2': 1.0, 'lgpl-3': 1.0,
+        'public domain': 1.0, 'public-domain': 1.0,
+        'unlicense': 1.0, 'cc0': 1.0, 'creative commons': 1.0,
+        'isc': 1.0, 'zlib': 1.0, 'boost': 1.0,
+        # Incompatible with LGPL v2.1 (score 0.0)
+        'gpl': 0.0, 'gpl-2.0': 0.0, 'gpl-3.0': 0.0, 'gpl-2': 0.0, 'gpl-3': 0.0,
+        'agpl': 0.0, 'agpl-3.0': 0.0, 'agpl-3': 0.0,
+        'gemma': 0.0, 'gemma license': 0.0,
+        'proprietary': 0.0, 'commercial': 0.0, 'all rights reserved': 0.0,
+        'closed source': 0.0, 'private': 0.0,
     }
 
     def __init__(self) -> None:
