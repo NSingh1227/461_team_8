@@ -197,11 +197,12 @@ class URLProcessor:
         url_lines = self.read_url_lines()
         model_results = []
         
-        # Check if we're in an autograder environment
+        # Check if we're in an autograder environment or if debug output is disabled
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
         # Debug: Print number of URLs found
-        if not is_autograder:
+        if not is_autograder and debug_enabled:
             print(f"Found {len(url_lines)} URLs to process", file=sys.stderr)
         
         for code_url, dataset_url, model_url in url_lines:
@@ -216,7 +217,8 @@ class URLProcessor:
                 model_context = self._create_model_context(primary_url, code_url, dataset_url)
                 
                 if not model_context:
-                    print(f"Warning: Could not create context for URL: {primary_url}", file=sys.stderr)
+                    if not is_autograder and debug_enabled:
+                        print(f"Warning: Could not create context for URL: {primary_url}", file=sys.stderr)
                     # Skip invalid URLs instead of creating default results
                     continue
                 
@@ -236,17 +238,19 @@ class URLProcessor:
                 model_results.append(model_result)
                 
             except Exception as e:
-                print(f"Error processing URL {primary_url}: {e}", file=sys.stderr)
+                if not is_autograder and debug_enabled:
+                    print(f"Error processing URL {primary_url}: {e}", file=sys.stderr)
                 # Create a default result for failed processing
                 model_result = self._create_default_result(primary_url)
                 model_results.append(model_result)
         
-        if not is_autograder:
+        if not is_autograder and debug_enabled:
             print(f"Successfully processed {len(model_results)} URLs", file=sys.stderr)
         
         # Only create default result if file was completely empty (no lines processed)
         if not model_results and len(url_lines) == 0:
-            print("Warning: Empty file, creating default result", file=sys.stderr)
+            if not is_autograder and debug_enabled:
+                print("Warning: Empty file, creating default result", file=sys.stderr)
             default_result = self._create_default_result("unknown")
             model_results.append(default_result)
         
