@@ -17,7 +17,7 @@ def ask_for_json_score(prompt: str,
     """
     api_key = os.getenv("GEN_AI_STUDIO_API_KEY")
     if not api_key:
-        print("[LLMClient] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.")
+        print("[LLMClient] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
         return None, "API key not available"
     
     try:

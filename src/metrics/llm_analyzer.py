@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import requests
 from typing import Dict, Any, Optional
@@ -20,7 +21,7 @@ class LLMAnalyzer:
 
     def _post_to_genai(self, messages: list[Dict[str, str]]) -> Optional[str]:
         if not self.api_key:
-            print("[LLMAnalyzer] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.")
+            print("[LLMAnalyzer] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
             return None
         try:
             payload = {"model": self.model, "messages": messages}

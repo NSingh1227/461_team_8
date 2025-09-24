@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional
+import sys
 import time
 import requests
 from urllib.parse import urlparse
@@ -56,17 +57,17 @@ class PerformanceClaimsCalculator(MetricCalculator):
                 model_id = model_id.split("/blob/")[0]
             
             if model_id and not model_id.startswith("datasets/"):
-                print("model_id: ", model_id)
+                print("model_id: ", model_id, file=sys.stderr)
                 readme_url = f"https://huggingface.co/{model_id}/raw/main/README.md"
-                print("readme_url: ", readme_url)
+                print("readme_url: ", readme_url, file=sys.stderr)
                 
                 try:
                     resp = requests.get(readme_url, timeout=10)
-                    print("resp: ", resp)
+                    print("resp: ", resp, file=sys.stderr)
                     
                     if resp.status_code == 200 and isinstance(resp.text, str):
                         content = resp.text
-                        print("content: ", content[:200] + "..." if len(content) > 200 else content)
+                        print("content: ", content[:200] + "..." if len(content) > 200 else content, file=sys.stderr)
                         
                         # Combine heuristics + LLM JSON score
                         heuristic = self._heuristic_readme_score(content.lower())
@@ -85,17 +86,17 @@ class PerformanceClaimsCalculator(MetricCalculator):
                             else:
                                 return heuristic
                         except Exception as e:
-                            print(f"LLM scoring failed: {e}")
+                            print(f"LLM scoring failed: {e}", file=sys.stderr)
                             return heuristic
                     else:
-                        print(f"Failed to fetch README: status {resp.status_code}")
+                        print(f"Failed to fetch README: status {resp.status_code}", file=sys.stderr)
                         return 0.3
                         
                 except Exception as e:
-                    print("Exception: ", e)
+                    print("Exception: ", e, file=sys.stderr)
                     return 0.3
         else:
-            print("Not an HF model")
+            print("Not an HF model", file=sys.stderr)
             return 0.3
 
     def _heuristic_readme_score(self, content: str) -> float:

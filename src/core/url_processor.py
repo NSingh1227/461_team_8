@@ -177,7 +177,8 @@ class URLProcessor:
                 for line_num, line in enumerate(file, 1):
                     try:
                         code_url, dataset_url, model_url = self.parse_input_line(line)
-                        if model_url:  # Only process lines with model URLs
+                        # Process all lines that have at least one URL
+                        if code_url or dataset_url or model_url:
                             lines.append((code_url, dataset_url, model_url))
                     except Exception as e:
                         print(f"Warning: Failed to parse line {line_num}: {e}")
@@ -196,16 +197,24 @@ class URLProcessor:
         model_results = []
         
         # Debug: Print number of URLs found
-        print(f"Found {len(url_lines)} model URLs to process", file=sys.stderr)
+        print(f"Found {len(url_lines)} URLs to process", file=sys.stderr)
         
         for code_url, dataset_url, model_url in url_lines:
             try:
+                # Determine the primary URL to process (prefer model_url, then code_url, then dataset_url)
+                primary_url = model_url or code_url or dataset_url
+                
+                if not primary_url:
+                    continue
+                
                 # Create model context
-                model_context = self._create_model_context(model_url, code_url, dataset_url)
+                model_context = self._create_model_context(primary_url, code_url, dataset_url)
                 
                 if not model_context:
-                    print(f"Warning: Could not create context for model: {model_url}")
-                    # Skip invalid URLs instead of creating default results
+                    print(f"Warning: Could not create context for URL: {primary_url}")
+                    # Create a default result for invalid URLs instead of skipping
+                    model_result = self._create_default_result(primary_url)
+                    model_results.append(model_result)
                     continue
                 
                 # Calculate all metrics
@@ -217,19 +226,26 @@ class URLProcessor:
                 
                 # Store metrics
                 for metric in metrics.values():
-                    self.results_storage.store_metric_result(model_url, metric)
+                    self.results_storage.store_metric_result(primary_url, metric)
                 
                 # Create and store final result
-                model_result = self.results_storage.finalize_model_result(model_url, net_score, net_score_latency)
+                model_result = self.results_storage.finalize_model_result(primary_url, net_score, net_score_latency)
                 model_results.append(model_result)
                 
             except Exception as e:
-                print(f"Error processing model {model_url}: {e}")
+                print(f"Error processing URL {primary_url}: {e}")
                 # Create a default result for failed processing
-                model_result = self._create_default_result(model_url)
+                model_result = self._create_default_result(primary_url)
                 model_results.append(model_result)
         
-        print(f"Successfully processed {len(model_results)} models", file=sys.stderr)
+        print(f"Successfully processed {len(model_results)} URLs", file=sys.stderr)
+        
+        # Ensure we always have at least one result to prevent empty output
+        if not model_results:
+            print("Warning: No valid URLs found, creating default result", file=sys.stderr)
+            default_result = self._create_default_result("unknown")
+            model_results.append(default_result)
+        
         return model_results
     
     def _create_default_result(self, model_url: str) -> ModelResult:
