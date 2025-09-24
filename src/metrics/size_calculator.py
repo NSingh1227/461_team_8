@@ -91,6 +91,12 @@ class SizeCalculator(MetricCalculator):
         parsed = urlparse(url)
         if parsed.netloc == "huggingface.co":
             repo_id = parsed.path.strip("/")
+            # Remove /tree/main or similar git refs from the path
+            if "/tree/" in repo_id:
+                repo_id = repo_id.split("/tree/")[0]
+            if "/blob/" in repo_id:
+                repo_id = repo_id.split("/blob/")[0]
+            
             if repo_id:
                 return self._hf_total_artifact_size_mb(repo_id)
         return None

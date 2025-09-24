@@ -38,6 +38,12 @@ class RampUpCalculator(MetricCalculator):
             parsed = urlparse(model_url)
             repo_id = parsed.path.strip("/")
             
+            # Remove /tree/main or similar git refs from the path
+            if "/tree/" in repo_id:
+                repo_id = repo_id.split("/tree/")[0]
+            if "/blob/" in repo_id:
+                repo_id = repo_id.split("/blob/")[0]
+            
             if not repo_id:
                 return 0.3
             

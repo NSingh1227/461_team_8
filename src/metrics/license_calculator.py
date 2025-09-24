@@ -114,6 +114,11 @@ class LicenseCalculator(MetricCalculator):
     def _extract_repo_id(self, model_url: str) -> str:
         if "huggingface.co/" in model_url:
             repo_id = "/".join(model_url.split("huggingface.co/")[1].split("/"))
+            # Remove /tree/main or similar git refs from the path
+            if "/tree/" in repo_id:
+                repo_id = repo_id.split("/tree/")[0]
+            if "/blob/" in repo_id:
+                repo_id = repo_id.split("/blob/")[0]
             return repo_id
         else:
             raise ValueError(f"Invalid Hugging Face URL: {model_url}")

@@ -45,6 +45,12 @@ class PerformanceClaimsCalculator(MetricCalculator):
         if parsed.netloc == "huggingface.co":
             # Path like /org/name or /datasets/name
             model_id = parsed.path.strip("/")
+            # Remove /tree/main or similar git refs from the path
+            if "/tree/" in model_id:
+                model_id = model_id.split("/tree/")[0]
+            if "/blob/" in model_id:
+                model_id = model_id.split("/blob/")[0]
+            
             if model_id and not model_id.startswith("datasets/"):
                 print("model_id: ", model_id)
                 readme_url = f"https://huggingface.co/{model_id}/raw/main/README.md"
