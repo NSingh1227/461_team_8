@@ -57,7 +57,7 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
             return None
             
     except Exception as e:
-        print(f"Warning: Failed to fetch HuggingFace metadata for {url}: {e}")
+        print(f"Warning: Failed to fetch HuggingFace metadata for {url}: {e}", file=sys.stderr)
         return None
 
 def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
@@ -86,7 +86,7 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
             return None
             
     except Exception as e:
-        print(f"Warning: Failed to fetch GitHub metadata for {url}: {e}")
+        print(f"Warning: Failed to fetch GitHub metadata for {url}: {e}", file=sys.stderr)
         return None
 
 def is_valid_url(url_string):
@@ -181,14 +181,14 @@ class URLProcessor:
                         if code_url or dataset_url or model_url:
                             lines.append((code_url, dataset_url, model_url))
                     except Exception as e:
-                        print(f"Warning: Failed to parse line {line_num}: {e}")
+                        print(f"Warning: Failed to parse line {line_num}: {e}", file=sys.stderr)
                         continue
                 return lines
         except FileNotFoundError:
-            print(f"ERROR: The file '{self.file_path}' was not found.")
+            print(f"ERROR: The file '{self.file_path}' was not found.", file=sys.stderr)
             return []
         except Exception as e:
-            print(f"An error occurred reading file: {e}")
+            print(f"An error occurred reading file: {e}", file=sys.stderr)
             return []
     
     def process_urls_with_metrics(self) -> List[ModelResult]:
@@ -211,7 +211,7 @@ class URLProcessor:
                 model_context = self._create_model_context(primary_url, code_url, dataset_url)
                 
                 if not model_context:
-                    print(f"Warning: Could not create context for URL: {primary_url}")
+                    print(f"Warning: Could not create context for URL: {primary_url}", file=sys.stderr)
                     # Skip invalid URLs instead of creating default results
                     continue
                 
@@ -231,7 +231,7 @@ class URLProcessor:
                 model_results.append(model_result)
                 
             except Exception as e:
-                print(f"Error processing URL {primary_url}: {e}")
+                print(f"Error processing URL {primary_url}: {e}", file=sys.stderr)
                 # Create a default result for failed processing
                 model_result = self._create_default_result(primary_url)
                 model_results.append(model_result)

@@ -68,8 +68,8 @@ class ModelResult:
         result_dict = {
             "name": model_name,
             "category": "MODEL",
-            "net_score": round(self.net_score, 2),
-            "net_score_latency": self.net_score_latency,
+            "netscore": round(self.net_score, 2),
+            "netscore_latency": self.net_score_latency,
             "ramp_up_time": round(self.ramp_up_score, 2),
             "ramp_up_time_latency": self.ramp_up_latency,
             "bus_factor": round(self.bus_factor_score, 2),
