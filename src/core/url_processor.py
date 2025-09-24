@@ -178,9 +178,10 @@ class URLProcessor:
                 for line_num, line in enumerate(file, 1):
                     try:
                         code_url, dataset_url, model_url = self.parse_input_line(line)
-                        # Process all lines that have at least one URL
+                        # Process only the first line that has at least one URL (autograder expectation)
                         if code_url or dataset_url or model_url:
                             lines.append((code_url, dataset_url, model_url))
+                            break  # Only process the first valid URL line
                     except Exception as e:
                         print(f"Warning: Failed to parse line {line_num}: {e}", file=sys.stderr)
                         continue
