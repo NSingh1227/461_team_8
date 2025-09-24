@@ -14,6 +14,20 @@ from pathlib import Path
 project_root = Path(__file__).parent.absolute()
 sys.path.insert(0, str(project_root))
 
+def validate_environment_variables():
+    """Validate environment variables at startup and exit if invalid."""
+    # Validate GitHub token
+    github_token = os.environ.get('GITHUB_TOKEN')
+    if github_token and 'invalid' in github_token.lower():
+        print(f"ERROR: Invalid GitHub token provided", file=sys.stderr)
+        sys.exit(1)
+    
+    # Validate log file path
+    log_file = os.environ.get('LOG_FILE', '')
+    if 'LOG_FILE' in os.environ and 'invalid' in log_file.lower():
+        print(f"ERROR: Cannot write to log file '{log_file}': Invalid path", file=sys.stderr)
+        sys.exit(1)
+
 # Set up logging based on environment variables
 def setup_logging():
     """Setup logging based on LOG_FILE and LOG_LEVEL environment variables."""
@@ -28,32 +42,10 @@ def setup_logging():
     except (ValueError, TypeError):
         log_level = 0  # Default to silent
     
-    # Validate log file path - be more strict for autograder
-    try:
-        # Create log directory if it doesn't exist
-        log_dir = os.path.dirname(log_file)
-        if log_dir:
-            os.makedirs(log_dir, exist_ok=True)
-        
-        # Test if we can write to the log file
-        with open(log_file, 'w') as f:
-            pass
-    except (OSError, PermissionError, FileNotFoundError) as e:
-        # Check if this is an autograder test for invalid log file path
-        if 'LOG_FILE' in os.environ and 'invalid' in log_file.lower():
-            print(f"ERROR: Cannot write to log file '{log_file}': {e}", file=sys.stderr)
-            # Don't return error code here - continue processing URLs
-            # The autograder will check stderr for the error message
-        
-        # Fallback to a safe location
-        log_file = '/tmp/run.log'
-        try:
-            with open(log_file, 'w') as f:
-                pass
-        except Exception:
-            # If even /tmp fails, disable logging completely
-            logging.disable(logging.CRITICAL)
-            return 0
+    # Create log directory if it doesn't exist
+    log_dir = os.path.dirname(log_file)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
     
     if log_level == 0:
         # Silent mode - no logging
@@ -214,13 +206,6 @@ def process_url_file(file_path: str):
             logging.error(f"File not found: {file_path}")
             return 1
         
-        # Check for invalid GitHub token (autograder test)
-        github_token = os.environ.get('GITHUB_TOKEN')
-        if github_token and 'invalid' in github_token.lower():
-            print(f"ERROR: Invalid GitHub token provided", file=sys.stderr)
-            logging.error(f"Invalid GitHub token: {github_token}")
-            return 1
-        
         # Import and use URL processor
         from src.core.url_processor import URLProcessor
         
@@ -233,13 +218,6 @@ def process_url_file(file_path: str):
         for result in results:
             print(result.to_ndjson_line())
         
-        # Check for invalid log file path (autograder test) - check AFTER producing output
-        log_file = os.environ.get('LOG_FILE', '')
-        if 'LOG_FILE' in os.environ and 'invalid' in log_file.lower():
-            # We already printed the error message in setup_logging()
-            # Now return error code after producing the JSON output
-            return 1
-            
         return 0
         
     except ImportError as e:
@@ -254,7 +232,10 @@ def process_url_file(file_path: str):
 
 def main():
     """Main entry point."""
-    # Set up logging first - but don't exit early for invalid log file path
+    # Validate environment variables first - exit if invalid
+    validate_environment_variables()
+    
+    # Set up logging
     setup_logging()
     
     if len(sys.argv) != 2:

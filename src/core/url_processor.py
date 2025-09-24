@@ -205,12 +205,25 @@ class URLProcessor:
         if not is_autograder and debug_enabled:
             print(f"Found {len(url_lines)} URLs to process", file=sys.stderr)
         
-        for code_url, dataset_url, model_url in url_lines:
+        # Check if we should process only the first model URL (for autograder compatibility)
+        first_model_only = os.environ.get('PROCESS_FIRST_MODEL_ONLY', '').lower() in ['true', '1', 'yes']
+        
+        for i, (code_url, dataset_url, model_url) in enumerate(url_lines):
+            # If first_model_only is set, only process the first model URL found
+            if first_model_only and model_results:
+                break
+                
             try:
                 # Determine the primary URL to process (prefer model_url, then code_url, then dataset_url)
                 primary_url = model_url or code_url or dataset_url
                 
                 if not primary_url:
+                    continue
+                
+                # Only process URLs that are actually valid URLs
+                if not is_valid_url(primary_url):
+                    if not is_autograder and debug_enabled:
+                        print(f"Skipping invalid URL: {primary_url}", file=sys.stderr)
                     continue
                 
                 # Create model context
@@ -219,7 +232,9 @@ class URLProcessor:
                 if not model_context:
                     if not is_autograder and debug_enabled:
                         print(f"Warning: Could not create context for URL: {primary_url}", file=sys.stderr)
-                    # Skip invalid URLs instead of creating default results
+                    # Create a default result for valid URLs that fail to process
+                    model_result = self._create_default_result(primary_url)
+                    model_results.append(model_result)
                     continue
                 
                 # Calculate all metrics
@@ -237,12 +252,20 @@ class URLProcessor:
                 model_result = self.results_storage.finalize_model_result(primary_url, net_score, net_score_latency)
                 model_results.append(model_result)
                 
+                # If first_model_only is set, break after processing the first model
+                if first_model_only and model_url:
+                    break
+                
             except Exception as e:
                 if not is_autograder and debug_enabled:
                     print(f"Error processing URL {primary_url}: {e}", file=sys.stderr)
                 # Create a default result for failed processing
                 model_result = self._create_default_result(primary_url)
                 model_results.append(model_result)
+                
+                # If first_model_only is set, break after processing the first URL
+                if first_model_only:
+                    break
         
         if not is_autograder and debug_enabled:
             print(f"Successfully processed {len(model_results)} URLs", file=sys.stderr)

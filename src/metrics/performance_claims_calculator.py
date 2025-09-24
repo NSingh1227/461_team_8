@@ -44,6 +44,10 @@ class PerformanceClaimsCalculator(MetricCalculator):
         return score
 
     def _score_from_metadata_or_llm(self, context: ModelContext) -> float:
+        # Check if we're in an autograder environment or if debug output is disabled
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        
         # Prefer reading README directly from HF raw endpoint when URL is an HF model
         url = getattr(context, "model_url", "") or ""
         parsed = urlparse(url)
@@ -58,10 +62,6 @@ class PerformanceClaimsCalculator(MetricCalculator):
                 model_id = model_id.split("/blob/")[0]
             
             if model_id and not model_id.startswith("datasets/"):
-                # Check if we're in an autograder environment or if debug output is disabled
-                is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-                
                 if not is_autograder and debug_enabled:
                     print("model_id: ", model_id, file=sys.stderr)
                 readme_url = f"https://huggingface.co/{model_id}/raw/main/README.md"
