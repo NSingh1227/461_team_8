@@ -3,6 +3,12 @@ import time
 from typing import Optional, Dict, Any
 from .rate_limiter import get_rate_limiter, APIService
 
+# Create a session with connection pooling for better performance
+_session = requests.Session()
+_session.headers.update({
+    'User-Agent': 'ECE461-Team8-ModelAnalyzer/1.0'
+})
+
 
 def make_rate_limited_request(
     method: str,
@@ -31,8 +37,8 @@ def make_rate_limited_request(
             # Wait if needed to respect rate limits
             rate_limiter.wait_if_needed(service)
             
-            # Make the request
-            response = requests.request(method, url, **kwargs)
+            # Make the request using the session for connection pooling
+            response = _session.request(method, url, **kwargs)
             
             # Handle different response codes
             if response.status_code == 200:

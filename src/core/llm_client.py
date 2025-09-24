@@ -88,7 +88,17 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
             pass
     
     # Final fallback: extract numeric score with regex
-    score_match = re.search(r'\b(0(\.\d+)?|1(\.0+)?)\b', content)
+    # Look for "Score:" followed by a number
+    score_match = re.search(r'Score:\s*(\d+(?:\.\d+)?)', content, re.IGNORECASE)
+    if score_match:
+        try:
+            score = float(score_match.group(1))
+            return score, content.strip()
+        except ValueError:
+            pass
+    
+    # Alternative: look for any decimal number
+    score_match = re.search(r'\b(\d+(?:\.\d+)?)\b', content)
     if score_match:
         try:
             score = float(score_match.group(1))

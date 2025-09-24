@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 from huggingface_hub import HfApi, hf_hub_download
 from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
 from .base import MetricCalculator, ModelContext
+from ..core.config import Config
 from ..core.http_client import get_with_rate_limit
 from ..core.rate_limiter import APIService
 
@@ -99,7 +100,13 @@ class LicenseCalculator(MetricCalculator):
                     repo = path_parts[1]
                     api_url = f"https://api.github.com/repos/{owner}/{repo}"
                     
-                    response = get_with_rate_limit(api_url, APIService.GITHUB, timeout=5)
+                    # Add authentication headers
+                    headers = {}
+                    github_token = Config.get_github_token()
+                    if github_token:
+                        headers['Authorization'] = f'token {github_token}'
+                    
+                    response = get_with_rate_limit(api_url, APIService.GITHUB, headers=headers, timeout=5)
                     if response and response.status_code == 200:
                         data = response.json()
                         if 'license' in data and data['license']:

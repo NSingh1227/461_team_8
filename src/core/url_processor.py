@@ -6,6 +6,7 @@ from enum import Enum
 from urllib.parse import urlparse
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from ..metrics.base import ModelContext
 from ..storage.results_storage import ResultsStorage, MetricResult, ModelResult
 from .exceptions import *
@@ -83,6 +84,9 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
 
 def is_valid_url(url_string):
     """Check if URL has valid format and scheme."""
+    if not url_string or not isinstance(url_string, str):
+        return False
+    
     if ' ' in url_string:
         return False
     
@@ -191,9 +195,7 @@ class URLProcessor:
                 
                 if not model_context:
                     print(f"Warning: Could not create context for model: {model_url}")
-                    # Create a default result for failed context creation
-                    model_result = self._create_default_result(model_url)
-                    model_results.append(model_result)
+                    # Skip invalid URLs instead of creating default results
                     continue
                 
                 # Calculate all metrics
@@ -321,92 +323,130 @@ class URLProcessor:
             return None
     
     def _calculate_all_metrics(self, model_context: ModelContext) -> Dict[str, MetricResult]:
-        """Calculate all required metrics."""
+        """Calculate all required metrics in parallel for better performance."""
         timestamp = datetime.datetime.now().isoformat()
         metrics = {}
         
-        try:
-            # License calculator
-            license_calc = LicenseCalculator()
-            license_score = license_calc.calculate_score(model_context)
-            license_latency = license_calc.get_calculation_time() or 0
-            metrics["License"] = MetricResult("License", license_score, license_latency, timestamp)
-        except Exception as e:
-            print(f"License calculation failed: {e}")
-            metrics["License"] = MetricResult("License", 0.5, 100, timestamp)
+        # Define metric calculation functions
+        def calculate_license():
+            try:
+                calc = LicenseCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                return "License", MetricResult("License", score, latency, timestamp)
+            except Exception as e:
+                print(f"License calculation failed: {e}")
+                return "License", MetricResult("License", 0.5, 100, timestamp)
         
-        try:
-            # Dataset and Code calculator
-            dac_calc = DatasetCodeCalculator()
-            dac_score = dac_calc.calculate_score(model_context)
-            dac_latency = dac_calc.get_calculation_time() or 0
-            metrics["DatasetCode"] = MetricResult("DatasetCode", dac_score, dac_latency, timestamp)
-        except Exception as e:
-            print(f"DatasetCode calculation failed: {e}")
-            metrics["DatasetCode"] = MetricResult("DatasetCode", 0.5, 100, timestamp)
+        def calculate_dataset_code():
+            try:
+                calc = DatasetCodeCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                return "DatasetCode", MetricResult("DatasetCode", score, latency, timestamp)
+            except Exception as e:
+                print(f"DatasetCode calculation failed: {e}")
+                return "DatasetCode", MetricResult("DatasetCode", 0.5, 100, timestamp)
         
-        try:
-            # Dataset Quality calculator
-            dq_calc = DatasetQualityCalculator()
-            dq_score = dq_calc.calculate_score(model_context)
-            dq_latency = dq_calc.get_calculation_time() or 0
-            metrics["DatasetQuality"] = MetricResult("DatasetQuality", dq_score, dq_latency, timestamp)
-        except Exception as e:
-            print(f"DatasetQuality calculation failed: {e}")
-            metrics["DatasetQuality"] = MetricResult("DatasetQuality", 0.5, 100, timestamp)
+        def calculate_dataset_quality():
+            try:
+                calc = DatasetQualityCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                return "DatasetQuality", MetricResult("DatasetQuality", score, latency, timestamp)
+            except Exception as e:
+                print(f"DatasetQuality calculation failed: {e}")
+                return "DatasetQuality", MetricResult("DatasetQuality", 0.5, 100, timestamp)
         
-        try:
-            # Bus Factor calculator
-            busfactor_calc = BusFactorCalculator()
-            busfactor_score = busfactor_calc.calculate_score(model_context)
-            busfactor_latency = busfactor_calc.get_calculation_time() or 0
-            metrics["BusFactor"] = MetricResult("BusFactor", busfactor_score, busfactor_latency, timestamp)
-        except Exception as e:
-            print(f"BusFactor calculation failed: {e}")
-            metrics["BusFactor"] = MetricResult("BusFactor", 0.5, 100, timestamp)
+        def calculate_bus_factor():
+            try:
+                calc = BusFactorCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                return "BusFactor", MetricResult("BusFactor", score, latency, timestamp)
+            except Exception as e:
+                print(f"BusFactor calculation failed: {e}")
+                return "BusFactor", MetricResult("BusFactor", 0.5, 100, timestamp)
         
-        try:
-            # Size calculator
-            size_calc = SizeCalculator()
-            size_score = size_calc.calculate_score(model_context)
-            size_latency = size_calc.get_calculation_time() or 0
-            # Get platform compatibility scores
-            platform_scores = size_calc.get_platform_compatibility()
-            metrics["Size"] = MetricResult("Size", platform_scores, size_latency, timestamp)
-        except Exception as e:
-            print(f"Size calculation failed: {e}")
-            default_sizes = {"raspberry_pi": 0.5, "jetson_nano": 0.6, "desktop_pc": 0.8, "aws_server": 0.9}
-            metrics["Size"] = MetricResult("Size", default_sizes, 100, timestamp)
+        def calculate_size():
+            try:
+                calc = SizeCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                platform_scores = calc.get_platform_compatibility()
+                return "Size", MetricResult("Size", platform_scores, latency, timestamp)
+            except Exception as e:
+                print(f"Size calculation failed: {e}")
+                default_sizes = {"raspberry_pi": 0.5, "jetson_nano": 0.6, "desktop_pc": 0.8, "aws_server": 0.9}
+                return "Size", MetricResult("Size", default_sizes, 100, timestamp)
         
-        try:
-            # Ramp Up calculator
-            ramp_up_calc = RampUpCalculator()
-            ramp_up_score = ramp_up_calc.calculate_score(model_context)
-            ramp_up_latency = ramp_up_calc.get_calculation_time() or 0
-            metrics["RampUp"] = MetricResult("RampUp", ramp_up_score, ramp_up_latency, timestamp)
-        except Exception as e:
-            print(f"RampUp calculation failed: {e}")
-            metrics["RampUp"] = MetricResult("RampUp", 0.7, 200, timestamp)
+        def calculate_ramp_up():
+            try:
+                calc = RampUpCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                return "RampUp", MetricResult("RampUp", score, latency, timestamp)
+            except Exception as e:
+                print(f"RampUp calculation failed: {e}")
+                return "RampUp", MetricResult("RampUp", 0.7, 200, timestamp)
         
-        try:
-            # Code Quality calculator
-            code_quality_calc = CodeQualityCalculator()
-            code_quality_score = code_quality_calc.calculate_score(model_context)
-            code_quality_latency = code_quality_calc.get_calculation_time() or 0
-            metrics["CodeQuality"] = MetricResult("CodeQuality", code_quality_score, code_quality_latency, timestamp)
-        except Exception as e:
-            print(f"CodeQuality calculation failed: {e}")
-            metrics["CodeQuality"] = MetricResult("CodeQuality", 0.9, 180, timestamp)
+        def calculate_code_quality():
+            try:
+                calc = CodeQualityCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                return "CodeQuality", MetricResult("CodeQuality", score, latency, timestamp)
+            except Exception as e:
+                print(f"CodeQuality calculation failed: {e}")
+                return "CodeQuality", MetricResult("CodeQuality", 0.9, 180, timestamp)
         
-        try:
-            # Performance Claims calculator
-            performance_calc = PerformanceClaimsCalculator()
-            performance_score = performance_calc.calculate_score(model_context)
-            performance_latency = performance_calc.get_calculation_time() or 0
-            metrics["PerformanceClaims"] = MetricResult("PerformanceClaims", performance_score, performance_latency, timestamp)
-        except Exception as e:
-            print(f"PerformanceClaims calculation failed: {e}")
-            metrics["PerformanceClaims"] = MetricResult("PerformanceClaims", 0.8, 220, timestamp)
+        def calculate_performance_claims():
+            try:
+                calc = PerformanceClaimsCalculator()
+                score = calc.calculate_score(model_context)
+                latency = calc.get_calculation_time() or 0
+                return "PerformanceClaims", MetricResult("PerformanceClaims", score, latency, timestamp)
+            except Exception as e:
+                print(f"PerformanceClaims calculation failed: {e}")
+                return "PerformanceClaims", MetricResult("PerformanceClaims", 0.8, 220, timestamp)
+        
+        # Execute all metric calculations in parallel
+        metric_functions = [
+            calculate_license,
+            calculate_dataset_code,
+            calculate_dataset_quality,
+            calculate_bus_factor,
+            calculate_size,
+            calculate_ramp_up,
+            calculate_code_quality,
+            calculate_performance_claims
+        ]
+        
+        # Use ThreadPoolExecutor for parallel execution
+        # Optimize worker count based on CPU cores and API limits
+        import os
+        max_workers = min(4, os.cpu_count() or 2)  # Limit to avoid overwhelming APIs
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_metric = {executor.submit(func): func.__name__ for func in metric_functions}
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_metric):
+                try:
+                    metric_name, metric_result = future.result()
+                    metrics[metric_name] = metric_result
+                except Exception as e:
+                    metric_name = future_to_metric[future]
+                    print(f"Metric calculation {metric_name} failed: {e}")
+                    # Provide default result for failed calculations
+                    if metric_name == "calculate_size":
+                        default_sizes = {"raspberry_pi": 0.5, "jetson_nano": 0.6, "desktop_pc": 0.8, "aws_server": 0.9}
+                        metrics["Size"] = MetricResult("Size", default_sizes, 100, timestamp)
+                    else:
+                        metrics[metric_name.replace("calculate_", "").title()] = MetricResult(
+                            metric_name.replace("calculate_", "").title(), 0.5, 100, timestamp
+                        )
         
         return metrics
     

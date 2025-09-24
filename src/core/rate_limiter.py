@@ -84,6 +84,10 @@ class RateLimiter:
             current_count = len(self._request_windows[service])
             return current_count < config.requests_per_window
     
+    def has_quota(self, service: APIService) -> bool:
+        """Alias for check_quota for backward compatibility."""
+        return self.check_quota(service)
+    
     def wait_if_needed(self, service: APIService) -> None:
         """Wait if necessary to respect rate limits for the given service."""
         with self._locks[service]:
@@ -99,6 +103,7 @@ class RateLimiter:
                 if wait_time > 0:
                     print(f"[RateLimiter] {service.value} quota exceeded. Waiting {wait_time:.1f}s")
                     time.sleep(wait_time)
+                    # Clean up again after waiting
                     self._cleanup_old_requests(service)
             
             # Record this request

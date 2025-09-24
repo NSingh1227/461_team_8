@@ -63,9 +63,10 @@ class LLMAnalyzer:
         if not content:
             return 0.0
         try:
-            match = re.search(r"\b(0(\.\d+)?|1(\.0+)?)\b", content.strip())
+            # Match any decimal number (including negative and > 1.0)
+            match = re.search(r"-?\d+(?:\.\d+)?", content.strip())
             if match:
-                return round(float(match.group(1)), 2)
+                return round(float(match.group(0)), 2)
         except Exception:
             pass
         return 0.0
