@@ -154,11 +154,19 @@ def run_tests() -> int:
         
         test_file: Path = project_root / 'tests' / 'test_suite.py'
         if test_file.exists():
+            # Run tests with coverage
             result: subprocess.CompletedProcess[str] = subprocess.run(
-                [sys.executable, str(test_file)], 
+                [sys.executable, '-m', 'coverage', 'run', str(test_file)], 
                 capture_output=True, text=True, cwd=project_root
             )
             
+            # Get coverage report
+            coverage_result: subprocess.CompletedProcess[str] = subprocess.run(
+                [sys.executable, '-m', 'coverage', 'report', '--include=src/*'], 
+                capture_output=True, text=True, cwd=project_root
+            )
+            
+            # Parse test results
             output_lines: List[str] = result.stdout.split('\n')
             total_tests: Optional[int] = None
             passed_tests: Optional[int] = None
@@ -173,31 +181,35 @@ def run_tests() -> int:
                     if match:
                         passed_tests = int(match.group(1))
             
+            # Parse coverage results
+            coverage_lines: List[str] = coverage_result.stdout.split('\n')
+            coverage_percent: int = 0
+            
+            for line in coverage_lines:
+                if "TOTAL" in line:
+                    match: Optional[re.Match[str]] = re.search(r'(\d+)%', line)
+                    if match:
+                        coverage_percent = int(match.group(1))
+                        break
+            
             if total_tests is not None and passed_tests is not None:
-                pass_rate: float = passed_tests / total_tests
-                if pass_rate >= 0.95:
-                    coverage: int = 85
-                elif pass_rate >= 0.8:
-                    coverage = 80
-                else:
-                    coverage = 75
-                
-                print(f"{passed_tests}/{total_tests} test cases passed. {coverage}% line coverage achieved.")
+                print(f"{passed_tests}/{total_tests} test cases passed. {coverage_percent}% line coverage achieved.")
                 
                 if result.returncode == 0:
                     return 0
                 else:
                     return 1
             else:
-                print("99/99 test cases passed. 85% line coverage achieved.")
-                return 0
+                print("ERROR: Could not parse test results")
+                logging.error("Could not parse test results")
+                return 1
         else:
-            print("99/99 test cases passed. 85% line coverage achieved.")
-            logging.info("Test suite completed (mock)")
-            return 0
+            print("ERROR: Test file not found")
+            logging.error("Test file not found")
+            return 1
             
     except Exception as e:
-        print("10/20 test cases passed. 75% line coverage achieved.")
+        print(f"ERROR: Test execution failed: {e}")
         logging.error(f"Test error: {e}")
         return 1
 
