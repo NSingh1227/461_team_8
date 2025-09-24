@@ -198,11 +198,7 @@ class TestSuite:
                 self.print_test_result(description, expected, result, result == expected)
             except Exception:
                 self.print_test_result(description, expected, False, False)
-
-
-
-
-    
+  
     def test_license_calculator(self):
         self.print_header("LICENSE CALCULATOR TESTS")
         
@@ -301,11 +297,7 @@ class TestSuite:
             actual_score = calculator._calculate_compatibility_score(license_text)
             passed = actual_score == expected_score
             self.print_test_result(test_name, expected_score, actual_score, passed)
-
-
-
-
-    
+   
     def test_url_parsing_edge_cases(self):
         self.print_header("ADVANCED URL PARSING TESTS")
         
@@ -332,8 +324,7 @@ class TestSuite:
 
     def test_concurrent_url_processing(self):
         self.print_header("CONCURRENT URL PROCESSING TESTS")
-        
-
+    
         test_urls = [
             "https://huggingface.co/microsoft/DialoGPT-small",
             "https://huggingface.co/microsoft/DialoGPT-medium", 
@@ -360,7 +351,6 @@ class TestSuite:
             processed_count = len(results)
             expected_count = 7
             self.print_test_result("Concurrent processing count", expected_count, processed_count, processed_count == expected_count)
-            
 
             valid_results = len([r for r in results if r.net_score > 0])
             self.print_test_result("Valid results count", expected_count, valid_results, valid_results >= 0)
@@ -373,17 +363,11 @@ class TestSuite:
         finally:
             if os.path.exists(test_file_path):
                 os.remove(test_file_path)
-
-
-
-
-    
+ 
     def test_metric_calculation_performance(self):
         self.print_header("METRIC CALCULATION PERFORMANCE TESTS")
         
         calculator = LicenseCalculator()
-        
-
         test_urls = [
             "https://huggingface.co/microsoft/DialoGPT-medium",
             "https://github.com/microsoft/DialoGPT"
@@ -413,8 +397,6 @@ class TestSuite:
                 calculation_time = (end_time - start_time).total_seconds() * 1000
                 total_time += calculation_time
                 successful_calculations += 1
-                
-
                 score_valid = 0.0 <= score <= 1.0
                 if not score_valid:
                     self.print_test_result(f"Performance test {i+1} score validity", True, False, False)
@@ -431,8 +413,6 @@ class TestSuite:
 
     def test_error_recovery_scenarios(self):
         self.print_header("ERROR RECOVERY SCENARIO TESTS")
-        
-
         test_cases = [
             {
                 "name": "Network timeout simulation",
@@ -459,36 +439,25 @@ class TestSuite:
                 "url": "https://httpstat.us/204",
                 "expected_behavior": "graceful_failure"
             }
-        ]
-        
-        calculator = LicenseCalculator()
-        
+        ]        
+        calculator = LicenseCalculator()        
         for test_case in test_cases:
             try:
                 model_context = ModelContext(
                     model_url=test_case["url"],
                     model_info={"type": "test", "source": "test"},
                     huggingface_metadata=None
-                )
-                
+                )               
                 score = calculator.calculate_score(model_context)
-                
-
                 score_valid = isinstance(score, (int, float)) and 0.0 <= score <= 1.0
                 self.print_test_result(test_case["name"], True, score_valid, score_valid)
                 
             except Exception as e:
 
                 self.print_test_result(test_case["name"], "graceful_failure", "exception_raised", True)
-
-
-
-
-    
+                 
     def test_data_consistency_checks(self):
         self.print_header("DATA CONSISTENCY TESTS")
-        
-
         test_url = "https://huggingface.co/microsoft/DialoGPT-medium"
         calculator = LicenseCalculator()
         
@@ -505,18 +474,14 @@ class TestSuite:
             except Exception:
                 scores.append(None)
         
-
         all_same = len(set(s for s in scores if s is not None)) <= 1
         self.print_test_result("Consistent scoring", True, all_same, all_same)
-        
-
         test_urls = [
             "https://github.com/microsoft/DialoGPT",
             "https://github.com/microsoft/DialoGPT/",
             "https://github.com/microsoft/DialoGPT.git",
             "https://github.com/microsoft/dialogpt"
-        ]
-        
+        ]     
         url_types = []
         for url in test_urls:
             try:
@@ -524,19 +489,14 @@ class TestSuite:
                 url_types.append(url_type)
             except Exception:
                 url_types.append(None)
-        
-
         all_github = all(t == URLType.GITHUB_REPO for t in url_types if t is not None)
         self.print_test_result("URL normalization consistency", True, all_github, all_github)
 
     def test_boundary_value_analysis(self):
         self.print_header("BOUNDARY VALUE ANALYSIS TESTS")
-        
         from src.metrics.base import MetricCalculator, ModelContext
-        
         class BoundaryTestCalculator(MetricCalculator):
             def calculate_score(self, context: ModelContext) -> float:
-
                 if "boundary-zero" in context.model_url:
                     return 0.0
                 elif "boundary-one" in context.model_url:
@@ -545,16 +505,13 @@ class TestSuite:
                     return 0.5
                 else:
                     return 0.75
-        
         calculator = BoundaryTestCalculator("BoundaryTest")
-        
         test_cases = [
             ("Minimum boundary (0.0)", "https://test.com/boundary-zero", 0.0),
             ("Maximum boundary (1.0)", "https://test.com/boundary-one", 1.0),
             ("Middle boundary (0.5)", "https://test.com/boundary-half", 0.5),
             ("Normal value", "https://test.com/normal", 0.75)
         ]
-        
         for test_name, url, expected in test_cases:
             try:
                 context = ModelContext(model_url=url, model_info={"type": "test"})
@@ -563,15 +520,9 @@ class TestSuite:
                 self.print_test_result(test_name, expected, score, passed)
             except Exception as e:
                 self.print_test_result(test_name, expected, f"Error: {e}", False)
-
-
-
-
-    
+ 
     def test_complete_workflow_integration(self):
         self.print_header("COMPLETE WORKFLOW INTEGRATION TESTS")
-        
-
         test_scenarios = [
             {
                 "name": "Mixed URL types workflow",
@@ -596,34 +547,26 @@ class TestSuite:
                 "expected_processed": 0,
                 "expected_with_metrics": 0
             }
-        ]
-        
+        ] 
         for scenario in test_scenarios:
             test_file_path = f"temp_workflow_{scenario['name'].replace(' ', '_')}.txt"
-            
-
             with open(test_file_path, 'w') as f:
                 for url in scenario['urls']:
                     f.write(url + '\n')
-            
             try:
-
                 processor = URLProcessor(test_file_path)
                 metric_results = processor.process_urls_with_metrics()
-                
-
                 metric_count_correct = len(metric_results) == scenario['expected_with_metrics']
                 
                 self.print_test_result(f"{scenario['name']} - Metric processing count",
                                      scenario['expected_with_metrics'], len(metric_results), metric_count_correct)
                 
-
                 if len(metric_results) > 0:
                     first_result = metric_results[0]
                     has_required_fields = all(hasattr(first_result, field) for field in 
                                             ['url', 'net_score', 'license_score', 'bus_factor_score'])
                     self.print_test_result(f"{scenario['name']} - Result structure validity", True, has_required_fields, has_required_fields)
-                
+
             except Exception as e:
                 if not self.coverage_mode:
                     print(f"❌ ERROR in workflow {scenario['name']}: {e}")
@@ -635,13 +578,11 @@ class TestSuite:
 
     def test_file_handling_edge_cases(self):
         self.print_header("FILE HANDLING EDGE CASES")
-        
-
         test_cases = [
             {
                 "name": "File with empty lines",
                 "content": "https://github.com/test/repo1\n\n\nhttps://github.com/test/repo2\n\n",
-                "expected_count": 1
+                "expected_count": 2
             },
             {
                 "name": "File with comments/invalid lines",
@@ -651,12 +592,12 @@ class TestSuite:
             {
                 "name": "File with whitespace",
                 "content": "  https://github.com/test/repo  \n\t\nhttps://huggingface.co/test/model\t\n",
-                "expected_count": 1
+                "expected_count": 2
             },
             {
                 "name": "File with very long URLs",
                 "content": f"https://github.com/{'a' * 500}/{'b' * 500}\nhttps://github.com/normal/repo",
-                "expected_count": 1
+                "expected_count": 2
             }
         ]
         
@@ -667,8 +608,6 @@ class TestSuite:
 
                 with open(test_file_path, 'w', encoding='utf-8') as f:
                     f.write(test_case['content'])
-                
-
                 processor = URLProcessor(test_file_path)
                 results = processor.process_urls_with_metrics()
                 
@@ -682,10 +621,6 @@ class TestSuite:
                 if os.path.exists(test_file_path):
                     os.remove(test_file_path)
 
-
-
-
-    
     def test_security_validation(self):
         self.print_header("SECURITY VALIDATION TESTS")
         
@@ -733,11 +668,7 @@ class TestSuite:
             except Exception as e:
 
                 self.print_test_result(test_name, expected.value, f"Error: {e}", False)
-
-
-
-
-    
+ 
     def test_large_batch_processing(self):
         self.print_header("LARGE BATCH PROCESSING TESTS")
         
@@ -796,7 +727,6 @@ class TestSuite:
             expected_count = 5
             count_correct = processed_count == expected_count
             
-
             performance_acceptable = processing_time < 10.0
             
             self.print_test_result("Large batch processing count", expected_count, processed_count, count_correct)
@@ -818,7 +748,6 @@ class TestSuite:
     def test_edge_case_metric_scenarios(self):
         self.print_header("EDGE CASE METRIC SCENARIOS")
         
-
         calculator = LicenseCalculator()
         
         edge_case_contexts = [
@@ -865,16 +794,6 @@ class TestSuite:
                     self.print_test_result(test_case["name"], "Graceful handling", "Exception raised", False)
                 else:
                     self.print_test_result(test_case["name"], "Exception", "Exception raised", True)
-
-
-
-
-    
-
-    
-
-
-
     
     def test_busfactor_calculator(self):
         self.print_header("BUS FACTOR CALCULATOR TESTS")
@@ -935,23 +854,7 @@ class TestSuite:
                     print(f"❌ ERROR | {test_case['name']}: {e}")
                 self.failed_tests += 1
                 self.total_tests += 1
-    
-
-
-
-    
-
-    
-
-
-
-    
-
-    
-
-
-
-    
+ 
     def test_rate_limiter(self):
         self.print_header("RATE LIMITER TESTS")
         
@@ -1022,7 +925,6 @@ class TestSuite:
                 self.failed_tests += 1
                 self.total_tests += 1
         
-
         self.print_section("Rate Limiter Quota Enforcement")
         
         try:
@@ -1051,11 +953,7 @@ class TestSuite:
                 print(f"❌ ERROR | Quota Enforcement Test: {e}")
             self.failed_tests += 1
             self.total_tests += 1
-    
-
-
-
-    
+     
     def test_full_metric_pipeline(self):
         self.print_header("FULL METRIC PIPELINE TESTS")
         
@@ -1106,11 +1004,7 @@ class TestSuite:
         finally:
             if os.path.exists(test_file_path):
                 os.remove(test_file_path)
-
-
-
-
-    
+ 
     def test_metric_calculator_validation(self):
         self.print_header("METRIC CALCULATOR VALIDATION TESTS")
         
@@ -1186,14 +1080,6 @@ class TestSuite:
         has_name_and_score = "TestCalculator" in repr_str and "score=" in repr_str
         self.print_test_result("Repr representation", True, has_name_and_score, has_name_and_score)
 
-
-
-
-    
-
-
-
-    
     def test_results_storage_edge_cases(self):
         self.print_section("RESULTS STORAGE EDGE CASES")
         
@@ -1287,10 +1173,6 @@ class TestSuite:
         cleared_metrics = storage.get_all_metrics_for_model(test_url)
         is_cleared = len(cleared_metrics) == 0
         self.print_test_result("Storage clear functionality", True, is_cleared, is_cleared)
-
-
-
-
     
     def print_summary(self):
         if self.coverage_mode:
@@ -1355,67 +1237,22 @@ class TestSuite:
 
             import os
             skip_network_tests = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-            
-
             self.test_url_validation()
             self.test_url_categorization() 
-
             self.test_edge_cases()
-
-            
-
             self.test_url_parsing_edge_cases()
-
-            
-
-
             self.test_license_compatibility_mapping()
-            
-
-
-            
-
             self.test_rate_limiter()
-            
-
-
-
-            
-
             self.test_data_consistency_checks()
             self.test_boundary_value_analysis()
-            
-
-
             self.test_file_handling_edge_cases()
-            
-
             self.test_security_validation()
             self.test_unicode_and_internationalization()
-            
-
-
             self.test_edge_case_metric_scenarios()
-            
-
-
-            
-
             self.test_metric_calculator_validation()
             self.test_metric_calculator_additional_features()
             self.test_results_storage_edge_cases()
             self.test_results_storage_functionality()
-            
-
-
-
-
-
-
-
-
-
-
             self.test_config_comprehensive()
             self.test_exceptions_comprehensive()
 
@@ -1433,10 +1270,6 @@ class TestSuite:
             sys.exit(1)
         else:
             sys.exit(0)
-    
-
-
-
     
     def test_size_calculator_comprehensive(self):
         self.print_header("SIZE CALCULATOR COMPREHENSIVE TESTS")
@@ -1694,16 +1527,14 @@ class TestSuite:
         self.print_header("LLM ANALYZER COMPREHENSIVE TESTS")
         
         analyzer = LLMAnalyzer()
-        
-
+    
         try:
             result = analyzer.analyze_dataset_quality({"description": "Test dataset description"})
             self.print_test_result("LLM Analyzer - Dataset Quality", 
                                  "Float score", str(type(result)), isinstance(result, float))
         except Exception as e:
             self.print_test_result("LLM Analyzer - Dataset Quality", "No exception", f"Exception: {e}", False)
-        
-
+    
         try:
 
             result = analyzer._post_to_genai([{"role": "user", "content": "test"}])
@@ -1720,7 +1551,6 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Analyzer - Extract Score", "No exception", f"Exception: {e}", False)
         
-
         try:
             score = analyzer.analyze_dataset_quality({"description": "Test dataset"})
             success = isinstance(score, float)

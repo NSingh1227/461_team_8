@@ -172,7 +172,6 @@ class URLProcessor:
 
                         if code_url or dataset_url or model_url:
                             lines.append((code_url, dataset_url, model_url))
-                            break
                     except Exception as e:
                         print(f"Warning: Failed to parse line {line_num}: {e}", file=sys.stderr)
                         continue
