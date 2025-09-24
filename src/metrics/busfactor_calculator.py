@@ -17,10 +17,13 @@ class BusFactorCalculator(MetricCalculator):
         start_time = time.time()
         
         try:
-            if not context or not context.code_url:
+            # Use code_url if available, otherwise fall back to model_url for GitHub repos
+            url_to_use = context.code_url or context.model_url
+            
+            if not url_to_use or not url_to_use.startswith("https://github.com"):
                 score = 0.0
             else:
-                contributors_count = self._get_contributors_last_12_months(context.code_url)
+                contributors_count = self._get_contributors_last_12_months(url_to_use)
                 # Use a more nuanced scoring: 0-5 contributors = 0.0-0.5, 5-15 contributors = 0.5-1.0
                 if contributors_count <= 5:
                     score = contributors_count / 10.0

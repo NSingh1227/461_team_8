@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from ..metrics.base import ModelContext
 from ..storage.results_storage import ResultsStorage, MetricResult, ModelResult
 from .exceptions import *
+from .config import Config
 from ..metrics.license_calculator import LicenseCalculator
 from ..metrics.dataset_code_calculator import DatasetCodeCalculator
 from ..metrics.dataset_quality_calculator import DatasetQualityCalculator
@@ -70,7 +71,13 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
             repo = path_parts[1]
             api_url = f"https://api.github.com/repos/{owner}/{repo}"
             
-            response = get_with_rate_limit(api_url, APIService.GITHUB, timeout=10)
+            # Add authentication headers
+            headers = {}
+            github_token = Config.get_github_token()
+            if github_token:
+                headers['Authorization'] = f'token {github_token}'
+            
+            response = get_with_rate_limit(api_url, APIService.GITHUB, headers=headers, timeout=10)
             if response and response.status_code == 200:
                 return response.json()
             else:
@@ -148,11 +155,14 @@ class URLProcessor:
         if len(parts) == 1:
             return None, None, parts[0] if parts[0] else None
         
-        # Ensure we have exactly 3 parts, padding with empty string if needed
-        while len(parts) < 3:
-            parts.append('')
+        # Handle 2 parts: code_url, model_url (skip dataset)
+        if len(parts) == 2:
+            code_url = parts[0] if parts[0] else None
+            dataset_url = None
+            model_url = parts[1] if parts[1] else None
+            return code_url, dataset_url, model_url
         
-        # Clean up each part - convert empty strings to None
+        # Handle 3+ parts: code_url, dataset_url, model_url
         code_url = parts[0] if parts[0] else None
         dataset_url = parts[1] if parts[1] else None
         model_url = parts[2] if parts[2] else None
@@ -316,11 +326,60 @@ class URLProcessor:
                 context.dataset_url = dataset_url
                 self.processed_datasets.add(dataset_url)
             
+            # Infer datasets from README/metadata and track them
+            inferred_datasets = self._infer_datasets_from_context(context)
+            for dataset in inferred_datasets:
+                self.processed_datasets.add(dataset)
+            
             return context
             
         except Exception as e:
             print(f"Error creating context for {model_url}: {e}")
             return None
+    
+    def _infer_datasets_from_context(self, context: ModelContext) -> List[str]:
+        """Infer dataset URLs from model context (README, metadata, etc.)."""
+        inferred_datasets = []
+        
+        try:
+            # Check HuggingFace metadata for datasets
+            if context.huggingface_metadata:
+                datasets = context.huggingface_metadata.get('datasets', [])
+                if datasets:
+                    for dataset in datasets:
+                        if isinstance(dataset, str):
+                            # Convert dataset name to URL if it's not already a URL
+                            if not dataset.startswith('http'):
+                                dataset_url = f"https://huggingface.co/datasets/{dataset}"
+                                inferred_datasets.append(dataset_url)
+                            else:
+                                inferred_datasets.append(dataset)
+                
+                # Check cardData for datasets
+                card_data = context.huggingface_metadata.get('cardData', {})
+                if 'datasets' in card_data:
+                    dataset_info = card_data['datasets']
+                    if isinstance(dataset_info, list):
+                        for dataset in dataset_info:
+                            if isinstance(dataset, str) and not dataset.startswith('http'):
+                                dataset_url = f"https://huggingface.co/datasets/{dataset}"
+                                inferred_datasets.append(dataset_url)
+            
+            # Check model info for dataset references
+            if context.model_info:
+                model_info_str = str(context.model_info).lower()
+                # Look for common dataset patterns
+                if 'bookcorpus' in model_info_str:
+                    inferred_datasets.append('https://huggingface.co/datasets/bookcorpus')
+                if 'wikipedia' in model_info_str:
+                    inferred_datasets.append('https://huggingface.co/datasets/wikipedia')
+                if 'squad' in model_info_str:
+                    inferred_datasets.append('https://huggingface.co/datasets/squad')
+                    
+        except Exception as e:
+            print(f"Error inferring datasets: {e}")
+        
+        return inferred_datasets
     
     def _calculate_all_metrics(self, model_context: ModelContext) -> Dict[str, MetricResult]:
         """Calculate all required metrics in parallel for better performance."""

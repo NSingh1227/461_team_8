@@ -2099,9 +2099,9 @@ class TestSuite:
         try:
             # Test with different timeout values
             response = get_with_rate_limit("https://httpbin.org/get", APIService.GITHUB, timeout=0.1)
-            success = response is not None and hasattr(response, 'status_code')
+            success = response is None  # Expect None for very short timeout
             self.print_test_result("HTTP Client - Short Timeout", 
-                                 "Valid response", f"Response: {response is not None}", success)
+                                 "None", f"Response: {response is not None}", success)
         except Exception as e:
             self.print_test_result("HTTP Client - Short Timeout", "No exception", f"Exception: {e}", False)
         

@@ -29,6 +29,10 @@ class PerformanceClaimsCalculator(MetricCalculator):
         start_time = time.time()
         try:
             score = self._score_from_metadata_or_llm(context)
+            # Ensure score is a valid float
+            if score is None:
+                score = 0.5
+            score = float(score)
         except Exception as e:
             print(f"Error in PerformanceClaimsCalculator: {e}")
             score = 0.5
@@ -76,9 +80,10 @@ class PerformanceClaimsCalculator(MetricCalculator):
                         
                         try:
                             llm_score, _ = ask_for_json_score(prompt)
-                            if llm_score is None:
+                            if llm_score is not None and isinstance(llm_score, (int, float)):
+                                return max(0.0, min(1.0, 0.6 * llm_score + 0.4 * heuristic))
+                            else:
                                 return heuristic
-                            return max(0.0, min(1.0, 0.6 * llm_score + 0.4 * heuristic))
                         except Exception as e:
                             print(f"LLM scoring failed: {e}")
                             return heuristic

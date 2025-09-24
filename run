@@ -98,18 +98,41 @@ def install_dependencies():
             print("Dependencies installed successfully")  # Fake success if no requirements
             return 0
         
-        result = subprocess.run([
-            sys.executable, '-m', 'pip', 'install', '--user', '-r', str(requirements_file)
-        ], capture_output=True, text=True, cwd=project_root)
+        # Try different installation methods for different environments
+        install_methods = [
+            # Method 1: User install (works in Docker containers)
+            [sys.executable, '-m', 'pip', 'install', '--user', '-r', str(requirements_file)],
+            # Method 2: Direct install (fallback)
+            [sys.executable, '-m', 'pip', 'install', '-r', str(requirements_file)],
+            # Method 3: Upgrade pip first, then install
+            [sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip', '--user'],
+            [sys.executable, '-m', 'pip', 'install', '--user', '-r', str(requirements_file)]
+        ]
         
-        if result.returncode == 0:
-            print("Dependencies installed successfully")
-            logging.info("Dependencies installed successfully")
-            return 0
-        else:
-            print(f"Failed to install dependencies: {result.stderr}", file=sys.stderr)
-            logging.error(f"Failed to install dependencies: {result.stderr}")
-            return 1
+        for i, method in enumerate(install_methods):
+            try:
+                logging.info(f"Trying installation method {i+1}: {' '.join(method)}")
+                result = subprocess.run(method, capture_output=True, text=True, cwd=project_root)
+                
+                if result.returncode == 0:
+                    print("Dependencies installed successfully")
+                    logging.info("Dependencies installed successfully")
+                    return 0
+                else:
+                    logging.warning(f"Method {i+1} failed: {result.stderr}")
+                    if i == len(install_methods) - 1:  # Last method
+                        print(f"Failed to install dependencies: {result.stderr}", file=sys.stderr)
+                        logging.error(f"Failed to install dependencies: {result.stderr}")
+                        return 1
+                        
+            except Exception as e:
+                logging.warning(f"Method {i+1} exception: {e}")
+                if i == len(install_methods) - 1:  # Last method
+                    print(f"ERROR: {e}", file=sys.stderr)
+                    logging.error(f"Installation error: {e}")
+                    return 1
+        
+        return 1  # Should not reach here
             
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
