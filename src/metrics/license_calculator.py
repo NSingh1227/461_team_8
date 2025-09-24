@@ -1,9 +1,12 @@
 from typing import Dict, Optional
 import time
 import re
+from urllib.parse import urlparse
 from huggingface_hub import HfApi, hf_hub_download
 from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
 from .base import MetricCalculator, ModelContext
+from ..core.http_client import get_with_rate_limit
+from ..core.rate_limiter import APIService
 
 class LicenseCalculator(MetricCalculator):
     """Calculator for LGPL v2.1 license compatibility scoring."""
@@ -73,6 +76,7 @@ class LicenseCalculator(MetricCalculator):
             return None
 
     def _extract_github_license(self, context: ModelContext) -> Optional[str]:
+        # First try to get license from metadata
         if (context.model_info and 
             'github_metadata' in context.model_info and 
             context.model_info['github_metadata']):
@@ -84,6 +88,29 @@ class LicenseCalculator(MetricCalculator):
                     return license_info['spdx_id'].lower().strip()
                 elif 'name' in license_info and license_info['name']:
                     return license_info['name'].lower().strip()
+        
+        # Fallback: try to fetch license directly from GitHub API
+        try:
+            if context.model_url and context.model_url.startswith("https://github.com"):
+                parsed_url = urlparse(context.model_url)
+                path_parts = parsed_url.path.strip('/').split('/')
+                if len(path_parts) >= 2:
+                    owner = path_parts[0]
+                    repo = path_parts[1]
+                    api_url = f"https://api.github.com/repos/{owner}/{repo}"
+                    
+                    response = get_with_rate_limit(api_url, APIService.GITHUB, timeout=5)
+                    if response and response.status_code == 200:
+                        data = response.json()
+                        if 'license' in data and data['license']:
+                            license_info = data['license']
+                            if 'spdx_id' in license_info and license_info['spdx_id']:
+                                return license_info['spdx_id'].lower().strip()
+                            elif 'name' in license_info and license_info['name']:
+                                return license_info['name'].lower().strip()
+        except Exception as e:
+            print(f"GitHub license extraction error: {e}")
+            pass
         
         return None
     

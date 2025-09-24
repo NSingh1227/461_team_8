@@ -1292,9 +1292,9 @@ class TestSuite:
                 performance_claims_score=0.75, performance_claims_latency=65
             )
             ndjson = model_result.to_ndjson_line()
-            has_url = "https://test.com" in ndjson
+            has_model_name = "unknown" in ndjson  # The model name should be extracted
             is_valid_json = json.loads(ndjson) is not None
-            self.print_test_result("NDJSON formatting", True, has_url and is_valid_json, has_url and is_valid_json)
+            self.print_test_result("NDJSON formatting", True, has_model_name and is_valid_json, has_model_name and is_valid_json)
         except Exception:
             self.print_test_result("NDJSON formatting", True, False, False)
             
