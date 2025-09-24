@@ -8,7 +8,6 @@ from ..core.rate_limiter import APIService
 
 
 class LLMAnalyzer:
-    """Analyzer using Purdue GenAI Studio API for model metadata evaluation."""
 
     def __init__(self,
                  api_url: str = "https://genai.rcac.purdue.edu/api/chat/completions",
@@ -16,11 +15,11 @@ class LLMAnalyzer:
                  api_key: Optional[str] = None):
         self.api_url = api_url
         self.model = model
-        # Use the correct environment variable name
+
         self.api_key = api_key or os.getenv("GEN_AI_STUDIO_API_KEY")
 
     def _post_to_genai(self, messages: list[Dict[str, str]]) -> Optional[str]:
-        # Check if we're in an autograder environment or if debug output is disabled
+
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
@@ -46,7 +45,7 @@ class LLMAnalyzer:
                 return data["choices"][0]["message"]["content"]
             else:
                 if response:
-                    # Check if we're in an autograder environment or if debug output is disabled
+
                     is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
                     debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
                     
@@ -54,7 +53,7 @@ class LLMAnalyzer:
                         print(f"[LLMAnalyzer] API error {response.status_code}: {response.text}", file=sys.stderr)
                 return None
         except Exception as e:
-            # Check if we're in an autograder environment or if debug output is disabled
+
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
             
@@ -79,7 +78,7 @@ class LLMAnalyzer:
         if not content:
             return 0.0
         try:
-            # Match any decimal number (including negative and > 1.0)
+
             match = re.search(r"-?\d+(?:\.\d+)?", content.strip())
             if match:
                 return round(float(match.group(0)), 2)

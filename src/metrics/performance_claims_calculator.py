@@ -6,23 +6,16 @@ import requests
 from urllib.parse import urlparse
 from .base import MetricCalculator, ModelContext
 
-# Import the LLM client from the correct location
+
 try:
     from ..core.llm_client import ask_for_json_score
 except ImportError:
-    # Fallback if llm_client doesn't exist
+
     def ask_for_json_score(prompt):
-        """Fallback function if LLM client is not available."""
         return 0.5, "LLM client not available"
 
 
 class PerformanceClaimsCalculator(MetricCalculator):
-    """
-    Scores how well performance claims are substantiated in README/metadata.
-    Heuristics via Hugging Face model card metadata when available:
-    - Presence of metrics/results fields or benchmark-related tags increases score
-    - Otherwise, fallback to a dummy LLM assessment with the card data
-    """
 
     def __init__(self) -> None:
         super().__init__("PerformanceClaims")
@@ -31,7 +24,7 @@ class PerformanceClaimsCalculator(MetricCalculator):
         start_time = time.time()
         try:
             score = self._score_from_metadata_or_llm(context)
-            # Ensure score is a valid float
+
             if score is None:
                 score = 0.5
             score = float(score)
@@ -44,18 +37,18 @@ class PerformanceClaimsCalculator(MetricCalculator):
         return score
 
     def _score_from_metadata_or_llm(self, context: ModelContext) -> float:
-        # Check if we're in an autograder environment or if debug output is disabled
+
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
-        # Prefer reading README directly from HF raw endpoint when URL is an HF model
+
         url = getattr(context, "model_url", "") or ""
         parsed = urlparse(url)
         
         if parsed.netloc == "huggingface.co":
-            # Path like /org/name or /datasets/name
+
             model_id = parsed.path.strip("/")
-            # Remove /tree/main or similar git refs from the path
+
             if "/tree/" in model_id:
                 model_id = model_id.split("/tree/")[0]
             if "/blob/" in model_id:
@@ -78,7 +71,7 @@ class PerformanceClaimsCalculator(MetricCalculator):
                         if not is_autograder and debug_enabled:
                             print("content: ", content[:200] + "..." if len(content) > 200 else content, file=sys.stderr)
                         
-                        # Combine heuristics + LLM JSON score
+
                         heuristic = self._heuristic_readme_score(content.lower())
                         
                         prompt = (
@@ -113,25 +106,24 @@ class PerformanceClaimsCalculator(MetricCalculator):
             return 0.3
 
     def _heuristic_readme_score(self, content: str) -> float:
-        """Heuristic scoring based on README content."""
         score = 0.0
         
-        # Evidence of claims: benchmarks, datasets, metrics, citations
+
         benchmark_terms = ["benchmark", "leaderboard", "sota", "glue", "superglue", "mmlu"]
         if any(term in content for term in benchmark_terms):
             score += 0.4
         
-        # Performance metrics mentioned
+
         metric_terms = ["accuracy", "f1", "bleu", "rouge", "perplexity", "exact match"]
         if any(term in content for term in metric_terms):
             score += 0.3
         
-        # Citations and papers
+
         citation_terms = ["citation", "arxiv", "doi", "paper"]
         if any(term in content for term in citation_terms):
             score += 0.2
         
-        # Evaluation sections
+
         if "evaluation" in content or "results" in content:
             score += 0.1
         

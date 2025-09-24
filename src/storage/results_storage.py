@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 
 @dataclass
 class MetricResult:
-    """Individual metric calculation result."""
     metric_name: str
     score: float
     calculation_time_ms: int
@@ -19,11 +18,10 @@ class MetricResult:
 
 @dataclass
 class ModelResult:
-    """Complete result set for a single model."""
     url: str
     net_score: float
     net_score_latency: int
-    size_score: Dict[str, float]  # Changed to dict for hardware platforms
+    size_score: Dict[str, float]
     size_latency: int
     license_score: float
     license_latency: int
@@ -41,19 +39,18 @@ class ModelResult:
     performance_claims_latency: int
     
     def _extract_model_name(self) -> str:
-        """Extract model name from URL."""
         try:
             parsed_url = urlparse(self.url)
             path_parts = parsed_url.path.strip('/').split('/')
             
             if 'huggingface.co' in parsed_url.netloc:
                 if len(path_parts) >= 2:
-                    return path_parts[1]  # Second part is the model name (owner/model)
+                    return path_parts[1]
                 else:
                     return path_parts[0] if path_parts else "unknown"
             elif 'github.com' in parsed_url.netloc:
                 if len(path_parts) >= 2:
-                    return path_parts[1]  # Repo name
+                    return path_parts[1]
                 else:
                     return "unknown"
             else:
@@ -62,7 +59,6 @@ class ModelResult:
             return "unknown"
     
     def to_ndjson_line(self) -> str:
-        """Convert to NDJSON format matching expected output."""
         model_name = self._extract_model_name()
         
         result_dict = {
@@ -96,7 +92,6 @@ class ModelResult:
 
 
 class ResultsStorage:
-    """Central storage for all metric calculation results."""
     def __init__(self):
         self._model_results: Dict[str, Dict[str, MetricResult]] = {}
         self._completed_models: List[ModelResult] = []
@@ -128,12 +123,12 @@ class ResultsStorage:
         
         metrics = self._model_results[model_url]
         
-        # Handle size score - convert from single value to hardware platform dict
+
         size_metric = metrics["Size"]
         if isinstance(size_metric.score, dict):
             size_score = size_metric.score
         else:
-            # Create default hardware compatibility scores
+
             size_score = {
                 "raspberry_pi": size_metric.score * 0.2,
                 "jetson_nano": size_metric.score * 0.4,

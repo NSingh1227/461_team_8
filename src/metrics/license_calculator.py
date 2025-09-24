@@ -11,9 +11,8 @@ from ..core.http_client import get_with_rate_limit
 from ..core.rate_limiter import APIService
 
 class LicenseCalculator(MetricCalculator):
-    """Calculator for LGPL v2.1 license compatibility scoring."""
     LGPL_license_compatibility: Dict[str, float] = {
-        # Compatible with LGPL v2.1 (score 1.0)
+
         'mit': 1.0, 'mit license': 1.0,
         'apache': 1.0, 'apache 2.0': 1.0, 'apache-2.0': 1.0, 'apache-2': 1.0,
         'bsd': 1.0, 'bsd-3-clause': 1.0, 'bsd-2-clause': 1.0, 'bsd-3': 1.0, 'bsd-2': 1.0,
@@ -21,7 +20,7 @@ class LicenseCalculator(MetricCalculator):
         'public domain': 1.0, 'public-domain': 1.0,
         'unlicense': 1.0, 'cc0': 1.0, 'creative commons': 1.0,
         'isc': 1.0, 'zlib': 1.0, 'boost': 1.0,
-        # Incompatible with LGPL v2.1 (score 0.0)
+
         'gpl': 0.0, 'gpl-2.0': 0.0, 'gpl-3.0': 0.0, 'gpl-2': 0.0, 'gpl-3': 0.0,
         'agpl': 0.0, 'agpl-3.0': 0.0, 'agpl-3': 0.0,
         'gemma': 0.0, 'gemma license': 0.0,
@@ -78,7 +77,7 @@ class LicenseCalculator(MetricCalculator):
             return None
 
     def _extract_github_license(self, context: ModelContext) -> Optional[str]:
-        # First try to get license from metadata
+
         if (context.model_info and 
             'github_metadata' in context.model_info and 
             context.model_info['github_metadata']):
@@ -91,7 +90,7 @@ class LicenseCalculator(MetricCalculator):
                 elif 'name' in license_info and license_info['name']:
                     return license_info['name'].lower().strip()
         
-        # Fallback: try to fetch license directly from GitHub API
+
         try:
             if context.model_url and context.model_url.startswith("https://github.com"):
                 parsed_url = urlparse(context.model_url)
@@ -101,7 +100,7 @@ class LicenseCalculator(MetricCalculator):
                     repo = path_parts[1]
                     api_url = f"https://api.github.com/repos/{owner}/{repo}"
                     
-                    # Add authentication headers
+
                     headers = {}
                     github_token = Config.get_github_token()
                     if github_token:
@@ -149,7 +148,7 @@ class LicenseCalculator(MetricCalculator):
     def _extract_repo_id(self, model_url: str) -> str:
         if "huggingface.co/" in model_url:
             repo_id = "/".join(model_url.split("huggingface.co/")[1].split("/"))
-            # Remove /tree/main or similar git refs from the path
+
             if "/tree/" in repo_id:
                 repo_id = repo_id.split("/tree/")[0]
             if "/blob/" in repo_id:

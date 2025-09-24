@@ -10,16 +10,8 @@ from .base import MetricCalculator, ModelContext
 
 
 class SizeCalculator(MetricCalculator):
-    """
-    Calculates a model "Size" score in [0, 1] based on the sizes of model
-    artifact files. Uses Hugging Face metadata when available to identify
-    artifact file sizes and grades fitness against multiple hardware caps.
 
-    Score per platform: max(0, 1 - (model_artifact_size_mb / cap_mb))
-    Final score is the max across platform caps to reward portability.
-    """
 
-    # Hardware platform caps in megabytes
     HARDWARE_CAPS_MB: Dict[str, int] = {
         "raspberry_pi": 200,
         "jetson_nano": 1000,
@@ -27,7 +19,7 @@ class SizeCalculator(MetricCalculator):
         "aws_server": 51200,
     }
 
-    # Common model artifact filename patterns/extensions
+
     ARTIFACT_EXTENSIONS: List[str] = [
         ".bin",
         ".safetensors",
@@ -42,7 +34,7 @@ class SizeCalculator(MetricCalculator):
 
     def __init__(self) -> None:
         super().__init__("Size")
-        # Stores per-platform compatibility scores computed during calculate_score
+
         self.platform_compatibility: Dict[str, float] = {}
 
     def calculate_score(self, context: ModelContext) -> float:
@@ -51,11 +43,11 @@ class SizeCalculator(MetricCalculator):
             total_artifact_size_mb = self._estimate_artifact_size_mb(context)
 
             if total_artifact_size_mb is None:
-                # Unknown size; leave compatibility empty and fall back to neutral score
+
                 self.platform_compatibility = {}
                 score = 0.5
             else:
-                # Compute per-platform compatibility and keep the best as the aggregate score
+
                 self.platform_compatibility = {
                     platform: max(0.0, 1.0 - (total_artifact_size_mb / cap_mb))
                     for platform, cap_mb in self.HARDWARE_CAPS_MB.items()
@@ -69,29 +61,17 @@ class SizeCalculator(MetricCalculator):
         return score
 
     def get_platform_compatibility(self) -> Dict[str, float]:
-        """
-        Returns a mapping of platform name to compatibility score in [0,1]
-        computed during the last call to calculate_score(). Empty if unknown.
-        """
         return self.platform_compatibility
 
     def get_platform_compatibility_json(self) -> str:
-        """
-        Returns the platform compatibility mapping as a JSON string.
-        """
         return json.dumps(self.platform_compatibility, sort_keys=True)
 
     def _estimate_artifact_size_mb(self, context: ModelContext) -> Optional[float]:
-        """
-        Estimate total size of model artifacts in megabytes.
-        Uses Hugging Face metadata "siblings" when available.
-        Returns None if size cannot be determined.
-        """
         url = getattr(context, "model_url", "") or ""
         parsed = urlparse(url)
         if parsed.netloc == "huggingface.co":
             repo_id = parsed.path.strip("/")
-            # Remove /tree/main or similar git refs from the path
+
             if "/tree/" in repo_id:
                 repo_id = repo_id.split("/tree/")[0]
             if "/blob/" in repo_id:
@@ -114,7 +94,7 @@ class SizeCalculator(MetricCalculator):
             info = api.model_info(repo_id)
             siblings = getattr(info, "siblings", None)
 
-            # Collect candidate artifact filenames and their sizes
+
             total_bytes = 0
             if isinstance(siblings, list):
                 for s in siblings:
@@ -124,47 +104,46 @@ class SizeCalculator(MetricCalculator):
                     if filename and self._looks_like_artifact(str(filename)) and size_bytes:
                         total_bytes += int(size_bytes)
 
-            # If we got sizes from metadata, use them
+
             if total_bytes > 0:
                 return total_bytes / (1024 * 1024)
             
-            # Fallback: estimate based on model type and common patterns
+
             return self._estimate_size_from_model_type(repo_id)
             
         except (HfHubHTTPError, RepositoryNotFoundError, Exception):
             return None
 
     def _estimate_size_from_model_type(self, repo_id: str) -> Optional[float]:
-        """Estimate model size based on model type and common patterns."""
         try:
             api = HfApi()
             info = api.model_info(repo_id)
             
-            # Get model config to estimate size
+
             config = getattr(info, "config", None)
             if config:
-                # Estimate based on model architecture
+
                 if "num_parameters" in config:
                     num_params = config["num_parameters"]
-                    # Rough estimate: 4 bytes per parameter for float32
+
                     estimated_bytes = num_params * 4
                     return estimated_bytes / (1024 * 1024)
             
-            # Fallback estimates based on model name patterns
+
             repo_lower = repo_id.lower()
             if "tiny" in repo_lower or "small" in repo_lower:
-                return 50  # ~50MB for tiny models
+                return 50
             elif "base" in repo_lower or "medium" in repo_lower:
-                return 500  # ~500MB for base models
+                return 500
             elif "large" in repo_lower:
-                return 2000  # ~2GB for large models
+                return 2000
             elif "xl" in repo_lower or "xxl" in repo_lower:
-                return 5000  # ~5GB for XL models
+                return 5000
             else:
-                return 1000  # Default estimate
+                return 1000
                 
         except Exception:
-            return 1000  # Default fallback
+            return 1000
 
     
 

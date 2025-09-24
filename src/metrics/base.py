@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelContext:
-    """Context object containing model information for metric calculators."""
     model_url: str
     model_info: Dict[str, Any]
     dataset_url: Optional[str] = None
@@ -15,7 +14,6 @@ class ModelContext:
 
 
 class MetricCalculator(ABC):
-    """Abstract base class for all metric calculators."""
     def __init__(self, name: str):
         self.name = name
         self._score: Optional[float] = None

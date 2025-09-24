@@ -30,7 +30,6 @@ class URLType(Enum):
     UNKNOWN = 'unknown'
 
 def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
-    """Retrieve model or dataset metadata from HuggingFace API."""
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -62,7 +61,6 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
         return None
 
 def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
-    """Retrieve repository metadata from GitHub API."""
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -72,7 +70,7 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
             repo = path_parts[1]
             api_url = f"https://api.github.com/repos/{owner}/{repo}"
             
-            # Add authentication headers
+
             headers = {}
             github_token = Config.get_github_token()
             if github_token:
@@ -91,7 +89,6 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
         return None
 
 def is_valid_url(url_string):
-    """Check if URL has valid format and scheme."""
     if not url_string or not isinstance(url_string, str):
         return False
     
@@ -105,7 +102,6 @@ def is_valid_url(url_string):
         return False
     
 def categorize_url(url_string):
-    """Determine URL type based on domain and path structure."""
     parsed_url = urlparse(url_string)
     
     if parsed_url.netloc == "huggingface.co":
@@ -119,14 +115,12 @@ def categorize_url(url_string):
         return URLType.UNKNOWN
 
 def process_url(url_string):
-    """Validate and categorize URL."""
     if is_valid_url(url_string):
         return categorize_url(url_string)
     else:
         return URLType.UNKNOWN
 
 def get_handler(url_type: URLType):
-    """Return appropriate handler instance for URL type."""
     if url_type == URLType.HUGGINGFACE_MODEL:
         return ModelHandler()
     elif url_type == URLType.HUGGINGFACE_DATASET:
@@ -136,34 +130,32 @@ def get_handler(url_type: URLType):
     return None
 
 class URLProcessor:
-    """URL file processor for trustworthy model metrics pipeline."""
 
     def __init__(self, file_path: str):
         self.file_path = file_path
         self.results_storage = ResultsStorage()
-        self.processed_datasets = set()  # Track datasets we've seen
+        self.processed_datasets = set()
     
     def parse_input_line(self, line: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-        """Parse a line with comma-separated URLs: code_url, dataset_url, model_url"""
         line = line.strip()
         if not line or line.startswith('#'):
             return None, None, None
         
-        # Handle empty fields properly - split by comma and strip whitespace
+
         parts = [part.strip() for part in line.split(',')]
         
-        # If there's only one part (no commas), treat it as a model URL
+
         if len(parts) == 1:
             return None, None, parts[0] if parts[0] else None
         
-        # Handle 2 parts: code_url, model_url (skip dataset)
+
         if len(parts) == 2:
             code_url = parts[0] if parts[0] else None
             dataset_url = None
             model_url = parts[1] if parts[1] else None
             return code_url, dataset_url, model_url
         
-        # Handle 3+ parts: code_url, dataset_url, model_url
+
         code_url = parts[0] if parts[0] else None
         dataset_url = parts[1] if parts[1] else None
         model_url = parts[2] if parts[2] else None
@@ -171,17 +163,16 @@ class URLProcessor:
         return code_url, dataset_url, model_url
     
     def read_url_lines(self) -> List[Tuple[Optional[str], Optional[str], Optional[str]]]:
-        """Read and parse URL lines from input file."""
         try:
             with open(self.file_path, 'r') as file:
                 lines = []
                 for line_num, line in enumerate(file, 1):
                     try:
                         code_url, dataset_url, model_url = self.parse_input_line(line)
-                        # Process only the first line that has at least one URL (autograder expectation)
+
                         if code_url or dataset_url or model_url:
                             lines.append((code_url, dataset_url, model_url))
-                            break  # Only process the first valid URL line
+                            break
                     except Exception as e:
                         print(f"Warning: Failed to parse line {line_num}: {e}", file=sys.stderr)
                         continue
@@ -194,34 +185,33 @@ class URLProcessor:
             return []
     
     def process_urls_with_metrics(self) -> List[ModelResult]:
-        """Process URLs with full metric calculation."""
         url_lines = self.read_url_lines()
         model_results = []
         
-        # Check if we're in an autograder environment or if debug output is disabled
+
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
-        # Debug: Print number of URLs found
+
         if not is_autograder and debug_enabled:
             print(f"Found {len(url_lines)} URLs to process", file=sys.stderr)
         
         for code_url, dataset_url, model_url in url_lines:
             primary_url = None
             try:
-                # Determine the primary URL to process (prefer model_url, then code_url, then dataset_url)
+
                 primary_url = model_url or code_url or dataset_url
                 
                 if not primary_url:
                     continue
                 
-                # Only process URLs that are actually valid URLs
+
                 if not is_valid_url(primary_url):
                     if not is_autograder and debug_enabled:
                         print(f"Skipping invalid URL: {primary_url}", file=sys.stderr)
                     continue
                 
-                # Create model context with timeout protection
+
                 model_context = None
                 try:
                     model_context = self._create_model_context(primary_url, code_url, dataset_url)
@@ -232,38 +222,38 @@ class URLProcessor:
                 if not model_context:
                     if not is_autograder and debug_enabled:
                         print(f"Warning: Could not create context for URL: {primary_url}", file=sys.stderr)
-                    # Create a default result for valid URLs that fail to process
+
                     model_result = self._create_default_result(primary_url)
                     model_results.append(model_result)
                     continue
                 
-                # Calculate all metrics with individual error handling
+
                 try:
                     metrics = self._calculate_all_metrics(model_context)
                     
-                    # Calculate net score using the specified weights
+
                     net_score = self._calculate_net_score(metrics)
                     net_score_latency = sum(metric.calculation_time_ms for metric in metrics.values())
                     
-                    # Store metrics
+
                     for metric in metrics.values():
                         self.results_storage.store_metric_result(primary_url, metric)
                     
-                    # Create and store final result
+
                     model_result = self.results_storage.finalize_model_result(primary_url, net_score, net_score_latency)
                     model_results.append(model_result)
                     
                 except Exception as metrics_e:
                     if not is_autograder and debug_enabled:
                         print(f"Metrics calculation failed for {primary_url}: {metrics_e}", file=sys.stderr)
-                    # Create a default result for failed metrics calculation
+
                     model_result = self._create_default_result(primary_url)
                     model_results.append(model_result)
                 
             except Exception as e:
                 if not is_autograder and debug_enabled:
                     print(f"Error processing URL {primary_url or 'unknown'}: {e}", file=sys.stderr)
-                # Create a default result for failed processing if we have a primary_url
+
                 if primary_url:
                     model_result = self._create_default_result(primary_url)
                     model_results.append(model_result)
@@ -271,7 +261,7 @@ class URLProcessor:
         if not is_autograder and debug_enabled:
             print(f"Successfully processed {len(model_results)} URLs", file=sys.stderr)
         
-        # Only create default result if file was completely empty (no lines processed)
+
         if not model_results and len(url_lines) == 0:
             if not is_autograder and debug_enabled:
                 print("Warning: Empty file, creating default result", file=sys.stderr)
@@ -281,12 +271,11 @@ class URLProcessor:
         return model_results
     
     def _create_default_result(self, model_url: str) -> ModelResult:
-        """Create a default result for failed URL processing."""
         try:
-            # Extract model name from URL
+
             model_name = self._extract_model_name_from_url(model_url)
             
-            # Create default result with all metrics at 0.0
+
             return ModelResult(
                 url=model_url,
                 net_score=0.0,
@@ -310,7 +299,7 @@ class URLProcessor:
             )
         except Exception as e:
             print(f"Error creating default result for {model_url}: {e}", file=sys.stderr)
-            # Return minimal result
+
             return ModelResult(
                 url=model_url,
                 net_score=0.0,
@@ -334,7 +323,6 @@ class URLProcessor:
             )
     
     def _extract_model_name_from_url(self, url: str) -> str:
-        """Extract model name from URL."""
         try:
             from urllib.parse import urlparse
             parsed_url = urlparse(url)
@@ -342,12 +330,12 @@ class URLProcessor:
             
             if 'huggingface.co' in parsed_url.netloc:
                 if len(path_parts) >= 2:
-                    return path_parts[1]  # Second part is the model name (owner/model)
+                    return path_parts[1]
                 else:
                     return path_parts[0] if path_parts else "unknown"
             elif 'github.com' in parsed_url.netloc:
                 if len(path_parts) >= 2:
-                    return path_parts[1]  # Repo name
+                    return path_parts[1]
                 else:
                     return "unknown"
             else:
@@ -356,7 +344,6 @@ class URLProcessor:
             return "unknown"
     
     def _create_model_context(self, model_url: str, code_url: Optional[str] = None, dataset_url: Optional[str] = None) -> Optional[ModelContext]:
-        """Create ModelContext from URLs."""
         try:
             url_type = process_url(model_url)
             handler = get_handler(url_type)
@@ -364,17 +351,17 @@ class URLProcessor:
             if not handler:
                 return None
                 
-            # Get base context from handler
+
             context = handler.process_url(model_url)
             
-            # Override with provided URLs
+
             if code_url:
                 context.code_url = code_url
             if dataset_url:
                 context.dataset_url = dataset_url
                 self.processed_datasets.add(dataset_url)
             
-            # Infer datasets from README/metadata and track them
+
             inferred_datasets = self._infer_datasets_from_context(context)
             for dataset in inferred_datasets:
                 self.processed_datasets.add(dataset)
@@ -386,24 +373,23 @@ class URLProcessor:
             return None
     
     def _infer_datasets_from_context(self, context: ModelContext) -> List[str]:
-        """Infer dataset URLs from model context (README, metadata, etc.)."""
         inferred_datasets = []
         
         try:
-            # Check HuggingFace metadata for datasets
+
             if context.huggingface_metadata:
                 datasets = context.huggingface_metadata.get('datasets', [])
                 if datasets:
                     for dataset in datasets:
                         if isinstance(dataset, str):
-                            # Convert dataset name to URL if it's not already a URL
+
                             if not dataset.startswith('http'):
                                 dataset_url = f"https://huggingface.co/datasets/{dataset}"
                                 inferred_datasets.append(dataset_url)
                             else:
                                 inferred_datasets.append(dataset)
                 
-                # Check cardData for datasets
+
                 card_data = context.huggingface_metadata.get('cardData', {})
                 if 'datasets' in card_data:
                     dataset_info = card_data['datasets']
@@ -413,10 +399,10 @@ class URLProcessor:
                                 dataset_url = f"https://huggingface.co/datasets/{dataset}"
                                 inferred_datasets.append(dataset_url)
             
-            # Check model info for dataset references
+
             if context.model_info:
                 model_info_str = str(context.model_info).lower()
-                # Look for common dataset patterns
+
                 if 'bookcorpus' in model_info_str:
                     inferred_datasets.append('https://huggingface.co/datasets/bookcorpus')
                 if 'wikipedia' in model_info_str:
@@ -430,11 +416,10 @@ class URLProcessor:
         return inferred_datasets
     
     def _calculate_all_metrics(self, model_context: ModelContext) -> Dict[str, MetricResult]:
-        """Calculate all required metrics in parallel for better performance."""
         timestamp = datetime.datetime.now().isoformat()
         metrics = {}
         
-        # Define metric calculation functions
+
         def calculate_license():
             try:
                 calc = LicenseCalculator()
@@ -517,7 +502,7 @@ class URLProcessor:
                 print(f"PerformanceClaims calculation failed: {e}", file=sys.stderr)
                 return "PerformanceClaims", MetricResult("PerformanceClaims", 0.8, 220, timestamp)
         
-        # Execute all metric calculations in parallel
+
         metric_functions = [
             calculate_license,
             calculate_dataset_code,
@@ -529,16 +514,16 @@ class URLProcessor:
             calculate_performance_claims
         ]
         
-        # Use ThreadPoolExecutor for parallel execution
-        # Optimize worker count based on CPU cores and API limits
+
+
         import os
-        max_workers = min(4, os.cpu_count() or 2)  # Limit to avoid overwhelming APIs
+        max_workers = min(4, os.cpu_count() or 2)
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
+
             future_to_metric = {executor.submit(func): func.__name__ for func in metric_functions}
             
-            # Collect results as they complete
+
             for future in as_completed(future_to_metric):
                 try:
                     metric_name, metric_result = future.result()
@@ -546,7 +531,7 @@ class URLProcessor:
                 except Exception as e:
                     metric_name = future_to_metric[future]
                     print(f"Metric calculation {metric_name} failed: {e}", file=sys.stderr)
-                    # Provide default result for failed calculations
+
                     if metric_name == "calculate_size":
                         default_sizes = {"raspberry_pi": 0.5, "jetson_nano": 0.6, "desktop_pc": 0.8, "aws_server": 0.9}
                         metrics["Size"] = MetricResult("Size", default_sizes, 100, timestamp)
@@ -558,7 +543,6 @@ class URLProcessor:
         return metrics
     
     def _calculate_net_score(self, metrics: Dict[str, MetricResult]) -> float:
-        """Calculate weighted net score using the formula from milestone document."""
         weights = {
             "License": 0.20,
             "RampUp": 0.20, 
@@ -575,25 +559,23 @@ class URLProcessor:
             if metric_name in metrics:
                 metric_score = metrics[metric_name].score
                 
-                # Handle size score specially (it's a dict of platform scores)
+
                 if metric_name == "Size" and isinstance(metric_score, dict):
-                    # Use the maximum platform score as the single size score (best compatibility)
+
                     size_score = max(metric_score.values()) if metric_score else 0.5
                     net_score += weight * size_score
                 else:
                     net_score += weight * metric_score
         
-        return round(net_score, 2)  # Round to 2 decimal places
+        return round(net_score, 2)
 
 
 class URLHandler(ABC):
-    """Abstract interface for URL processing."""
     @abstractmethod
     def process_url(self, url: str) -> ModelContext:
         pass
     
 class DatasetHandler(URLHandler):
-    """Handle HuggingFace dataset URLs."""
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -626,7 +608,6 @@ class DatasetHandler(URLHandler):
 
 
 class ModelHandler(URLHandler):
-    """Handle HuggingFace model URLs."""
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -655,7 +636,6 @@ class ModelHandler(URLHandler):
 
 
 class CodeHandler(URLHandler):
-    """Handle GitHub repository URLs."""
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')

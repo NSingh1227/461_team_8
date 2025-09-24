@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import sys
 import os
 import datetime
@@ -52,9 +51,9 @@ class TestSuite:
         if not self.coverage_mode:
             print(f"\n--- {title} ---")
 
-    # ============================================================
-    #  URL VALIDATION TESTS
-    # ============================================================
+
+
+
     
     def test_url_validation(self):
         self.print_header("URL VALIDATION TESTS")
@@ -92,7 +91,7 @@ class TestSuite:
             passed = actual == expected
             self.print_test_result(test_name, expected.value, actual.value, passed)
 
-    # Test URL processing with file I/O and real URLs
+
     def test_comprehensive_url_processing(self):
         self.print_header("COMPREHENSIVE URL PROCESSING TESTS")
         
@@ -126,8 +125,8 @@ class TestSuite:
                     print(f"   Net Score: {net_score}")
                     print()
             
-            # Expected count is 6 (8 URLs - 2 invalid URLs that are skipped)
-            expected_count = 6  # Valid URLs only, invalid URLs are filtered out
+
+            expected_count = 6
             actual_count = len(results)
             self.print_test_result("URL Processing Count", expected_count, actual_count, expected_count == actual_count)
             
@@ -200,9 +199,9 @@ class TestSuite:
             except Exception:
                 self.print_test_result(description, expected, False, False)
 
-    # ============================================================
-    #  LICENSE METRIC TESTS
-    # ============================================================
+
+
+
     
     def test_license_calculator(self):
         self.print_header("LICENSE CALCULATOR TESTS")
@@ -303,9 +302,9 @@ class TestSuite:
             passed = actual_score == expected_score
             self.print_test_result(test_name, expected_score, actual_score, passed)
 
-    # ============================================================
-    #  ADVANCED URL PROCESSING TESTS
-    # ============================================================
+
+
+
     
     def test_url_parsing_edge_cases(self):
         self.print_header("ADVANCED URL PARSING TESTS")
@@ -313,9 +312,9 @@ class TestSuite:
         test_cases = [
             ("URL with multiple slashes", "https://github.com//microsoft//DialoGPT", URLType.GITHUB_REPO),
             ("URL with trailing slash", "https://huggingface.co/microsoft/DialoGPT-medium/", URLType.HUGGINGFACE_MODEL),
-            ("URL with uppercase", "HTTPS://GITHUB.COM/MICROSOFT/DIALOGPT", URLType.UNKNOWN),  # Adjusted expectation
-            ("URL with mixed case", "https://HuggingFace.co/Microsoft/DialoGPT-Medium", URLType.UNKNOWN),  # Adjusted expectation
-            ("URL with www prefix", "https://www.github.com/microsoft/DialoGPT", URLType.UNKNOWN),  # Adjusted expectation
+            ("URL with uppercase", "HTTPS://GITHUB.COM/MICROSOFT/DIALOGPT", URLType.UNKNOWN),
+            ("URL with mixed case", "https://HuggingFace.co/Microsoft/DialoGPT-Medium", URLType.UNKNOWN),
+            ("URL with www prefix", "https://www.github.com/microsoft/DialoGPT", URLType.UNKNOWN),
             ("URL with subdomain", "https://api.github.com/repos/microsoft/DialoGPT", URLType.UNKNOWN),
             ("GitHub gist URL", "https://gist.github.com/user/12345", URLType.UNKNOWN),
             ("HuggingFace with spaces branch", "https://huggingface.co/microsoft/DialoGPT-medium/tree/feature%20branch", URLType.HUGGINGFACE_MODEL),
@@ -334,7 +333,7 @@ class TestSuite:
     def test_concurrent_url_processing(self):
         self.print_header("CONCURRENT URL PROCESSING TESTS")
         
-        # Test processing multiple URLs simultaneously
+
         test_urls = [
             "https://huggingface.co/microsoft/DialoGPT-small",
             "https://huggingface.co/microsoft/DialoGPT-medium", 
@@ -357,12 +356,12 @@ class TestSuite:
             processor = URLProcessor(test_file_path)
             results = processor.process_urls_with_metrics()
             
-            # Verify valid URLs were processed (invalid URLs are filtered out)
+
             processed_count = len(results)
-            expected_count = 7  # 10 URLs - 3 invalid URLs that are skipped
+            expected_count = 7
             self.print_test_result("Concurrent processing count", expected_count, processed_count, processed_count == expected_count)
             
-            # Verify we got results for valid URLs
+
             valid_results = len([r for r in results if r.net_score > 0])
             self.print_test_result("Valid results count", expected_count, valid_results, valid_results >= 0)
             
@@ -375,20 +374,20 @@ class TestSuite:
             if os.path.exists(test_file_path):
                 os.remove(test_file_path)
 
-    # ============================================================
-    #  METRIC CALCULATION STRESS TESTS
-    # ============================================================
+
+
+
     
     def test_metric_calculation_performance(self):
         self.print_header("METRIC CALCULATION PERFORMANCE TESTS")
         
         calculator = LicenseCalculator()
         
-        # Test performance with multiple calculations
+
         test_urls = [
             "https://huggingface.co/microsoft/DialoGPT-medium",
             "https://github.com/microsoft/DialoGPT"
-        ] * 5  # Repeat URLs to test caching/performance
+        ] * 5
         
         total_time = 0
         successful_calculations = 0
@@ -415,7 +414,7 @@ class TestSuite:
                 total_time += calculation_time
                 successful_calculations += 1
                 
-                # Verify score validity
+
                 score_valid = 0.0 <= score <= 1.0
                 if not score_valid:
                     self.print_test_result(f"Performance test {i+1} score validity", True, False, False)
@@ -425,7 +424,7 @@ class TestSuite:
                     print(f"Performance test {i+1} failed: {e}")
         
         avg_time = total_time / successful_calculations if successful_calculations > 0 else 0
-        performance_acceptable = avg_time < 5000  # Less than 5 seconds average
+        performance_acceptable = avg_time < 5000
         
         self.print_test_result("Successful calculations", len(test_urls), successful_calculations, successful_calculations == len(test_urls))
         self.print_test_result("Average calculation time acceptable", True, performance_acceptable, performance_acceptable)
@@ -433,21 +432,21 @@ class TestSuite:
     def test_error_recovery_scenarios(self):
         self.print_header("ERROR RECOVERY SCENARIO TESTS")
         
-        # Test various error conditions
+
         test_cases = [
             {
                 "name": "Network timeout simulation",
-                "url": "https://httpstat.us/408",  # Timeout status
+                "url": "https://httpstat.us/408",
                 "expected_behavior": "graceful_failure"
             },
             {
                 "name": "Server error simulation", 
-                "url": "https://httpstat.us/500",  # Server error
+                "url": "https://httpstat.us/500",
                 "expected_behavior": "graceful_failure"
             },
             {
                 "name": "Rate limit simulation",
-                "url": "https://httpstat.us/429",  # Rate limited
+                "url": "https://httpstat.us/429",
                 "expected_behavior": "graceful_failure"
             },
             {
@@ -457,7 +456,7 @@ class TestSuite:
             },
             {
                 "name": "Empty response body",
-                "url": "https://httpstat.us/204",  # No content
+                "url": "https://httpstat.us/204",
                 "expected_behavior": "graceful_failure"
             }
         ]
@@ -474,22 +473,22 @@ class TestSuite:
                 
                 score = calculator.calculate_score(model_context)
                 
-                # Should return a valid score even on errors (graceful degradation)
+
                 score_valid = isinstance(score, (int, float)) and 0.0 <= score <= 1.0
                 self.print_test_result(test_case["name"], True, score_valid, score_valid)
                 
             except Exception as e:
-                # Some exceptions are acceptable for error cases
+
                 self.print_test_result(test_case["name"], "graceful_failure", "exception_raised", True)
 
-    # ============================================================
-    #  DATA INTEGRITY TESTS
-    # ============================================================
+
+
+
     
     def test_data_consistency_checks(self):
         self.print_header("DATA CONSISTENCY TESTS")
         
-        # Test that repeated processing gives consistent results
+
         test_url = "https://huggingface.co/microsoft/DialoGPT-medium"
         calculator = LicenseCalculator()
         
@@ -506,16 +505,16 @@ class TestSuite:
             except Exception:
                 scores.append(None)
         
-        # All scores should be the same (consistent)
+
         all_same = len(set(s for s in scores if s is not None)) <= 1
         self.print_test_result("Consistent scoring", True, all_same, all_same)
         
-        # Test URL normalization consistency  
+
         test_urls = [
             "https://github.com/microsoft/DialoGPT",
             "https://github.com/microsoft/DialoGPT/",
             "https://github.com/microsoft/DialoGPT.git",
-            "https://github.com/microsoft/dialogpt"  # Different case
+            "https://github.com/microsoft/dialogpt"
         ]
         
         url_types = []
@@ -526,7 +525,7 @@ class TestSuite:
             except Exception:
                 url_types.append(None)
         
-        # All should be recognized as GitHub repos
+
         all_github = all(t == URLType.GITHUB_REPO for t in url_types if t is not None)
         self.print_test_result("URL normalization consistency", True, all_github, all_github)
 
@@ -537,7 +536,7 @@ class TestSuite:
         
         class BoundaryTestCalculator(MetricCalculator):
             def calculate_score(self, context: ModelContext) -> float:
-                # Return different boundary values based on URL
+
                 if "boundary-zero" in context.model_url:
                     return 0.0
                 elif "boundary-one" in context.model_url:
@@ -560,19 +559,19 @@ class TestSuite:
             try:
                 context = ModelContext(model_url=url, model_info={"type": "test"})
                 score = calculator.calculate_score(context)
-                passed = abs(score - expected) < 0.001  # Allow small floating point differences
+                passed = abs(score - expected) < 0.001
                 self.print_test_result(test_name, expected, score, passed)
             except Exception as e:
                 self.print_test_result(test_name, expected, f"Error: {e}", False)
 
-    # ============================================================
-    #  INTEGRATION WORKFLOW TESTS
-    # ============================================================
+
+
+
     
     def test_complete_workflow_integration(self):
         self.print_header("COMPLETE WORKFLOW INTEGRATION TESTS")
         
-        # Test complete workflow from file input to final output
+
         test_scenarios = [
             {
                 "name": "Mixed URL types workflow",
@@ -583,7 +582,7 @@ class TestSuite:
                     "https://invalid-domain.com/fake"
                 ],
                 "expected_processed": 4,
-                "expected_with_metrics": 3  # Invalid domain URLs are filtered out in metrics processing
+                "expected_with_metrics": 3
             },
             {
                 "name": "Single URL workflow",
@@ -602,23 +601,23 @@ class TestSuite:
         for scenario in test_scenarios:
             test_file_path = f"temp_workflow_{scenario['name'].replace(' ', '_')}.txt"
             
-            # Create test file
+
             with open(test_file_path, 'w') as f:
                 for url in scenario['urls']:
                     f.write(url + '\n')
             
             try:
-                # Process URLs with metrics
+
                 processor = URLProcessor(test_file_path)
                 metric_results = processor.process_urls_with_metrics()
                 
-                # Verify counts
+
                 metric_count_correct = len(metric_results) == scenario['expected_with_metrics']
                 
                 self.print_test_result(f"{scenario['name']} - Metric processing count",
                                      scenario['expected_with_metrics'], len(metric_results), metric_count_correct)
                 
-                # Verify structure of results
+
                 if len(metric_results) > 0:
                     first_result = metric_results[0]
                     has_required_fields = all(hasattr(first_result, field) for field in 
@@ -628,7 +627,7 @@ class TestSuite:
             except Exception as e:
                 if not self.coverage_mode:
                     print(f"❌ ERROR in workflow {scenario['name']}: {e}")
-                self.failed_tests += 2  # Account for the expected tests
+                self.failed_tests += 2
                 self.total_tests += 2
             finally:
                 if os.path.exists(test_file_path):
@@ -637,27 +636,27 @@ class TestSuite:
     def test_file_handling_edge_cases(self):
         self.print_header("FILE HANDLING EDGE CASES")
         
-        # Test various file scenarios
+
         test_cases = [
             {
                 "name": "File with empty lines",
                 "content": "https://github.com/test/repo1\n\n\nhttps://github.com/test/repo2\n\n",
-                "expected_count": 1  # Autograder expects only first model URL
+                "expected_count": 1
             },
             {
                 "name": "File with comments/invalid lines",
                 "content": "# This is a comment\nhttps://github.com/test/repo\ninvalid-line\n# Another comment",
-                "expected_count": 1  # Only valid URLs are processed, comments and invalid lines are filtered
+                "expected_count": 1
             },
             {
                 "name": "File with whitespace",
                 "content": "  https://github.com/test/repo  \n\t\nhttps://huggingface.co/test/model\t\n",
-                "expected_count": 1  # Autograder expects only first model URL
+                "expected_count": 1
             },
             {
                 "name": "File with very long URLs",
                 "content": f"https://github.com/{'a' * 500}/{'b' * 500}\nhttps://github.com/normal/repo",
-                "expected_count": 1  # Autograder expects only first model URL
+                "expected_count": 1
             }
         ]
         
@@ -665,11 +664,11 @@ class TestSuite:
             test_file_path = f"temp_file_test_{i}.txt"
             
             try:
-                # Create test file
+
                 with open(test_file_path, 'w', encoding='utf-8') as f:
                     f.write(test_case['content'])
                 
-                # Process file
+
                 processor = URLProcessor(test_file_path)
                 results = processor.process_urls_with_metrics()
                 
@@ -683,34 +682,34 @@ class TestSuite:
                 if os.path.exists(test_file_path):
                     os.remove(test_file_path)
 
-    # ============================================================
-    #  SECURITY AND VALIDATION TESTS
-    # ============================================================
+
+
+
     
     def test_security_validation(self):
         self.print_header("SECURITY VALIDATION TESTS")
         
-        # Test potentially malicious or problematic URLs
+
         test_cases = [
             ("URL with SQL injection attempt", "https://github.com/test'; DROP TABLE users; --/repo", URLType.UNKNOWN),
-            ("URL with script injection", "https://github.com/test<script>alert(1)</script>/repo", URLType.GITHUB_REPO),  # Adjusted expectation
-            ("URL with path traversal", "https://github.com/../../../etc/passwd", URLType.GITHUB_REPO),  # Adjusted expectation 
-            ("URL with null bytes", "https://github.com/test\x00/repo", URLType.GITHUB_REPO),  # Adjusted expectation
-            ("URL with unicode normalization", "https://github.com/test\u0000/repo", URLType.GITHUB_REPO),  # Adjusted expectation
-            ("Extremely long URL", "https://github.com/" + "a" * 1000, URLType.GITHUB_REPO),  # Adjusted expectation
-            ("URL with control characters", "https://github.com/test\r\n/repo", URLType.GITHUB_REPO),  # Adjusted expectation
-            ("URL with encoded attacks", "https://github.com/test%3Cscript%3E/repo", URLType.GITHUB_REPO)  # Adjusted expectation
+            ("URL with script injection", "https://github.com/test<script>alert(1)</script>/repo", URLType.GITHUB_REPO),
+            ("URL with path traversal", "https://github.com/../../../etc/passwd", URLType.GITHUB_REPO),
+            ("URL with null bytes", "https://github.com/test\x00/repo", URLType.GITHUB_REPO),
+            ("URL with unicode normalization", "https://github.com/test\u0000/repo", URLType.GITHUB_REPO),
+            ("Extremely long URL", "https://github.com/" + "a" * 1000, URLType.GITHUB_REPO),
+            ("URL with control characters", "https://github.com/test\r\n/repo", URLType.GITHUB_REPO),
+            ("URL with encoded attacks", "https://github.com/test%3Cscript%3E/repo", URLType.GITHUB_REPO)
         ]
         
         for test_name, url, expected in test_cases:
             try:
                 actual = process_url(url)
-                # Accept both expected result and UNKNOWN as safe handling
+
                 passed = actual == expected or actual == URLType.UNKNOWN
                 expected_display = f"{expected.value} or unknown (safe handling)"
                 self.print_test_result(test_name, expected_display, actual.value, passed)
             except Exception:
-                # Exceptions on malicious input are acceptable
+
                 self.print_test_result(test_name, "Exception (safe)", "Exception raised", True)
 
     def test_unicode_and_internationalization(self):
@@ -732,27 +731,27 @@ class TestSuite:
                 passed = actual == expected
                 self.print_test_result(test_name, expected.value, actual.value, passed)
             except Exception as e:
-                # Unicode handling errors are tracked
+
                 self.print_test_result(test_name, expected.value, f"Error: {e}", False)
 
-    # ============================================================
-    #  PERFORMANCE AND SCALABILITY TESTS  
-    # ============================================================
+
+
+
     
     def test_large_batch_processing(self):
         self.print_header("LARGE BATCH PROCESSING TESTS")
         
-        # Reset rate limiter to clear any accumulated quota usage
+
         reset_rate_limiter()
         
-        # Create a smaller batch with mostly non-API URLs to avoid rate limiting
+
         base_urls = [
-            "https://github.com/test/repo",  # Limited real URLs
-            "https://example.com/fake/url",  # Fake URLs that don't trigger API calls
-            "https://mock.domain/test/path"  # More fake URLs
+            "https://github.com/test/repo",
+            "https://example.com/fake/url",
+            "https://mock.domain/test/path"
         ]
         
-        # Generate only 5 variations to avoid exhausting API quotas
+
         test_urls = []
         for i in range(5):
             for base_url in base_urls:
@@ -761,14 +760,14 @@ class TestSuite:
         test_file_path = "temp_large_batch.txt"
         
         try:
-            # Create large test file
+
             with open(test_file_path, 'w') as f:
                 for url in test_urls:
                     f.write(url + '\n')
             
             start_time = datetime.datetime.now()
             
-            # Process large batch with timeout protection
+
             try:
                 processor = URLProcessor(test_file_path)
                 results = processor.process_urls_with_metrics()
@@ -776,7 +775,7 @@ class TestSuite:
                 end_time = datetime.datetime.now()
                 processing_time = (end_time - start_time).total_seconds()
                 
-                # If processing is taking too long, skip the test
+
                 if processing_time > 15.0:
                     print(f"⚠️ Skipping large batch test - would exceed time limit ({processing_time:.1f}s)")
                     self.total_tests += 3
@@ -792,19 +791,19 @@ class TestSuite:
                 self.total_tests += 3
                 return
             
-            # Verify URLs processed (invalid URLs are filtered out)
+
             processed_count = len(results)
-            expected_count = 5  # 5 valid GitHub URLs (github.com/test/repo-0 through github.com/test/repo-4)
+            expected_count = 5
             count_correct = processed_count == expected_count
             
-            # Performance should be reasonable (less than 10 seconds for 15 URLs)
+
             performance_acceptable = processing_time < 10.0
             
             self.print_test_result("Large batch processing count", expected_count, processed_count, count_correct)
             self.print_test_result("Large batch processing performance", True, performance_acceptable, performance_acceptable)
             
-            # Verify memory usage doesn't explode (basic check)
-            memory_efficient = len(str(results)) < 1000000  # Results string less than 1MB
+
+            memory_efficient = len(str(results)) < 1000000
             self.print_test_result("Large batch memory efficiency", True, memory_efficient, memory_efficient)
             
         except Exception as e:
@@ -819,7 +818,7 @@ class TestSuite:
     def test_edge_case_metric_scenarios(self):
         self.print_header("EDGE CASE METRIC SCENARIOS")
         
-        # Test metrics with various edge case inputs
+
         calculator = LicenseCalculator()
         
         edge_case_contexts = [
@@ -854,7 +853,7 @@ class TestSuite:
             try:
                 score = calculator.calculate_score(test_case["context"])
                 
-                # Should return a valid score or handle gracefully
+
                 if test_case["should_handle_gracefully"]:
                     valid_score = isinstance(score, (int, float)) and 0.0 <= score <= 1.0
                     self.print_test_result(test_case["name"], True, valid_score, valid_score)
@@ -867,15 +866,15 @@ class TestSuite:
                 else:
                     self.print_test_result(test_case["name"], "Exception", "Exception raised", True)
 
-    # ============================================================
-    #  RAMP UP METRIC TESTS  
-    # ============================================================
+
+
+
     
-    # TODO: Add RampUp metric tests when implemented
+
     
-    # ============================================================
-    #  BUS FACTOR METRIC TESTS
-    # ============================================================
+
+
+
     
     def test_busfactor_calculator(self):
         self.print_header("BUS FACTOR CALCULATOR TESTS")
@@ -937,26 +936,26 @@ class TestSuite:
                 self.failed_tests += 1
                 self.total_tests += 1
     
-    # ============================================================
-    #  CORRECTNESS METRIC TESTS
-    # ============================================================
+
+
+
     
-    # TODO: Add Correctness metric tests when implemented
+
     
-    # ============================================================
-    #  RESPONSIVE MAINTAINER METRIC TESTS
-    # ============================================================
+
+
+
     
-    # TODO: Add ResponsiveMaintainer metric tests when implemented
+
     
-    # ============================================================
-    #  RATE LIMITER TESTS
-    # ============================================================
+
+
+
     
     def test_rate_limiter(self):
         self.print_header("RATE LIMITER TESTS")
         
-        # Reset rate limiter for clean testing
+
         reset_rate_limiter()
         rate_limiter = get_rate_limiter()
         
@@ -1023,11 +1022,11 @@ class TestSuite:
                 self.failed_tests += 1
                 self.total_tests += 1
         
-        # Test quota enforcement
+
         self.print_section("Rate Limiter Quota Enforcement")
         
         try:
-            # Make several requests to test quota tracking
+
             for i in range(3):
                 rate_limiter.wait_if_needed(APIService.GITHUB)
             
@@ -1053,9 +1052,9 @@ class TestSuite:
             self.failed_tests += 1
             self.total_tests += 1
     
-    # ============================================================
-    #  NET SCORE TESTS
-    # ============================================================
+
+
+
     
     def test_full_metric_pipeline(self):
         self.print_header("FULL METRIC PIPELINE TESTS")
@@ -1108,9 +1107,9 @@ class TestSuite:
             if os.path.exists(test_file_path):
                 os.remove(test_file_path)
 
-    # ============================================================
-    #  METRIC CALCULATOR FRAMEWORK TESTS
-    # ============================================================
+
+
+
     
     def test_metric_calculator_validation(self):
         self.print_header("METRIC CALCULATOR VALIDATION TESTS")
@@ -1144,7 +1143,7 @@ class TestSuite:
         self.print_test_result("Set Score", 0.85, calculator.get_score(), calculator.get_score() == 0.85)
         self.print_test_result("Set Timing", 100, calculator.get_calculation_time(), calculator.get_calculation_time() == 100)
 
-    # Test additional MetricCalculator methods
+
     def test_metric_calculator_additional_features(self):
         self.print_section("METRIC CALCULATOR ADDITIONAL FEATURES")
         
@@ -1187,13 +1186,13 @@ class TestSuite:
         has_name_and_score = "TestCalculator" in repr_str and "score=" in repr_str
         self.print_test_result("Repr representation", True, has_name_and_score, has_name_and_score)
 
-    # ============================================================
-    #  EXCEPTION HANDLING TESTS
-    # ============================================================
+
+
+
     
-    # ============================================================
-    #  RESULTS STORAGE TESTS
-    # ============================================================
+
+
+
     
     def test_results_storage_edge_cases(self):
         self.print_section("RESULTS STORAGE EDGE CASES")
@@ -1241,7 +1240,7 @@ class TestSuite:
                 performance_claims_score=0.75, performance_claims_latency=65
             )
             ndjson = model_result.to_ndjson_line()
-            has_model_name = "unknown" in ndjson  # The model name should be extracted
+            has_model_name = "unknown" in ndjson
             is_valid_json = json.loads(ndjson) is not None
             self.print_test_result("NDJSON formatting", True, has_model_name and is_valid_json, has_model_name and is_valid_json)
         except Exception:
@@ -1255,7 +1254,7 @@ class TestSuite:
         except Exception:
             self.print_test_result("MetricResult to_dict", True, False, False)
 
-    # Test core ResultsStorage functionality
+
     def test_results_storage_functionality(self):
         self.print_section("RESULTS STORAGE FUNCTIONALITY")
         
@@ -1289,9 +1288,9 @@ class TestSuite:
         is_cleared = len(cleared_metrics) == 0
         self.print_test_result("Storage clear functionality", True, is_cleared, is_cleared)
 
-    # ============================================================
-    #  TEST SUMMARY AND EXECUTION
-    # ============================================================
+
+
+
     
     def print_summary(self):
         if self.coverage_mode:
@@ -1341,91 +1340,91 @@ class TestSuite:
             print("Testing URL processing, routing, and metric calculations...")
         
         try:
-            # Set a reasonable timeout for the entire test suite (5 minutes)
+
             import signal
             
             def timeout_handler(signum, frame):
                 print("\nTest suite timed out after 5 minutes")
                 raise TimeoutError("Test suite execution timed out")
             
-            # Set timeout for Unix systems
+
             if hasattr(signal, 'SIGALRM'):
                 signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(300)  # 5 minutes timeout
+                signal.alarm(300)
             
-            # Check if we're in an autograder environment (no network access)
+
             import os
             skip_network_tests = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
             
-            # Basic URL processing tests
+
             self.test_url_validation()
             self.test_url_categorization() 
-            # self.test_comprehensive_url_processing()  # Skip network-heavy test
+
             self.test_edge_cases()
-            # self.test_url_processor_edge_cases()  # Skip network-heavy test
+
             
-            # Advanced URL processing tests
+
             self.test_url_parsing_edge_cases()
-            # self.test_concurrent_url_processing()  # Skip network-heavy test
+
             
-            # License metric tests
-            # self.test_license_calculator()  # Skip network-heavy test
+
+
             self.test_license_compatibility_mapping()
             
-            # Bus Factor metric tests
-            # self.test_busfactor_calculator()  # Skip network-heavy test
+
+
             
-            # Rate limiter tests
+
             self.test_rate_limiter()
             
-            # Performance and stress tests
-            # self.test_metric_calculation_performance()  # Skip network-heavy test
-            # self.test_error_recovery_scenarios()  # Skip network-heavy test
+
+
+
             
-            # Data integrity tests
+
             self.test_data_consistency_checks()
             self.test_boundary_value_analysis()
             
-            # Integration workflow tests
-            # self.test_complete_workflow_integration()  # Skip network-heavy test
+
+
             self.test_file_handling_edge_cases()
             
-            # Security and validation tests
+
             self.test_security_validation()
             self.test_unicode_and_internationalization()
             
-            # Performance and scalability tests
-            # self.test_large_batch_processing()  # Skip network-heavy test
+
+
             self.test_edge_case_metric_scenarios()
             
-            # Full pipeline tests
-            # self.test_full_metric_pipeline()  # Skip network-heavy test
+
+
             
-            # Framework tests
+
             self.test_metric_calculator_validation()
             self.test_metric_calculator_additional_features()
             self.test_results_storage_edge_cases()
             self.test_results_storage_functionality()
             
-            # Comprehensive calculator tests for improved coverage
-            # self.test_size_calculator_comprehensive()  # Skip network-heavy test
-            # self.test_ramp_up_calculator_comprehensive()  # Skip network-heavy test
-            # self.test_code_quality_calculator_comprehensive()  # Skip network-heavy test
-            # self.test_dataset_code_calculator_comprehensive()  # Skip network-heavy test
-            # self.test_dataset_quality_calculator_comprehensive()  # Skip network-heavy test
-            # self.test_performance_claims_calculator_comprehensive()  # Skip network-heavy test
-            # self.test_llm_analyzer_comprehensive()  # Skip network-heavy test
-            # self.test_llm_client_comprehensive()  # Skip network-heavy test
-            # self.test_http_client_comprehensive()  # Skip network-heavy test
+
+
+
+
+
+
+
+
+
+
             self.test_config_comprehensive()
             self.test_exceptions_comprehensive()
-            # self.test_url_processor_comprehensive()  # Skip network-heavy test
+
             
         except Exception as e:
             if not self.coverage_mode:
                 print(f"❌ CRITICAL ERROR: {e}")
         finally:
-            # Cancel timeout alarm
+
             if hasattr(signal, 'SIGALRM'):
                 signal.alarm(0)
             self.print_summary()
@@ -1435,17 +1434,16 @@ class TestSuite:
         else:
             sys.exit(0)
     
-    # ============================================================
-    #  COMPREHENSIVE CALCULATOR TESTS FOR IMPROVED COVERAGE
-    # ============================================================
+
+
+
     
     def test_size_calculator_comprehensive(self):
-        """Test SizeCalculator with various scenarios."""
         self.print_header("SIZE CALCULATOR COMPREHENSIVE TESTS")
         
         calculator = SizeCalculator()
         
-        # Test with valid Hugging Face model
+
         context = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url=None,
@@ -1460,7 +1458,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Size Calculator - Valid HF Model", "No exception", f"Exception: {e}", False)
         
-        # Test with GitHub model
+
         context_github = ModelContext(
             model_url="https://github.com/google-research/bert",
             code_url="https://github.com/google-research/bert",
@@ -1475,7 +1473,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Size Calculator - GitHub Model", "No exception", f"Exception: {e}", False)
         
-        # Test with invalid URL
+
         context_invalid = ModelContext(
             model_url="https://invalid-url.com/model",
             code_url=None,
@@ -1491,12 +1489,11 @@ class TestSuite:
             self.print_test_result("Size Calculator - Invalid URL", "No exception", f"Exception: {e}", False)
     
     def test_ramp_up_calculator_comprehensive(self):
-        """Test RampUpCalculator with various scenarios."""
         self.print_header("RAMP UP CALCULATOR COMPREHENSIVE TESTS")
         
         calculator = RampUpCalculator()
         
-        # Test with valid Hugging Face model
+
         context = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url=None,
@@ -1511,7 +1508,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Ramp Up Calculator - Valid HF Model", "No exception", f"Exception: {e}", False)
         
-        # Test with GitHub model
+
         context_github = ModelContext(
             model_url="https://github.com/google-research/bert",
             code_url="https://github.com/google-research/bert",
@@ -1527,12 +1524,11 @@ class TestSuite:
             self.print_test_result("Ramp Up Calculator - GitHub Model", "No exception", f"Exception: {e}", False)
     
     def test_code_quality_calculator_comprehensive(self):
-        """Test CodeQualityCalculator with various scenarios."""
         self.print_header("CODE QUALITY CALCULATOR COMPREHENSIVE TESTS")
         
         calculator = CodeQualityCalculator()
         
-        # Test with GitHub metadata
+
         context = ModelContext(
             model_url="https://github.com/google-research/bert",
             code_url="https://github.com/google-research/bert",
@@ -1554,7 +1550,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Code Quality Calculator - GitHub Metadata", "No exception", f"Exception: {e}", False)
         
-        # Test with Hugging Face metadata
+
         context_hf = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url=None,
@@ -1575,12 +1571,11 @@ class TestSuite:
             self.print_test_result("Code Quality Calculator - HF Metadata", "No exception", f"Exception: {e}", False)
     
     def test_dataset_code_calculator_comprehensive(self):
-        """Test DatasetCodeCalculator with various scenarios."""
         self.print_header("DATASET CODE CALCULATOR COMPREHENSIVE TESTS")
         
         calculator = DatasetCodeCalculator()
         
-        # Test with both dataset and code URLs
+
         context = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url="https://github.com/google-research/bert",
@@ -1595,7 +1590,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Dataset Code Calculator - Both URLs", "No exception", f"Exception: {e}", False)
         
-        # Test with only dataset URL
+
         context_dataset = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url=None,
@@ -1610,7 +1605,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Dataset Code Calculator - Dataset Only", "No exception", f"Exception: {e}", False)
         
-        # Test with only code URL
+
         context_code = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url="https://github.com/google-research/bert",
@@ -1626,12 +1621,11 @@ class TestSuite:
             self.print_test_result("Dataset Code Calculator - Code Only", "No exception", f"Exception: {e}", False)
     
     def test_dataset_quality_calculator_comprehensive(self):
-        """Test DatasetQualityCalculator with various scenarios."""
         self.print_header("DATASET QUALITY CALCULATOR COMPREHENSIVE TESTS")
         
         calculator = DatasetQualityCalculator()
         
-        # Test with dataset URL
+
         context = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url=None,
@@ -1646,7 +1640,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Dataset Quality Calculator - With Dataset", "No exception", f"Exception: {e}", False)
         
-        # Test without dataset URL
+
         context_no_dataset = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url=None,
@@ -1662,12 +1656,11 @@ class TestSuite:
             self.print_test_result("Dataset Quality Calculator - No Dataset", "No exception", f"Exception: {e}", False)
     
     def test_performance_claims_calculator_comprehensive(self):
-        """Test PerformanceClaimsCalculator with various scenarios."""
         self.print_header("PERFORMANCE CLAIMS CALCULATOR COMPREHENSIVE TESTS")
         
         calculator = PerformanceClaimsCalculator()
         
-        # Test with Hugging Face model
+
         context = ModelContext(
             model_url="https://huggingface.co/google-bert/bert-base-uncased",
             code_url=None,
@@ -1682,7 +1675,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Performance Claims Calculator - HF Model", "No exception", f"Exception: {e}", False)
         
-        # Test with GitHub model
+
         context_github = ModelContext(
             model_url="https://github.com/google-research/bert",
             code_url="https://github.com/google-research/bert",
@@ -1698,12 +1691,11 @@ class TestSuite:
             self.print_test_result("Performance Claims Calculator - GitHub Model", "No exception", f"Exception: {e}", False)
     
     def test_llm_analyzer_comprehensive(self):
-        """Test LLMAnalyzer with various scenarios."""
         self.print_header("LLM ANALYZER COMPREHENSIVE TESTS")
         
         analyzer = LLMAnalyzer()
         
-        # Test analyze_dataset_quality
+
         try:
             result = analyzer.analyze_dataset_quality({"description": "Test dataset description"})
             self.print_test_result("LLM Analyzer - Dataset Quality", 
@@ -1711,16 +1703,16 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Analyzer - Dataset Quality", "No exception", f"Exception: {e}", False)
         
-        # Test _post_to_genai method (private method)
+
         try:
-            # This will likely fail due to missing API key, but we can test the method exists
+
             result = analyzer._post_to_genai([{"role": "user", "content": "test"}])
             self.print_test_result("LLM Analyzer - Post to GenAI", 
                                  "String or None", str(type(result)), isinstance(result, (str, type(None))))
         except Exception as e:
             self.print_test_result("LLM Analyzer - Post to GenAI", "No exception", f"Exception: {e}", False)
         
-        # Test _extract_score method (private method)
+
         try:
             result = analyzer._extract_score("Score: 0.8")
             self.print_test_result("LLM Analyzer - Extract Score", 
@@ -1728,7 +1720,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Analyzer - Extract Score", "No exception", f"Exception: {e}", False)
         
-        # Test analyze_dataset_quality method
+
         try:
             score = analyzer.analyze_dataset_quality({"description": "Test dataset"})
             success = isinstance(score, float)
@@ -1737,7 +1729,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Analyzer - Analyze Dataset Quality", "No exception", f"Exception: {e}", False)
         
-        # Test analyze_dataset_quality with empty content
+
         try:
             score = analyzer.analyze_dataset_quality({})
             success = isinstance(score, float)
@@ -1746,7 +1738,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Analyzer - Empty Dataset Info", "No exception", f"Exception: {e}", False)
         
-        # Test analyze_dataset_quality with None content
+
         try:
             score = analyzer.analyze_dataset_quality(None)
             success = isinstance(score, float)
@@ -1755,9 +1747,9 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Analyzer - None Dataset Info", "No exception", f"Exception: {e}", False)
         
-        # Test _extract_score with various edge cases
+
         try:
-            # Test with valid score
+
             score = analyzer._extract_score("The quality score is 0.85")
             success = isinstance(score, float) and score == 0.85
             self.print_test_result("LLM Analyzer - Extract Score Valid", 
@@ -1766,7 +1758,7 @@ class TestSuite:
             self.print_test_result("LLM Analyzer - Extract Score Valid", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with no score
+
             score = analyzer._extract_score("No score mentioned here")
             success = isinstance(score, float) and score == 0.0
             self.print_test_result("LLM Analyzer - Extract Score None", 
@@ -1775,7 +1767,7 @@ class TestSuite:
             self.print_test_result("LLM Analyzer - Extract Score None", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with multiple scores
+
             score = analyzer._extract_score("Score: 0.3 and also 0.7")
             success = isinstance(score, float) and score == 0.3
             self.print_test_result("LLM Analyzer - Extract Score Multiple", 
@@ -1784,7 +1776,7 @@ class TestSuite:
             self.print_test_result("LLM Analyzer - Extract Score Multiple", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with score > 1.0
+
             score = analyzer._extract_score("Score: 1.5")
             success = isinstance(score, float) and score == 1.5
             self.print_test_result("LLM Analyzer - Extract Score > 1", 
@@ -1793,7 +1785,7 @@ class TestSuite:
             self.print_test_result("LLM Analyzer - Extract Score > 1", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with negative score
+
             score = analyzer._extract_score("Score: -0.5")
             success = isinstance(score, float) and score == -0.5
             self.print_test_result("LLM Analyzer - Extract Score Negative", 
@@ -1802,12 +1794,11 @@ class TestSuite:
             self.print_test_result("LLM Analyzer - Extract Score Negative", "No exception", f"Exception: {e}", False)
     
     def test_llm_client_comprehensive(self):
-        """Test LLM client functionality."""
         self.print_header("LLM CLIENT COMPREHENSIVE TESTS")
         
         from src.core.llm_client import ask_for_json_score, _extract_json_score
         
-        # Test _extract_json_score with various inputs
+
         test_cases = [
             ("Valid JSON", '{"score": 0.8, "rationale": "Good"}', 0.8),
             ("Invalid JSON", '{"score": "invalid"}', None),
@@ -1831,7 +1822,7 @@ class TestSuite:
                 self.print_test_result(f"LLM Client - {test_name}", 
                                      expected_score, f"Exception: {e}", False)
         
-        # Test ask_for_json_score (will fail due to missing API key, but tests the function)
+
         try:
             score, rationale = ask_for_json_score("Test prompt")
             self.print_test_result("LLM Client - API Call", 
@@ -1839,9 +1830,9 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Client - API Call", "No exception", f"Exception: {e}", False)
         
-        # Test _extract_json_score with more edge cases
+
         try:
-            # Test with malformed JSON
+
             score, rationale = _extract_json_score('{"score": 0.8, "rationale": "Good", "extra": "field"}')
             success = score == 0.8 and isinstance(rationale, str)
             self.print_test_result("LLM Client - Malformed JSON", 
@@ -1850,7 +1841,7 @@ class TestSuite:
             self.print_test_result("LLM Client - Malformed JSON", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with JSON containing non-numeric score
+
             score, rationale = _extract_json_score('{"score": "high", "rationale": "Good"}')
             success = score is None
             self.print_test_result("LLM Client - Non-numeric Score", 
@@ -1859,7 +1850,7 @@ class TestSuite:
             self.print_test_result("LLM Client - Non-numeric Score", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with JSON containing missing score field
+
             score, rationale = _extract_json_score('{"rationale": "Good"}')
             success = score is None
             self.print_test_result("LLM Client - Missing Score Field", 
@@ -1868,7 +1859,7 @@ class TestSuite:
             self.print_test_result("LLM Client - Missing Score Field", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with JSON containing missing rationale field
+
             score, rationale = _extract_json_score('{"score": 0.8}')
             success = score == 0.8 and rationale == ""
             self.print_test_result("LLM Client - Missing Rationale Field", 
@@ -1877,7 +1868,7 @@ class TestSuite:
             self.print_test_result("LLM Client - Missing Rationale Field", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with regex fallback on multiple numbers
+
             score, rationale = _extract_json_score('The scores are 0.3, 0.7, and 0.9')
             success = score == 0.3
             self.print_test_result("LLM Client - Multiple Numbers Regex", 
@@ -1885,9 +1876,9 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("LLM Client - Multiple Numbers Regex", "No exception", f"Exception: {e}", False)
         
-        # Test LLM client edge cases
+
         try:
-            # Test with very long content
+
             long_content = "This is a very long content with many words " * 100 + "Score: 0.8"
             score, rationale = _extract_json_score(long_content)
             success = score == 0.8
@@ -1897,7 +1888,7 @@ class TestSuite:
             self.print_test_result("LLM Client - Long Content", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with content containing special characters
+
             special_content = "Score: 0.8 with special chars: !@#$%^&*()"
             score, rationale = _extract_json_score(special_content)
             success = score == 0.8
@@ -1907,7 +1898,7 @@ class TestSuite:
             self.print_test_result("LLM Client - Special Characters", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with content containing newlines
+
             multiline_content = "This is line 1\nThis is line 2\nScore: 0.8\nThis is line 4"
             score, rationale = _extract_json_score(multiline_content)
             success = score == 0.8
@@ -1917,7 +1908,7 @@ class TestSuite:
             self.print_test_result("LLM Client - Multiline Content", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with content containing tabs
+
             tab_content = "Score:\t0.8\twith tabs"
             score, rationale = _extract_json_score(tab_content)
             success = score == 0.8
@@ -1927,13 +1918,12 @@ class TestSuite:
             self.print_test_result("LLM Client - Tab Content", "No exception", f"Exception: {e}", False)
     
     def test_http_client_comprehensive(self):
-        """Test HTTP client functionality."""
         self.print_header("HTTP CLIENT COMPREHENSIVE TESTS")
         
         from src.core.http_client import get_with_rate_limit, post_with_rate_limit, head_with_rate_limit, make_rate_limited_request
         from src.core.rate_limiter import APIService
         
-        # Test get_with_rate_limit
+
         try:
             response = get_with_rate_limit("https://httpbin.org/get", APIService.GITHUB, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
@@ -1942,7 +1932,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - GET Request", "No exception", f"Exception: {e}", False)
         
-        # Test head_with_rate_limit
+
         try:
             response = head_with_rate_limit("https://httpbin.org/get", APIService.GITHUB, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
@@ -1951,7 +1941,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - HEAD Request", "No exception", f"Exception: {e}", False)
         
-        # Test post_with_rate_limit
+
         try:
             response = post_with_rate_limit("https://httpbin.org/post", APIService.GITHUB, 
                                           json={"test": "data"}, timeout=5)
@@ -1961,7 +1951,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - POST Request", "No exception", f"Exception: {e}", False)
         
-        # Test make_rate_limited_request with different methods
+
         try:
             response = make_rate_limited_request("GET", "https://httpbin.org/get", APIService.GITHUB, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
@@ -1970,17 +1960,17 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - Make Request GET", "No exception", f"Exception: {e}", False)
         
-        # Test with invalid URL to test error handling
+
         try:
             response = get_with_rate_limit("https://invalid-domain-that-does-not-exist.com", APIService.GITHUB, timeout=1)
-            # Should return None or handle gracefully
+
             success = response is None or hasattr(response, 'status_code')
             self.print_test_result("HTTP Client - Invalid URL", 
                                  "Graceful handling", f"Response: {response}", success)
         except Exception as e:
             self.print_test_result("HTTP Client - Invalid URL", "No exception", f"Exception: {e}", False)
         
-        # Test make_rate_limited_request with different methods
+
         try:
             response = make_rate_limited_request("PUT", "https://httpbin.org/put", APIService.GITHUB, 
                                                json={"test": "data"}, timeout=5)
@@ -1990,7 +1980,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - PUT Request", "No exception", f"Exception: {e}", False)
         
-        # Test make_rate_limited_request with DELETE method
+
         try:
             response = make_rate_limited_request("DELETE", "https://httpbin.org/delete", APIService.GITHUB, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
@@ -1999,7 +1989,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - DELETE Request", "No exception", f"Exception: {e}", False)
         
-        # Test with custom headers
+
         try:
             response = get_with_rate_limit("https://httpbin.org/headers", APIService.GITHUB, 
                                          headers={"X-Test": "value"}, timeout=5)
@@ -2009,7 +1999,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - Custom Headers", "No exception", f"Exception: {e}", False)
         
-        # Test with parameters
+
         try:
             response = get_with_rate_limit("https://httpbin.org/get", APIService.GITHUB, 
                                          params={"test": "param"}, timeout=5)
@@ -2019,13 +2009,13 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - Parameters", "No exception", f"Exception: {e}", False)
         
-        # Test rate limiter functionality
+
         try:
             from src.core.rate_limiter import get_rate_limiter, APIService
             
             rate_limiter = get_rate_limiter()
             
-            # Test quota check
+
             has_quota = rate_limiter.has_quota(APIService.GITHUB)
             success = isinstance(has_quota, bool)
             self.print_test_result("Rate Limiter - Quota Check", 
@@ -2034,7 +2024,7 @@ class TestSuite:
             self.print_test_result("Rate Limiter - Quota Check", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test quota status
+
             quota_status = rate_limiter.get_quota_status(APIService.GITHUB)
             success = isinstance(quota_status, dict)
             self.print_test_result("Rate Limiter - Quota Status", 
@@ -2043,7 +2033,7 @@ class TestSuite:
             self.print_test_result("Rate Limiter - Quota Status", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test different services
+
             github_quota = rate_limiter.has_quota(APIService.GITHUB)
             hf_quota = rate_limiter.has_quota(APIService.HUGGINGFACE)
             genai_quota = rate_limiter.has_quota(APIService.GENAI)
@@ -2054,18 +2044,18 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Rate Limiter - Service Independence", "No exception", f"Exception: {e}", False)
         
-        # Test HTTP client edge cases
+
         try:
-            # Test with timeout
+
             response = get_with_rate_limit("https://httpbin.org/delay/1", APIService.GITHUB, timeout=0.5)
-            success = response is None  # Should timeout and return None
+            success = response is None
             self.print_test_result("HTTP Client - Timeout", 
                                  "None", f"Response: {response}", success)
         except Exception as e:
             self.print_test_result("HTTP Client - Timeout", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with different HTTP methods
+
             response = make_rate_limited_request("PATCH", "https://httpbin.org/patch", APIService.GITHUB, 
                                                json={"test": "data"}, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
@@ -2075,7 +2065,7 @@ class TestSuite:
             self.print_test_result("HTTP Client - PATCH Request", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with OPTIONS method
+
             response = make_rate_limited_request("OPTIONS", "https://httpbin.org/get", APIService.GITHUB, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
             self.print_test_result("HTTP Client - OPTIONS Request", 
@@ -2083,12 +2073,12 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - OPTIONS Request", "No exception", f"Exception: {e}", False)
         
-        # Test rate limiter edge cases for better coverage
+
         try:
-            # Test rate limiter with different services
+
             rate_limiter = get_rate_limiter()
             
-            # Test get_quota_status
+
             status = rate_limiter.get_quota_status(APIService.GITHUB)
             success = isinstance(status, dict) and 'service' in status
             self.print_test_result("Rate Limiter - Quota Status", 
@@ -2097,35 +2087,35 @@ class TestSuite:
             self.print_test_result("Rate Limiter - Quota Status", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test rate limiter reset failures
+
             rate_limiter.reset_failures(APIService.GITHUB)
-            success = True  # Should not raise exception
+            success = True
             self.print_test_result("Rate Limiter - Reset Failures", 
                                  "No exception", f"Success: {success}", success)
         except Exception as e:
             self.print_test_result("Rate Limiter - Reset Failures", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test rate limiter handle rate limit response
+
             rate_limiter.handle_rate_limit_response(APIService.GITHUB, 5)
-            success = True  # Should not raise exception
+            success = True
             self.print_test_result("Rate Limiter - Handle Rate Limit", 
                                  "No exception", f"Success: {success}", success)
         except Exception as e:
             self.print_test_result("Rate Limiter - Handle Rate Limit", "No exception", f"Exception: {e}", False)
         
-        # Test HTTP client edge cases for better coverage
+
         try:
-            # Test with different timeout values
+
             response = get_with_rate_limit("https://httpbin.org/get", APIService.GITHUB, timeout=0.1)
-            success = response is None  # Expect None for very short timeout
+            success = response is None
             self.print_test_result("HTTP Client - Short Timeout", 
                                  "None", f"Response: {response is not None}", success)
         except Exception as e:
             self.print_test_result("HTTP Client - Short Timeout", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with different retry counts
+
             response = make_rate_limited_request("GET", "https://httpbin.org/get", APIService.GITHUB, 
                                                timeout=5, max_retries=1)
             success = response is not None and hasattr(response, 'status_code')
@@ -2135,7 +2125,7 @@ class TestSuite:
             self.print_test_result("HTTP Client - Custom Retry Count", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with different services
+
             response = get_with_rate_limit("https://httpbin.org/get", APIService.HUGGINGFACE, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
             self.print_test_result("HTTP Client - Different Service", 
@@ -2143,9 +2133,9 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("HTTP Client - Different Service", "No exception", f"Exception: {e}", False)
         
-        # Test HTTP client error handling for better coverage
+
         try:
-            # Test with invalid method
+
             response = make_rate_limited_request("INVALID", "https://httpbin.org/get", APIService.GITHUB, timeout=5)
             success = response is not None and hasattr(response, 'status_code')
             self.print_test_result("HTTP Client - Invalid Method", 
@@ -2154,28 +2144,27 @@ class TestSuite:
             self.print_test_result("HTTP Client - Invalid Method", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with malformed URL
+
             response = make_rate_limited_request("GET", "not-a-url", APIService.GITHUB, timeout=5)
-            success = response is None  # Should fail gracefully
+            success = response is None
             self.print_test_result("HTTP Client - Malformed URL", 
                                  "None", f"Response: {response}", success)
         except Exception as e:
             self.print_test_result("HTTP Client - Malformed URL", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with connection error
+
             response = make_rate_limited_request("GET", "https://nonexistent-domain-12345.com", APIService.GITHUB, timeout=1)
-            success = response is None  # Should fail gracefully
+            success = response is None
             self.print_test_result("HTTP Client - Connection Error", 
                                  "None", f"Response: {response}", success)
         except Exception as e:
             self.print_test_result("HTTP Client - Connection Error", "No exception", f"Exception: {e}", False)
     
     def test_config_comprehensive(self):
-        """Test Config class functionality."""
         self.print_header("CONFIG COMPREHENSIVE TESTS")
         
-        # Test get_github_token
+
         try:
             token = Config.get_github_token()
             self.print_test_result("Config - GitHub Token", 
@@ -2183,7 +2172,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Config - GitHub Token", "No exception", f"Exception: {e}", False)
         
-        # Test get_genai_token (correct method name)
+
         try:
             key = Config.get_genai_token()
             self.print_test_result("Config - GenAI Token", 
@@ -2191,10 +2180,10 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Config - GenAI Token", "No exception", f"Exception: {e}", False)
         
-        # Test environment variable priority
+
         try:
             import os
-            # Test with environment variable set
+
             original_env = os.environ.get('GITHUB_TOKEN')
             os.environ['GITHUB_TOKEN'] = 'test_env_token'
             env_token = Config.get_github_token()
@@ -2202,7 +2191,7 @@ class TestSuite:
             self.print_test_result("Config - Environment Priority", 
                                  "test_env_token", env_token, success)
             
-            # Clean up
+
             if original_env:
                 os.environ['GITHUB_TOKEN'] = original_env
             else:
@@ -2210,37 +2199,37 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("Config - Environment Priority", "No exception", f"Exception: {e}", False)
         
-        # Test file fallback when environment variable is not set
+
         try:
             import os
-            # Remove environment variable
+
             original_env = os.environ.get('GITHUB_TOKEN')
             if 'GITHUB_TOKEN' in os.environ:
                 del os.environ['GITHUB_TOKEN']
             
-            # Test file fallback
+
             file_token = Config.get_github_token()
             success = isinstance(file_token, (str, type(None)))
             self.print_test_result("Config - File Fallback", 
                                  "String or None", str(type(file_token)), success)
             
-            # Restore environment variable
+
             if original_env:
                 os.environ['GITHUB_TOKEN'] = original_env
         except Exception as e:
             self.print_test_result("Config - File Fallback", "No exception", f"Exception: {e}", False)
         
-        # Test with non-existent file
+
         try:
             import os
             import tempfile
             
-            # Create a temporary directory without token files
+
             with tempfile.TemporaryDirectory() as temp_dir:
                 original_cwd = os.getcwd()
                 os.chdir(temp_dir)
                 
-                # Remove environment variables
+
                 original_github = os.environ.get('GITHUB_TOKEN')
                 original_genai = os.environ.get('GEN_AI_STUDIO_API_KEY')
                 
@@ -2249,7 +2238,7 @@ class TestSuite:
                 if 'GEN_AI_STUDIO_API_KEY' in os.environ:
                     del os.environ['GEN_AI_STUDIO_API_KEY']
                 
-                # Test with no files
+
                 github_token = Config.get_github_token()
                 genai_token = Config.get_genai_token()
                 
@@ -2257,7 +2246,7 @@ class TestSuite:
                 self.print_test_result("Config - No Files", 
                                      "None", f"GitHub: {github_token}, GenAI: {genai_token}", success)
                 
-                # Restore
+
                 os.chdir(original_cwd)
                 if original_github:
                     os.environ['GITHUB_TOKEN'] = original_github
@@ -2267,24 +2256,23 @@ class TestSuite:
             self.print_test_result("Config - No Files", "No exception", f"Exception: {e}", False)
     
     def test_exceptions_comprehensive(self):
-        """Test custom exceptions."""
         self.print_header("EXCEPTIONS COMPREHENSIVE TESTS")
         
-        # Test MetricCalculationException
+
         try:
             raise MetricCalculationException("TestMetric", "Test error")
         except MetricCalculationException as e:
             self.print_test_result("Exception - MetricCalculationException", 
                                  "Exception raised", str(e), "Test error" in str(e))
         
-        # Test APIRateLimitException
+
         try:
             raise APIRateLimitException("TestAPI", 60)
         except APIRateLimitException as e:
             self.print_test_result("Exception - APIRateLimitException", 
                                  "Exception raised", str(e), "TestAPI" in str(e))
         
-        # Test InvalidURLException
+
         try:
             raise InvalidURLException("bad-url", "malformed")
         except InvalidURLException as e:
@@ -2292,10 +2280,9 @@ class TestSuite:
                                  "Exception raised", str(e), "bad-url" in str(e))
     
     def test_url_processor_comprehensive(self):
-        """Test URLProcessor with comprehensive scenarios."""
         self.print_header("URL PROCESSOR COMPREHENSIVE TESTS")
         
-        # Test URLProcessor initialization
+
         try:
             processor = URLProcessor("sample_input.txt")
             self.print_test_result("URL Processor - Initialization", 
@@ -2303,7 +2290,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("URL Processor - Initialization", "No exception", f"Exception: {e}", False)
         
-        # Test URL categorization
+
         try:
             url_type = categorize_url("https://huggingface.co/google-bert/bert-base-uncased")
             self.print_test_result("URL Processor - HF Categorization", 
@@ -2318,7 +2305,7 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("URL Processor - GitHub Categorization", "No exception", f"Exception: {e}", False)
         
-        # Test URL validation
+
         try:
             is_valid = is_valid_url("https://huggingface.co/google-bert/bert-base-uncased")
             self.print_test_result("URL Processor - Valid URL", 
@@ -2333,9 +2320,9 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("URL Processor - Invalid URL", "No exception", f"Exception: {e}", False)
         
-        # Test URL Processor edge cases
+
         try:
-            # Test with None URL
+
             result = is_valid_url(None)
             success = result == False
             self.print_test_result("URL Processor - None URL", 
@@ -2344,7 +2331,7 @@ class TestSuite:
             self.print_test_result("URL Processor - None URL", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test with empty URL
+
             result = is_valid_url("")
             success = result == False
             self.print_test_result("URL Processor - Empty URL", 
@@ -2353,7 +2340,7 @@ class TestSuite:
             self.print_test_result("URL Processor - Empty URL", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test categorize_url with various URLs
+
             hf_model = categorize_url("https://huggingface.co/microsoft/DialoGPT")
             success = hf_model == URLType.HUGGINGFACE_MODEL
             self.print_test_result("URL Processor - HF Model Categorization", 
@@ -2362,7 +2349,7 @@ class TestSuite:
             self.print_test_result("URL Processor - HF Model Categorization", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test categorize_url with GitHub URL
+
             github_repo = categorize_url("https://github.com/microsoft/DialoGPT")
             success = github_repo == URLType.GITHUB_REPO
             self.print_test_result("URL Processor - GitHub Repo Categorization", 
@@ -2371,7 +2358,7 @@ class TestSuite:
             self.print_test_result("URL Processor - GitHub Repo Categorization", "No exception", f"Exception: {e}", False)
         
         try:
-            # Test categorize_url with unknown URL
+
             unknown_url = categorize_url("https://example.com/test")
             success = unknown_url == URLType.UNKNOWN
             self.print_test_result("URL Processor - Unknown URL Categorization", 
@@ -2385,7 +2372,7 @@ if __name__ == "__main__":
         coverage_mode = "--coverage" in sys.argv
         test_suite = TestSuite(coverage_mode=coverage_mode)
         test_suite.run_all_tests()
-        # Exit with success code
+
         sys.exit(0)
     except KeyboardInterrupt:
         print("\nTest suite interrupted by user")

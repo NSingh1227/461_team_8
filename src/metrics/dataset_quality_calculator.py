@@ -6,7 +6,6 @@ from .llm_analyzer import LLMAnalyzer
 
 
 class DatasetQualityCalculator(MetricCalculator):
-    """Calculator for Dataset Quality (DQ) metric using Purdue GenAI Studio API."""
 
     def __init__(self):
         super().__init__("DatasetQuality")

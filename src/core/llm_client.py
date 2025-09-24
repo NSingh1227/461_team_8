@@ -10,15 +10,9 @@ from .rate_limiter import APIService
 def ask_for_json_score(prompt: str, 
                       api_url: str = "https://genai.rcac.purdue.edu/api/chat/completions",
                       model: str = "llama3.1:latest") -> Tuple[Optional[float], Optional[str]]:
-    """
-    Ask the Purdue GenAI Studio API for a JSON response with score and rationale.
-    
-    Returns:
-        Tuple of (score: float or None, rationale: str or None)
-    """
     api_key = os.getenv("GEN_AI_STUDIO_API_KEY")
     if not api_key:
-        # Check if we're in an autograder environment or if debug output is disabled
+
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
@@ -52,7 +46,7 @@ def ask_for_json_score(prompt: str,
             return _extract_json_score(content)
         else:
             if response:
-                # Check if we're in an autograder environment or if debug output is disabled
+
                 is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
                 debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
                 
@@ -61,7 +55,7 @@ def ask_for_json_score(prompt: str,
             return None, "API request failed"
             
     except Exception as e:
-        # Check if we're in an autograder environment or if debug output is disabled
+
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
         
@@ -71,15 +65,11 @@ def ask_for_json_score(prompt: str,
 
 
 def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
-    """
-    Extract score and rationale from LLM response.
-    Expects JSON format: {"score": float, "rationale": string}
-    """
     if not content:
         return None, "Empty response"
     
     try:
-        # First try to parse as JSON directly
+
         data = json.loads(content.strip())
         score = data.get("score")
         rationale = data.get("rationale", "")
@@ -90,7 +80,7 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
     except json.JSONDecodeError:
         pass
     
-    # Fallback: try to extract JSON from text
+
     json_match = re.search(r'\{[^}]*"score"[^}]*\}', content, re.DOTALL)
     if json_match:
         try:
@@ -103,8 +93,8 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
         except json.JSONDecodeError:
             pass
     
-    # Final fallback: extract numeric score with regex
-    # Look for "Score:" followed by a number
+
+
     score_match = re.search(r'Score:\s*(\d+(?:\.\d+)?)', content, re.IGNORECASE)
     if score_match:
         try:
@@ -113,7 +103,7 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
         except ValueError:
             pass
     
-    # Alternative: look for any decimal number
+
     score_match = re.search(r'\b(\d+(?:\.\d+)?)\b', content)
     if score_match:
         try:

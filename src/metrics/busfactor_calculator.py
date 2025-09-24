@@ -8,7 +8,6 @@ from ..core.http_client import get_with_rate_limit
 from ..core.rate_limiter import APIService
 
 class BusFactorCalculator(MetricCalculator):
-    """Calculator for Bus Factor metric using GitHub commit data."""
     
     def __init__(self):
         super().__init__("BusFactor")
@@ -17,14 +16,14 @@ class BusFactorCalculator(MetricCalculator):
         start_time = time.time()
         
         try:
-            # Use code_url if available, otherwise fall back to model_url for GitHub repos
+
             url_to_use = context.code_url or context.model_url
             
             if not url_to_use or not url_to_use.startswith("https://github.com"):
                 score = 0.0
             else:
                 contributors_count = self._get_contributors_last_12_months(url_to_use)
-                # Use a more nuanced scoring: 0-5 contributors = 0.0-0.5, 5-15 contributors = 0.5-1.0
+
                 if contributors_count <= 5:
                     score = contributors_count / 10.0
                 else:
@@ -49,7 +48,7 @@ class BusFactorCalculator(MetricCalculator):
             
             commits = self._fetch_github_commits_last_12_months(repo_info['owner'], repo_info['repo'])
             if not commits:
-                # If no recent commits, try to get historical contributors
+
                 return self._get_historical_contributors(repo_info['owner'], repo_info['repo'])
             
             contributors = set()
@@ -66,7 +65,6 @@ class BusFactorCalculator(MetricCalculator):
             return 0
     
     def _get_historical_contributors(self, owner: str, repo: str) -> int:
-        """Get historical contributors when no recent commits are found."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/contributors"
             headers = {'Accept': 'application/vnd.github.v3+json'}
@@ -74,7 +72,7 @@ class BusFactorCalculator(MetricCalculator):
             if github_token:
                 headers['Authorization'] = f'token {github_token}'
             
-            params = {'per_page': 10, 'page': 1}  # Reduced to 10 for faster response
+            params = {'per_page': 10, 'page': 1}
             
             response = get_with_rate_limit(url, APIService.GITHUB, headers=headers, params=params, timeout=10)
             
@@ -82,8 +80,8 @@ class BusFactorCalculator(MetricCalculator):
                 return 0
             
             contributors = response.json()
-            # Return a reasonable estimate based on historical contributors
-            # Cap at 8 to match the scoring formula
+
+
             return min(len(contributors), 8)
             
         except Exception as e:
@@ -115,7 +113,7 @@ class BusFactorCalculator(MetricCalculator):
             
             params = {
                 'since': since_date,
-                'per_page': 30,  # Reduced for faster response
+                'per_page': 30,
                 'page': 1
             }
             
@@ -124,7 +122,7 @@ class BusFactorCalculator(MetricCalculator):
                 APIService.GITHUB,
                 headers=headers, 
                 params=params, 
-                timeout=10  # Reduced timeout
+                timeout=10
             )
             
             if not response or response.status_code != 200:
@@ -133,7 +131,7 @@ class BusFactorCalculator(MetricCalculator):
                 return []
             
             commits = response.json()
-            return commits[:50]  # Limit to first 50 commits for performance
+            return commits[:50]
             
         except Exception as e:
             print(f"Error fetching GitHub commits: {e}", file=sys.stderr)

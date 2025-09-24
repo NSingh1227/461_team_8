@@ -5,7 +5,6 @@ from .base import MetricCalculator, ModelContext
 
 
 class DatasetCodeCalculator(MetricCalculator):
-    """Fast calculator for Dataset and Code Score (DAC) metric using metadata only."""
     
     def __init__(self):
         super().__init__("DatasetCode")
@@ -37,12 +36,11 @@ class DatasetCodeCalculator(MetricCalculator):
         return score
 
     def _check_dataset_availability(self, context: ModelContext) -> bool:
-        """Check dataset availability using metadata only."""
-        # Check if dataset URL is provided
+
         if context.dataset_url and context.dataset_url.strip():
             return True
         
-        # Check Hugging Face metadata
+
         if context.huggingface_metadata:
             datasets = context.huggingface_metadata.get('datasets', [])
             if datasets:
@@ -52,19 +50,18 @@ class DatasetCodeCalculator(MetricCalculator):
             if 'datasets' in card_data:
                 return True
         
-        # Check model info
+
         if context.model_info:
             return 'datasets' in context.model_info or 'dataset' in str(context.model_info).lower()
         
         return False
     
     def _check_code_availability(self, context: ModelContext) -> bool:
-        """Check code availability using metadata only."""
-        # Check if code URL is provided
+
         if context.code_url and context.code_url.strip():
             return True
         
-        # Check Hugging Face metadata
+
         if context.huggingface_metadata:
             if 'repository' in context.huggingface_metadata:
                 return True
@@ -74,7 +71,7 @@ class DatasetCodeCalculator(MetricCalculator):
             if any(tag.lower() in code_tags for tag in tags if isinstance(tag, str)):
                 return True
         
-        # Check model info
+
         if context.model_info and context.model_info.get('source') == 'github':
             return True
         
