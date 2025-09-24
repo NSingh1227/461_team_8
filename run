@@ -19,12 +19,14 @@ def validate_environment_variables():
     # Validate GitHub token
     github_token = os.environ.get('GITHUB_TOKEN')
     if github_token and 'invalid' in github_token.lower():
+        print(f"ERROR: Invalid GitHub token provided")
         print(f"ERROR: Invalid GitHub token provided", file=sys.stderr)
         sys.exit(1)
     
     # Validate log file path
     log_file = os.environ.get('LOG_FILE', '')
     if 'LOG_FILE' in os.environ and 'invalid' in log_file.lower():
+        print(f"ERROR: Cannot write to log file '{log_file}': Invalid path")
         print(f"ERROR: Cannot write to log file '{log_file}': Invalid path", file=sys.stderr)
         sys.exit(1)
 
