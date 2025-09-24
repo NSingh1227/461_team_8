@@ -71,17 +71,17 @@ class BusFactorCalculator(MetricCalculator):
             if github_token:
                 headers['Authorization'] = f'token {github_token}'
             
-            params = {'per_page': 30, 'page': 1}  # Reduced from 100 to 30 for faster response
+            params = {'per_page': 10, 'page': 1}  # Reduced to 10 for faster response
             
-            response = get_with_rate_limit(url, APIService.GITHUB, headers=headers, params=params, timeout=15)
+            response = get_with_rate_limit(url, APIService.GITHUB, headers=headers, params=params, timeout=10)
             
             if not response or response.status_code != 200:
                 return 0
             
             contributors = response.json()
             # Return a reasonable estimate based on historical contributors
-            # Cap at 10 to match the scoring formula
-            return min(len(contributors), 10)
+            # Cap at 8 to match the scoring formula
+            return min(len(contributors), 8)
             
         except Exception as e:
             print(f"Error getting historical contributors: {e}")
@@ -112,7 +112,7 @@ class BusFactorCalculator(MetricCalculator):
             
             params = {
                 'since': since_date,
-                'per_page': 50,  # Reduced for faster response
+                'per_page': 30,  # Reduced for faster response
                 'page': 1
             }
             
@@ -121,7 +121,7 @@ class BusFactorCalculator(MetricCalculator):
                 APIService.GITHUB,
                 headers=headers, 
                 params=params, 
-                timeout=15  # Reduced timeout
+                timeout=10  # Reduced timeout
             )
             
             if not response or response.status_code != 200:
@@ -130,7 +130,7 @@ class BusFactorCalculator(MetricCalculator):
                 return []
             
             commits = response.json()
-            return commits[:100]  # Limit to first 100 commits for performance
+            return commits[:50]  # Limit to first 50 commits for performance
             
         except Exception as e:
             print(f"Error fetching GitHub commits: {e}")

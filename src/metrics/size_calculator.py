@@ -49,7 +49,6 @@ class SizeCalculator(MetricCalculator):
         start_time = time.time()
         try:
             total_artifact_size_mb = self._estimate_artifact_size_mb(context)
-            print("total_artifact_size_mb: ", total_artifact_size_mb)
 
             if total_artifact_size_mb is None:
                 # Unknown size; leave compatibility empty and fall back to neutral score
@@ -67,7 +66,6 @@ class SizeCalculator(MetricCalculator):
 
         end_time = time.time()
         self._set_score(score, int((end_time - start_time) * 1000))
-        print("platform_compatibility: ", self.platform_compatibility)
         return score
 
     def get_platform_compatibility(self) -> Dict[str, float]:

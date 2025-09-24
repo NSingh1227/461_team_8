@@ -1,7 +1,5 @@
 import re
 import sys
-import json
-import requests
 import time
 import datetime
 from enum import Enum
