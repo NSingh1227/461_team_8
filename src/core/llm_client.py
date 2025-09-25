@@ -74,7 +74,10 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
         rationale: str = str(data.get("rationale", ""))
         
         if isinstance(score, (int, float)):
-            return float(score), rationale
+            score = float(score)
+            # Ensure score is between 0 and 1
+            score = max(0.0, min(1.0, score))
+            return score, rationale
         
     except json.JSONDecodeError:
         pass
@@ -87,7 +90,10 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
             rationale = str(data.get("rationale", ""))
             
             if isinstance(score, (int, float)):
-                return float(score), rationale
+                score = float(score)
+                # Ensure score is between 0 and 1
+                score = max(0.0, min(1.0, score))
+                return score, rationale
         except json.JSONDecodeError:
             pass
     
@@ -95,6 +101,8 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
     if score_match:
         try:
             score_value: float = float(score_match.group(1))
+            # Ensure score is between 0 and 1
+            score_value = max(0.0, min(1.0, score_value))
             return score_value, content.strip()
         except ValueError:
             pass
@@ -103,6 +111,8 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
     if score_match:
         try:
             score_value = float(score_match.group(1))
+            # Ensure score is between 0 and 1
+            score_value = max(0.0, min(1.0, score_value))
             return score_value, content.strip()
         except ValueError:
             pass

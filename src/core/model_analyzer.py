@@ -116,7 +116,7 @@ class ModelDynamicAnalyzer:
         try:
             # Import transformers only when needed
             from transformers import AutoTokenizer
-            
+
             # Try to load tokenizer with a timeout
             tokenizer = AutoTokenizer.from_pretrained(
                 repo_id,
@@ -134,7 +134,7 @@ class ModelDynamicAnalyzer:
         try:
             # Import transformers only when needed
             from transformers import AutoConfig
-            
+
             # Load model configuration to get basic info
             config = AutoConfig.from_pretrained(
                 repo_id,

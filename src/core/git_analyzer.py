@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from dulwich import porcelain
-from dulwich.repo import Repo
 from dulwich.objects import Commit
+from dulwich.repo import Repo
 
 
 class GitAnalyzer:

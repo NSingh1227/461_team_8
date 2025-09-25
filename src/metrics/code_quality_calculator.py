@@ -88,7 +88,7 @@ class CodeQualityCalculator(MetricCalculator):
         """Score based on dynamic model analysis."""
         try:
             from urllib.parse import urlparse
-            
+
             # Extract repo ID from URL
             parsed_url = urlparse(model_url)
             repo_id: str = parsed_url.path.strip("/")

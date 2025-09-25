@@ -77,7 +77,9 @@ class LLMAnalyzer:
         try:
             match: Optional[re.Match[str]] = re.search(r"-?\d+(?:\.\d+)?", content.strip())
             if match:
-                return round(float(match.group(0)), 2)
+                score: float = round(float(match.group(0)), 2)
+                # Ensure score is between 0 and 1
+                return max(0.0, min(1.0, score))
         except Exception:
             pass
         return 0.0
