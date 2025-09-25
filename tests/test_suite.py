@@ -167,7 +167,12 @@ class TestSuite:
         test_cases: List[Tuple[str, str, URLType]] = [
             ("HuggingFace Model", "https://huggingface.co/microsoft/DialoGPT-medium", URLType.HUGGINGFACE_MODEL),
             ("HuggingFace Dataset", "https://huggingface.co/datasets/squad", URLType.HUGGINGFACE_DATASET),
+            ("HuggingFace Spaces", "https://huggingface.co/spaces/microsoft/DialoGPT", URLType.HUGGINGFACE_SPACES),
             ("GitHub Repository", "https://github.com/microsoft/DialoGPT", URLType.GITHUB_REPO),
+            ("GitLab Repository", "https://gitlab.com/microsoft/DialoGPT", URLType.GITLAB_REPO),
+            ("ImageNet Dataset", "https://image-net.org/challenges/LSVRC/2012/", URLType.EXTERNAL_DATASET),
+            ("BookCorpus Dataset", "https://bookcorpus.com/dataset", URLType.EXTERNAL_DATASET),
+            ("Kaggle Dataset", "https://kaggle.com/datasets/squad", URLType.EXTERNAL_DATASET),
             ("Unknown Domain", "https://example.com/some/path", URLType.UNKNOWN),
             ("Invalid URL", "not-a-url", URLType.UNKNOWN)
         ]
@@ -255,7 +260,7 @@ class TestSuite:
             ("Malformed HuggingFace URL", "https://huggingface.co/", URLType.HUGGINGFACE_MODEL),
             ("HuggingFace URL with extra path", "https://huggingface.co/microsoft/DialoGPT-medium/tree/main", URLType.HUGGINGFACE_MODEL),
             ("GitHub URL with extra path", "https://github.com/microsoft/DialoGPT/issues", URLType.GITHUB_REPO),
-            ("Non-standard domain", "https://gitlab.com/test/repo", URLType.UNKNOWN),
+            ("GitLab Repository", "https://gitlab.com/test/repo", URLType.GITLAB_REPO),
         ]
         
         for description, url, expected in test_cases:

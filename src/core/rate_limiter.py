@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 class APIService(Enum):
     """Enumeration of supported API services."""
     GITHUB = "github"
+    GITLAB = "gitlab"
     HUGGINGFACE = "huggingface"
     GENAI = "genai"
     GENERAL_HTTP = "general"
@@ -30,6 +31,12 @@ class RateLimiter:
 
     DEFAULT_CONFIGS: Dict[APIService, RateLimitConfig] = {
         APIService.GITHUB: RateLimitConfig(
+            requests_per_window=60,
+            window_seconds=3600,
+            max_backoff_seconds=300,
+            base_delay_seconds=1.0
+        ),
+        APIService.GITLAB: RateLimitConfig(
             requests_per_window=60,
             window_seconds=3600,
             max_backoff_seconds=300,

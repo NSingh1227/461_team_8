@@ -27,9 +27,71 @@ from .rate_limiter import APIService
 class URLType(Enum):
     HUGGINGFACE_MODEL = 'model'
     HUGGINGFACE_DATASET = 'dataset'
-    GITHUB_REPO = 'code'
+    GITHUB_REPO = 'github_code'
+    GITLAB_REPO = 'gitlab_code'
+    HUGGINGFACE_SPACES = 'hf_spaces'
+    EXTERNAL_DATASET = 'external_dataset'
     UNKNOWN = 'unknown'
 def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
+    try:
+        parsed_url = urlparse(url)
+        path_parts = parsed_url.path.strip('/').split('/')
+
+        if api_type == "datasets":
+            if len(path_parts) >= 3 and path_parts[0] == "datasets":
+                api_path = f"/api/datasets/{path_parts[1]}/{path_parts[2]}"
+            else:
+                return None
+        elif api_type == "spaces":
+            if len(path_parts) >= 3 and path_parts[0] == "spaces":
+                api_path = f"/api/spaces/{path_parts[1]}/{path_parts[2]}"
+            else:
+                return None
+        else:  # models
+            if len(path_parts) >= 2:
+                api_path = f"/api/models/{path_parts[0]}/{path_parts[1]}"
+            else:
+                return None
+
+        api_url = f"https://huggingface.co{api_path}"
+        response = get_with_rate_limit(api_url, APIService.HUGGINGFACE)
+        
+        if response and response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Failed to fetch HF metadata: {response.status_code if response else 'No response'}", file=sys.stderr)
+            return None
+            
+    except Exception as e:
+        print(f"Error fetching HF metadata: {e}", file=sys.stderr)
+        return None
+
+def fetch_gitlab_metadata(url: str) -> Optional[Dict[str, Any]]:
+    """Fetch metadata from GitLab API."""
+    try:
+        parsed_url = urlparse(url)
+        path_parts = parsed_url.path.strip('/').split('/')
+        
+        if len(path_parts) < 2:
+            return None
+            
+        # GitLab API format: /api/v4/projects/{id}
+        # We need to URL encode the project path
+        project_path = '/'.join(path_parts[:2])
+        encoded_path = project_path.replace('/', '%2F')
+        
+        api_url = f"https://gitlab.com/api/v4/projects/{encoded_path}"
+        
+        response = get_with_rate_limit(api_url, APIService.GENERAL_HTTP)
+        if response and response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Failed to fetch GitLab metadata: {response.status_code if response else 'No response'}", file=sys.stderr)
+            return None
+            
+    except Exception as e:
+        print(f"Error fetching GitLab metadata: {e}", file=sys.stderr)
+        return None
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -107,11 +169,33 @@ def categorize_url(url_string: str) -> URLType:
     if parsed_url.netloc == "huggingface.co":
         if parsed_url.path.startswith("/datasets"):
             return URLType.HUGGINGFACE_DATASET
+        elif parsed_url.path.startswith("/spaces"):
+            return URLType.HUGGINGFACE_SPACES
         else:
             return URLType.HUGGINGFACE_MODEL
     elif parsed_url.netloc == "github.com":
         return URLType.GITHUB_REPO
+    elif parsed_url.netloc == "gitlab.com":
+        return URLType.GITLAB_REPO
     else:
+        # Check if it looks like a dataset URL (common dataset domains)
+        dataset_domains = [
+            "imagenet.org", "image-net.org", "www.image-net.org",
+            "bookcorpus.com", "www.bookcorpus.com",
+            "commoncrawl.org", "www.commoncrawl.org",
+            "openslr.org", "www.openslr.org",
+            "kaggle.com", "www.kaggle.com",
+            "data.gov", "www.data.gov",
+            "archive.org", "www.archive.org"
+        ]
+        
+        # Check for common dataset patterns
+        if (parsed_url.netloc in dataset_domains or 
+            'dataset' in parsed_url.path.lower() or
+            'data' in parsed_url.path.lower() or
+            any(keyword in parsed_url.path.lower() for keyword in ['imagenet', 'bookcorpus', 'wikipedia', 'squad', 'coco', 'mnist'])):
+            return URLType.EXTERNAL_DATASET
+        
         return URLType.UNKNOWN
 
 def process_url(url_string: str) -> URLType:
@@ -121,14 +205,6 @@ def process_url(url_string: str) -> URLType:
         return URLType.UNKNOWN
 
 
-def get_handler(url_type: URLType) -> Optional["URLHandler"]:
-    if url_type == URLType.HUGGINGFACE_MODEL:
-        return ModelHandler()
-    elif url_type == URLType.HUGGINGFACE_DATASET:
-        return DatasetHandler()
-    elif url_type == URLType.GITHUB_REPO:
-        return CodeHandler()
-    return None
 
 class URLProcessor:
 
@@ -613,3 +689,137 @@ class CodeHandler(URLHandler):
             local_repo_path=None,
             huggingface_metadata=None
         )
+
+class GitLabHandler(URLHandler):
+    def process_url(self, url: str) -> ModelContext:
+        parsed_url = urlparse(url)
+        path_parts = parsed_url.path.strip('/').split('/')
+
+        model_info: Dict[str, Any] = {
+            "source": "gitlab",
+            "type": "repository",
+            "url": url,
+            "path": parsed_url.path
+        }
+
+        if len(path_parts) >= 2:
+            model_info["owner"] = path_parts[0]
+            model_info["repo"] = path_parts[1]
+
+        gitlab_metadata: Optional[Dict[str, Any]] = fetch_gitlab_metadata(url)
+        if gitlab_metadata:
+            model_info.update({
+                "gitlab_metadata": gitlab_metadata,
+                "stars": gitlab_metadata.get("star_count", 0),
+                "forks": gitlab_metadata.get("forks_count", 0),
+                "language": gitlab_metadata.get("default_branch"),
+                "description": gitlab_metadata.get("description"),
+                "created_at": gitlab_metadata.get("created_at"),
+                "updated_at": gitlab_metadata.get("last_activity_at")
+            })
+
+        return ModelContext(
+            model_url=url,
+            model_info=model_info,
+            dataset_url=None,
+            code_url=url,
+            local_repo_path=None,
+            huggingface_metadata=None
+        )
+
+class HFSpacesHandler(URLHandler):
+    def process_url(self, url: str) -> ModelContext:
+        parsed_url = urlparse(url)
+        path_parts = parsed_url.path.strip('/').split('/')
+
+        model_info: Dict[str, Any] = {
+            "source": "huggingface_spaces",
+            "type": "space",
+            "url": url,
+            "path": parsed_url.path
+        }
+
+        if len(path_parts) >= 2:
+            model_info["owner"] = path_parts[0]
+            model_info["name"] = path_parts[1]
+
+        # Use HF API to fetch space metadata
+        huggingface_metadata: Optional[Dict[str, Any]] = fetch_huggingface_metadata(url, "spaces")
+
+        return ModelContext(
+            model_url=url,
+            model_info=model_info,
+            dataset_url=None,
+            code_url=url,
+            local_repo_path=None,
+            huggingface_metadata=huggingface_metadata
+        )
+
+class ExternalDatasetHandler(URLHandler):
+    def process_url(self, url: str) -> ModelContext:
+        parsed_url = urlparse(url)
+        path_parts = parsed_url.path.strip('/').split('/')
+
+        model_info: Dict[str, Any] = {
+            "source": "external",
+            "type": "dataset",
+            "url": url,
+            "path": parsed_url.path,
+            "domain": parsed_url.netloc
+        }
+
+        # Use GenAI to analyze the dataset URL and extract information
+        from .llm_client import ask_for_json_score
+        
+        prompt = f"""
+        Analyze this dataset URL and extract relevant information: {url}
+        
+        Please provide a JSON response with the following fields:
+        - name: The name of the dataset
+        - description: A brief description of what the dataset contains
+        - size: Estimated size or number of samples (if available)
+        - format: Data format (images, text, audio, etc.)
+        - license: License information if available
+        - quality_score: A score from 0.0 to 1.0 indicating dataset quality
+        
+        If you cannot determine information from the URL alone, provide reasonable defaults.
+        """
+        
+        try:
+            score, response = ask_for_json_score(prompt)
+            if response and response.strip():
+                # Try to parse the JSON response
+                import json
+                try:
+                    dataset_info = json.loads(response)
+                    model_info.update(dataset_info)
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, store the raw response
+                    model_info["raw_analysis"] = response
+        except Exception as e:
+            print(f"Error analyzing external dataset {url}: {e}", file=sys.stderr)
+            model_info["analysis_error"] = str(e)
+
+        return ModelContext(
+            model_url=url,
+            model_info=model_info,
+            dataset_url=url,
+            code_url=None,
+            local_repo_path=None,
+            huggingface_metadata=None
+        )
+
+def get_handler(url_type: URLType) -> Optional["URLHandler"]:
+    if url_type == URLType.HUGGINGFACE_MODEL:
+        return ModelHandler()
+    elif url_type == URLType.HUGGINGFACE_DATASET:
+        return DatasetHandler()
+    elif url_type == URLType.GITHUB_REPO:
+        return CodeHandler()
+    elif url_type == URLType.GITLAB_REPO:
+        return GitLabHandler()
+    elif url_type == URLType.HUGGINGFACE_SPACES:
+        return HFSpacesHandler()
+    elif url_type == URLType.EXTERNAL_DATASET:
+        return ExternalDatasetHandler()
+    return None
