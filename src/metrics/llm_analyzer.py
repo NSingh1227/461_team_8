@@ -21,7 +21,7 @@ class LLMAnalyzer:
     def _post_to_genai(self, messages: List[Dict[str, str]]) -> Optional[str]:
         is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-        
+
         if not self.api_key:
             if not is_autograder and debug_enabled:
                 print("[LLMAnalyzer] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
@@ -33,10 +33,10 @@ class LLMAnalyzer:
                 "Authorization": f"Bearer {self.api_key}"
             }
             response = post_with_rate_limit(
-                self.api_url, 
+                self.api_url,
                 APIService.GENAI,
-                json=payload, 
-                headers=headers, 
+                json=payload,
+                headers=headers,
                 timeout=30
             )
             if response and response.status_code == 200:
@@ -46,14 +46,14 @@ class LLMAnalyzer:
                 if response:
                     is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
                     debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-                    
+
                     if not is_autograder and debug_enabled:
                         print(f"[LLMAnalyzer] API error {response.status_code}: {response.text}", file=sys.stderr)
                 return None
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
+
             if not is_autograder and debug_enabled:
                 print(f"[LLMAnalyzer] Request failed: {e}", file=sys.stderr)
             return None

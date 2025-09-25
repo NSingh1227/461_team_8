@@ -40,11 +40,11 @@ class PerformanceClaimsCalculator(MetricCalculator):
 
         is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-        
+
 
         url: str = getattr(context, "model_url", "") or ""
         parsed = urlparse(url)
-        
+
         if parsed.netloc == "huggingface.co":
 
             model_id: str = parsed.path.strip("/")
@@ -53,34 +53,34 @@ class PerformanceClaimsCalculator(MetricCalculator):
                 model_id = model_id.split("/tree/")[0]
             if "/blob/" in model_id:
                 model_id = model_id.split("/blob/")[0]
-            
+
             if model_id and not model_id.startswith("datasets/"):
                 if not is_autograder and debug_enabled:
                     print("model_id: ", model_id, file=sys.stderr)
                 readme_url: str = f"https://huggingface.co/{model_id}/raw/main/README.md"
                 if not is_autograder and debug_enabled:
                     print("readme_url: ", readme_url, file=sys.stderr)
-                
+
                 try:
                     resp: requests.Response = requests.get(readme_url, timeout=10)
                     if not is_autograder and debug_enabled:
                         print("resp: ", resp, file=sys.stderr)
-                    
+
                     if resp.status_code == 200 and isinstance(resp.text, str):
                         content: str = resp.text
                         if not is_autograder and debug_enabled:
                             print("content: ", content[:200] + "..." if len(content) > 200 else content, file=sys.stderr)
-                        
+
 
                         heuristic: float = self._heuristic_readme_score(content.lower())
-                        
+
                         prompt: str = (
                             "Evaluate performance claims in this README.\n"
                             "Rate 0..1 based on standardized benchmarks, citations/links, and reproducibility.\n"
                             "Return {\"score\": float, \"rationale\": string}.\n\n"
                             f"README (first 4000 chars):\n{content[:4000]}"
                         )
-                        
+
                         try:
                             llm_score, _ = ask_for_json_score(prompt)
                             if llm_score is not None and isinstance(llm_score, (int, float)):
@@ -95,7 +95,7 @@ class PerformanceClaimsCalculator(MetricCalculator):
                         if not is_autograder and debug_enabled:
                             print(f"Failed to fetch README: status {resp.status_code}", file=sys.stderr)
                         return 0.3
-                        
+
                 except Exception as e:
                     if not is_autograder and debug_enabled:
                         print("Exception: ", e, file=sys.stderr)
@@ -104,29 +104,29 @@ class PerformanceClaimsCalculator(MetricCalculator):
             if not is_autograder and debug_enabled:
                 print("Not an HF model", file=sys.stderr)
             return 0.3
-        
+
         return None
 
     def _heuristic_readme_score(self, content: str) -> float:
         score: float = 0.0
-        
+
 
         benchmark_terms: List[str] = ["benchmark", "leaderboard", "sota", "glue", "superglue", "mmlu"]
         if any(term in content for term in benchmark_terms):
             score += 0.4
-        
+
 
         metric_terms: List[str] = ["accuracy", "f1", "bleu", "rouge", "perplexity", "exact match"]
         if any(term in content for term in metric_terms):
             score += 0.3
-        
+
 
         citation_terms: List[str] = ["citation", "arxiv", "doi", "paper"]
         if any(term in content for term in citation_terms):
             score += 0.2
-        
+
 
         if "evaluation" in content or "results" in content:
             score += 0.1
-        
+
         return max(0.0, min(1.0, score))

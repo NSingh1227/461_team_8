@@ -10,7 +10,7 @@ class MetricResult:
     score: Any  # Can be float or Dict[str, float] for Size metric
     calculation_time_ms: int
     timestamp: str
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -36,12 +36,12 @@ class ModelResult:
     code_quality_latency: int
     performance_claims_score: float
     performance_claims_latency: int
-    
+
     def _extract_model_name(self) -> str:
         try:
             parsed_url = urlparse(self.url)
             path_parts = parsed_url.path.strip('/').split('/')
-            
+
             if 'huggingface.co' in parsed_url.netloc:
                 if len(path_parts) >= 2:
                     return path_parts[1]
@@ -56,10 +56,10 @@ class ModelResult:
                 return "unknown"
         except Exception:
             return "unknown"
-    
+
     def to_ndjson_line(self) -> str:
         model_name = self._extract_model_name()
-        
+
         result_dict = {
             "name": model_name,
             "category": "MODEL",
@@ -94,34 +94,34 @@ class ResultsStorage:
     def __init__(self):
         self._model_results: Dict[str, Dict[str, MetricResult]] = {}
         self._completed_models: List[ModelResult] = []
-    
+
     def store_metric_result(self, model_url: str, metric_result: MetricResult) -> None:
         if model_url not in self._model_results:
             self._model_results[model_url] = {}
-        
+
         self._model_results[model_url][metric_result.metric_name] = metric_result
-    
+
     def get_metric_result(self, model_url: str, metric_name: str) -> Optional[MetricResult]:
         return self._model_results.get(model_url, {}).get(metric_name)
-    
+
     def get_all_metrics_for_model(self, model_url: str) -> Dict[str, MetricResult]:
         return self._model_results.get(model_url, {})
-    
+
     def is_model_complete(self, model_url: str) -> bool:
         required_metrics = {
-            "Size", "License", "RampUp", "BusFactor", 
+            "Size", "License", "RampUp", "BusFactor",
             "DatasetCode", "DatasetQuality", "CodeQuality", "PerformanceClaims"
         }
-        
+
         model_metrics = set(self._model_results.get(model_url, {}).keys())
         return required_metrics.issubset(model_metrics)
-    
+
     def finalize_model_result(self, model_url: str, net_score: float, net_score_latency: int) -> ModelResult:
         if not self.is_model_complete(model_url):
             raise ValueError(f"Model {model_url} does not have all required metrics calculated")
-        
+
         metrics = self._model_results[model_url]
-        
+
 
         size_metric = metrics["Size"]
         if isinstance(size_metric.score, dict):
@@ -134,7 +134,7 @@ class ResultsStorage:
                 "desktop_pc": size_metric.score * 0.8,
                 "aws_server": size_metric.score
             }
-        
+
         model_result = ModelResult(
             url=model_url,
             net_score=net_score,
@@ -156,13 +156,13 @@ class ResultsStorage:
             performance_claims_score=metrics["PerformanceClaims"].score,
             performance_claims_latency=metrics["PerformanceClaims"].calculation_time_ms
         )
-        
+
         self._completed_models.append(model_result)
         return model_result
-    
+
     def get_completed_models(self) -> List[ModelResult]:
         return self._completed_models.copy()
-    
+
     def clear(self) -> None:
         self._model_results.clear()
         self._completed_models.clear()

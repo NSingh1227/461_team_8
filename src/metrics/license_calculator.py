@@ -15,7 +15,7 @@ from .base import MetricCalculator, ModelContext
 
 class LicenseCalculator(MetricCalculator):
     """Calculator for license compatibility metric."""
-    
+
     LGPL_license_compatibility: Dict[str, float] = {
         'mit': 1.0, 'mit license': 1.0,
         'apache': 1.0, 'apache 2.0': 1.0, 'apache-2.0': 1.0, 'apache-2': 1.0,
@@ -34,24 +34,24 @@ class LicenseCalculator(MetricCalculator):
     def __init__(self) -> None:
         super().__init__("License")
         self.hf_api: HfApi = HfApi()
-    
+
     def calculate_score(self, context: ModelContext) -> float:
         """Calculate license compatibility score."""
         start_time: float = time.time()
-        
+
         try:
             license_text: Optional[str] = self._extract_license_from_context(context)
             score: float = self._calculate_compatibility_score(license_text)
         except Exception as e:
             print(f"Error calculating license score: {e}", file=sys.stderr)
             score = 0.5
-        
+
         end_time: float = time.time()
         calculation_time_ms: int = int((end_time - start_time) * 1000)
         self._set_score(score, calculation_time_ms)
-        
+
         return score
-    
+
     def _extract_license_from_context(self, context: ModelContext) -> Optional[str]:
         """Extract license information from model context."""
         if context.model_url.startswith("https://huggingface.co"):
@@ -68,12 +68,12 @@ class LicenseCalculator(MetricCalculator):
                 card_data: Dict[str, Any] = context.huggingface_metadata['cardData']
                 if 'license' in card_data:
                     return str(card_data['license']).lower().strip()
-            
+
             if 'tags' in context.huggingface_metadata:
                 for tag in context.huggingface_metadata['tags']:
                     if isinstance(tag, str) and 'license:' in tag:
                         return tag.replace('license:', '').strip().lower()
-        
+
         try:
             repo_id: str = self._extract_repo_id(context.model_url)
             readme_content: str = self._fetch_readme_from_hf_api(repo_id)
@@ -84,10 +84,10 @@ class LicenseCalculator(MetricCalculator):
 
     def _extract_github_license(self, context: ModelContext) -> Optional[str]:
         """Extract license from GitHub metadata."""
-        if (context.model_info and 
-            'github_metadata' in context.model_info and 
+        if (context.model_info and
+            'github_metadata' in context.model_info and
             context.model_info['github_metadata']):
-            
+
             github_data: Dict[str, Any] = context.model_info['github_metadata']
             if 'license' in github_data and github_data['license']:
                 license_info: Dict[str, Any] = github_data['license']
@@ -95,7 +95,7 @@ class LicenseCalculator(MetricCalculator):
                     return license_info['spdx_id'].lower().strip()
                 elif 'name' in license_info and license_info['name']:
                     return license_info['name'].lower().strip()
-        
+
         try:
             if context.model_url and context.model_url.startswith("https://github.com"):
                 parsed_url = urlparse(context.model_url)
@@ -104,12 +104,12 @@ class LicenseCalculator(MetricCalculator):
                     owner: str = path_parts[0]
                     repo: str = path_parts[1]
                     api_url: str = f"https://api.github.com/repos/{owner}/{repo}"
-                    
+
                     headers: Dict[str, str] = {}
                     github_token: Optional[str] = Config.get_github_token()
                     if github_token:
                         headers['Authorization'] = f'token {github_token}'
-                    
+
                     response = get_with_rate_limit(api_url, APIService.GITHUB, headers=headers, timeout=5)
                     if response and response.status_code == 200:
                         data: Dict[str, Any] = response.json()
@@ -122,31 +122,31 @@ class LicenseCalculator(MetricCalculator):
         except Exception as e:
             print(f"GitHub license extraction error: {e}", file=sys.stderr)
             pass
-        
+
         return None
-    
+
     def _calculate_compatibility_score(self, license_text: Optional[str]) -> float:
         """Calculate compatibility score based on license text."""
         if not license_text:
             return 0.5
 
         license_text = license_text.lower().strip()
-        
+
         if license_text in self.LGPL_license_compatibility:
             return self.LGPL_license_compatibility[license_text]
-        
+
         for known_license, score in self.LGPL_license_compatibility.items():
             if known_license in license_text or license_text in known_license:
                 return score
-        
+
         return 0.5
-    
+
     def _extract_license_from_readme(self, readme_content: str) -> Optional[str]:
         """Extract license information from README content."""
         license_pattern: str = r'license:\s*([^\n]*)'
         match: Optional[re.Match[str]] = re.search(license_pattern, readme_content.lower())
 
-        if match: 
+        if match:
             license: str = match.group(1).lower().strip()
             return license
         return None
@@ -176,9 +176,9 @@ class LicenseCalculator(MetricCalculator):
 
             with open(readme_path, 'r', encoding='utf-8') as f:
                 content: str = f.read()
-            
+
             return content
-        
+
         except (RepositoryNotFoundError, HfHubHTTPError) as e:
             print(f"Could not fetch README content for {repo_id}: {e}", file=sys.stderr)
             return ""
