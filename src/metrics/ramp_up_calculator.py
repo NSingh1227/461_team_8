@@ -125,6 +125,11 @@ class RampUpCalculator(MetricCalculator):
 
     def _analyze_tokenizer_completeness(self, tokenizer_results: Dict[str, bool]) -> float:
         """Analyze tokenizer file completeness."""
+        # Ensure tokenizer_results is a dictionary
+        if not isinstance(tokenizer_results, dict):
+            print(f"RampUp: tokenizer_results is not a dictionary: {type(tokenizer_results)}", file=sys.stderr)
+            return 0.0
+            
         if not any(tokenizer_results.values()):
             return 0.0
 

@@ -82,6 +82,10 @@ class BusFactorCalculator(MetricCalculator):
 
             contributors: set = set()
             for commit in commits:
+                # Ensure commit is a dictionary
+                if not isinstance(commit, dict):
+                    continue
+                    
                 if commit.get('author') and commit['author'].get('login'):
                     contributors.add(commit['author']['login'])
                 elif commit.get('commit', {}).get('author', {}).get('email'):
@@ -162,7 +166,15 @@ class BusFactorCalculator(MetricCalculator):
                     print(f"GitHub API error {response.status_code}: {response.text}", file=sys.stderr)
                 return []
 
-            commits: List[Dict[str, Any]] = response.json()
+            commits_data = response.json()
+            
+            # Ensure commits_data is a list
+            if not isinstance(commits_data, list):
+                print(f"GitHub API returned non-list data: {type(commits_data)}", file=sys.stderr)
+                return []
+            
+            # Filter out any non-dictionary items
+            commits: List[Dict[str, Any]] = [c for c in commits_data if isinstance(c, dict)]
             return commits[:50]
 
         except Exception as e:

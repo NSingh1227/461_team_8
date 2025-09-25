@@ -37,6 +37,11 @@ class DatasetQualityCalculator(MetricCalculator):
             dataset_info["dataset_url"] = context.dataset_url
 
         if context and context.huggingface_metadata:
+            # Ensure huggingface_metadata is a dictionary
+            if not isinstance(context.huggingface_metadata, dict):
+                print(f"DatasetQuality: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
+                return dataset_info or None
+                
             datasets: Any = context.huggingface_metadata.get("datasets", [])
             if datasets:
                 dataset_info["datasets"] = datasets
@@ -54,6 +59,11 @@ class DatasetQualityCalculator(MetricCalculator):
     def _fetch_readme_content(self, context: ModelContext) -> Optional[str]:
         try:
             if not context or not context.huggingface_metadata:
+                return None
+
+            # Ensure huggingface_metadata is a dictionary
+            if not isinstance(context.huggingface_metadata, dict):
+                print(f"DatasetQuality: huggingface_metadata is not a dictionary in _fetch_readme_content: {type(context.huggingface_metadata)}", file=sys.stderr)
                 return None
 
             readme_parts: List[str] = []

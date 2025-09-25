@@ -407,6 +407,11 @@ class URLProcessor:
         try:
 
             if context.huggingface_metadata:
+                # Ensure huggingface_metadata is a dictionary
+                if not isinstance(context.huggingface_metadata, dict):
+                    print(f"URLProcessor: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
+                    return inferred_datasets
+                    
                 datasets: List[Any] = context.huggingface_metadata.get('datasets', [])
                 if datasets:
                     for dataset in datasets:

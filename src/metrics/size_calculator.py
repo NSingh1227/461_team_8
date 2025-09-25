@@ -151,7 +151,15 @@ class SizeCalculator(MetricCalculator):
                 )
 
                 with open(config_path, 'r', encoding='utf-8') as f:
-                    config_data: Dict[str, Any] = json.load(f)
+                    config_data: Any = json.load(f)
+
+                # Ensure config_data is a dictionary
+                if not isinstance(config_data, dict):
+                    return {
+                        "filename": filename,
+                        "has_config": False,
+                        "error": "Config data is not a dictionary"
+                    }
 
                 analysis: Dict[str, Any] = {
                     "filename": filename,
@@ -180,6 +188,11 @@ class SizeCalculator(MetricCalculator):
     def _estimate_model_parameters(self, config: Dict[str, Any]) -> int:
         """Estimate model parameters based on config.json."""
         try:
+            # Ensure config is a dictionary
+            if not isinstance(config, dict):
+                print(f"SizeCalculator: config is not a dictionary: {type(config)}", file=sys.stderr)
+                return 0
+                
             hidden_size: int = config.get("hidden_size", 0)
             num_layers: int = config.get("num_hidden_layers", 0)
             vocab_size: int = config.get("vocab_size", 0)

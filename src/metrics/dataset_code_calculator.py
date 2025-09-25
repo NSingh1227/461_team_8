@@ -42,6 +42,11 @@ class DatasetCodeCalculator(MetricCalculator):
             return True
 
         if context.huggingface_metadata:
+            # Ensure huggingface_metadata is a dictionary
+            if not isinstance(context.huggingface_metadata, dict):
+                print(f"DatasetCode: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
+                return False
+                
             datasets: Any = context.huggingface_metadata.get('datasets', [])
             if datasets:
                 return True
@@ -60,6 +65,11 @@ class DatasetCodeCalculator(MetricCalculator):
             return True
 
         if context.huggingface_metadata:
+            # Ensure huggingface_metadata is a dictionary
+            if not isinstance(context.huggingface_metadata, dict):
+                print(f"DatasetCode: huggingface_metadata is not a dictionary in _check_code_availability: {type(context.huggingface_metadata)}", file=sys.stderr)
+                return False
+                
             if 'repository' in context.huggingface_metadata:
                 return True
 
