@@ -32,7 +32,6 @@ class CodeQualityCalculator(MetricCalculator):
         return max(0.0, min(1.0, score))
 
     def _score_from_github_metadata(self, github_data: Dict[str, Any]) -> float:
-        # Ensure github_data is a dictionary
         if not isinstance(github_data, dict):
             print(f"CodeQuality: github_data is not a dictionary: {type(github_data)}", file=sys.stderr)
             return 0.5
@@ -90,12 +89,10 @@ class CodeQualityCalculator(MetricCalculator):
 
         return min(1.0, score)
 
-    def _score_from_dynamic_analysis(self, model_url: str) -> float:
-        """Score based on dynamic model analysis."""
+    def _score_from_dynamic_analysis(self, model_url: str) -> float:    
         try:
             from urllib.parse import urlparse
 
-            # Extract repo ID from URL
             parsed_url = urlparse(model_url)
             repo_id: str = parsed_url.path.strip("/")
 
@@ -107,25 +104,21 @@ class CodeQualityCalculator(MetricCalculator):
             if not repo_id:
                 return 0.5
 
-            # Use dynamic analyzer
             analyzer: ModelDynamicAnalyzer = ModelDynamicAnalyzer()
             try:
                 analysis: Dict[str, Any] = analyzer.analyze_model_loading(repo_id)
                 validation: Dict[str, Any] = analyzer.validate_model_completeness(repo_id)
 
-                score: float = 0.3  # Base score
+                score: float = 0.3  
 
-                # Score based on loading capabilities
                 if analysis.get("can_load_model", False):
                     score += 0.3
                 if analysis.get("can_load_tokenizer", False):
                     score += 0.2
 
-                # Score based on completeness
                 completeness_score: float = validation.get("completeness_score", 0.0)
                 score += completeness_score * 0.2
 
-                # Score based on test scripts
                 test_score: float = self._check_test_scripts(repo_id)
                 score += test_score * 0.1
 
@@ -139,7 +132,6 @@ class CodeQualityCalculator(MetricCalculator):
             return 0.5
 
     def _check_test_scripts(self, repo_id: str) -> float:
-        """Check for test scripts and sample notebooks."""
         try:
             from huggingface_hub import HfApi
 
@@ -150,7 +142,6 @@ class CodeQualityCalculator(MetricCalculator):
             notebook_files: List[str] = []
 
             for file_info in repo_files:
-                # Ensure file_info is a dictionary
                 if not isinstance(file_info, dict):
                     is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
                     debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
@@ -167,17 +158,13 @@ class CodeQualityCalculator(MetricCalculator):
 
             score: float = 0.0
 
-            # Score for test files
             if test_files:
                 score += 0.5
-                # Bonus for multiple test files
                 if len(test_files) > 1:
                     score += 0.2
 
-            # Score for sample notebooks
             if notebook_files:
                 score += 0.3
-                # Bonus for multiple notebooks
                 if len(notebook_files) > 1:
                     score += 0.1
 

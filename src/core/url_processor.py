@@ -21,7 +21,6 @@ from src.storage.results_storage import (MetricResult, ModelResult,
                                          ResultsStorage)
 
 from .config import Config
-# Removed unused wildcard import
 from .http_client import get_with_rate_limit
 from .rate_limiter import APIService
 class URLType(Enum):
@@ -47,7 +46,7 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
                 api_path = f"/api/spaces/{path_parts[1]}/{path_parts[2]}"
             else:
                 return None
-        else:  # models
+        else:  
             if len(path_parts) >= 2:
                 api_path = f"/api/models/{path_parts[0]}/{path_parts[1]}"
             else:
@@ -63,20 +62,21 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
             return None
             
     except Exception as e:
-        print(f"Error fetching HF metadata: {e}", file=sys.stderr)
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        
+        if not is_autograder and debug_enabled:
+            print(f"Error fetching HF metadata: {e}", file=sys.stderr)
         return None
 
 def fetch_gitlab_metadata(url: str) -> Optional[Dict[str, Any]]:
-    """Fetch metadata from GitLab API."""
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
         
         if len(path_parts) < 2:
             return None
-            
-        # GitLab API format: /api/v4/projects/{id}
-        # We need to URL encode the project path
+                
         project_path = '/'.join(path_parts[:2])
         encoded_path = project_path.replace('/', '%2F')
         
@@ -90,8 +90,14 @@ def fetch_gitlab_metadata(url: str) -> Optional[Dict[str, Any]]:
             return None
             
     except Exception as e:
-        print(f"Error fetching GitLab metadata: {e}", file=sys.stderr)
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        
+        if not is_autograder and debug_enabled:
+            print(f"Error fetching GitLab metadata: {e}", file=sys.stderr)
         return None
+
+def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -116,10 +122,19 @@ def fetch_gitlab_metadata(url: str) -> Optional[Dict[str, Any]]:
         if response and response.status_code == 200:
             return response.json()
         else:
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+            
+            if not is_autograder and debug_enabled:
+                print(f"Failed to fetch HF metadata: {response.status_code if response else 'No response'}", file=sys.stderr)
             return None
 
     except Exception as e:
-        print(f"Warning: Failed to fetch HuggingFace metadata for {url}: {e}", file=sys.stderr)
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        
+        if not is_autograder and debug_enabled:
+            print(f"Warning: Failed to fetch HuggingFace metadata for {url}: {e}", file=sys.stderr)
         return None
 
 
@@ -146,7 +161,11 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
             return None
 
     except Exception as e:
-        print(f"Warning: Failed to fetch GitHub metadata for {url}: {e}", file=sys.stderr)
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        
+        if not is_autograder and debug_enabled:
+            print(f"Warning: Failed to fetch GitHub metadata for {url}: {e}", file=sys.stderr)
         return None
 
 def is_valid_url(url_string: str) -> bool:
@@ -178,7 +197,6 @@ def categorize_url(url_string: str) -> URLType:
     elif parsed_url.netloc == "gitlab.com":
         return URLType.GITLAB_REPO
     else:
-        # Check if it looks like a dataset URL (common dataset domains)
         dataset_domains = [
             "imagenet.org", "image-net.org", "www.image-net.org",
             "bookcorpus.com", "www.bookcorpus.com",
@@ -189,7 +207,6 @@ def categorize_url(url_string: str) -> URLType:
             "archive.org", "www.archive.org"
         ]
         
-        # Check for common dataset patterns
         if (parsed_url.netloc in dataset_domains or 
             'dataset' in parsed_url.path.lower() or
             'data' in parsed_url.path.lower() or
@@ -407,7 +424,6 @@ class URLProcessor:
         try:
 
             if context.huggingface_metadata:
-                # Ensure huggingface_metadata is a dictionary
                 if not isinstance(context.huggingface_metadata, dict):
                     print(f"URLProcessor: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
                     return inferred_datasets
@@ -748,7 +764,6 @@ class HFSpacesHandler(URLHandler):
             model_info["owner"] = path_parts[0]
             model_info["name"] = path_parts[1]
 
-        # Use HF API to fetch space metadata
         huggingface_metadata: Optional[Dict[str, Any]] = fetch_huggingface_metadata(url, "spaces")
 
         return ModelContext(
@@ -773,7 +788,6 @@ class ExternalDatasetHandler(URLHandler):
             "domain": parsed_url.netloc
         }
 
-        # Use GenAI to analyze the dataset URL and extract information
         from .llm_client import ask_for_json_score
         
         prompt = f"""
@@ -793,13 +807,11 @@ class ExternalDatasetHandler(URLHandler):
         try:
             score, response = ask_for_json_score(prompt)
             if response and response.strip():
-                # Try to parse the JSON response
                 import json
                 try:
                     dataset_info = json.loads(response)
                     model_info.update(dataset_info)
                 except json.JSONDecodeError:
-                    # If JSON parsing fails, store the raw response
                     model_info["raw_analysis"] = response
         except Exception as e:
             print(f"Error analyzing external dataset {url}: {e}", file=sys.stderr)

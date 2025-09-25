@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 
 
 class APIService(Enum):
-    """Enumeration of supported API services."""
     GITHUB = "github"
     GITLAB = "gitlab"
     HUGGINGFACE = "huggingface"
@@ -19,7 +18,6 @@ class APIService(Enum):
 
 @dataclass
 class RateLimitConfig:
-    """Configuration for rate limiting a specific API service."""
     requests_per_window: int
     window_seconds: int
     max_backoff_seconds: int = 300
@@ -27,8 +25,6 @@ class RateLimitConfig:
 
 
 class RateLimiter:
-    """Rate limiter for managing API request quotas across different services."""
-
     DEFAULT_CONFIGS: Dict[APIService, RateLimitConfig] = {
         APIService.GITHUB: RateLimitConfig(
             requests_per_window=60,
@@ -63,7 +59,6 @@ class RateLimiter:
     }
 
     def __init__(self, custom_configs: Optional[Dict[APIService, RateLimitConfig]] = None) -> None:
-        """Initialize rate limiter with default or custom configurations."""
         self._configs: Dict[APIService, RateLimitConfig] = self.DEFAULT_CONFIGS.copy()
         if custom_configs:
             self._configs.update(custom_configs)
@@ -81,7 +76,6 @@ class RateLimiter:
         }
 
     def check_quota(self, service: APIService) -> bool:
-        """Check if quota is available for the given service."""
         with self._locks[service]:
             self._cleanup_old_requests(service)
             config: RateLimitConfig = self._configs[service]
@@ -89,11 +83,9 @@ class RateLimiter:
             return current_count < config.requests_per_window
 
     def has_quota(self, service: APIService) -> bool:
-        """Check if quota is available for the given service."""
         return self.check_quota(service)
 
     def wait_if_needed(self, service: APIService) -> None:
-        """Wait if necessary to respect rate limits before making a request."""
         with self._locks[service]:
             self._cleanup_old_requests(service)
             config: RateLimitConfig = self._configs[service]
@@ -112,7 +104,6 @@ class RateLimiter:
 
     def handle_rate_limit_response(self, service: APIService,
                                   retry_after: Optional[int] = None) -> None:
-        """Handle rate limit response by implementing backoff strategy."""
         with self._locks[service]:
             self._failure_counts[service] += 1
             config: RateLimitConfig = self._configs[service]
@@ -134,12 +125,10 @@ class RateLimiter:
             time.sleep(wait_time)
 
     def reset_failures(self, service: APIService) -> None:
-        """Reset failure count for a service after successful request."""
         with self._locks[service]:
             self._failure_counts[service] = 0
 
     def get_quota_status(self, service: APIService) -> Dict[str, Any]:
-        """Get current quota status for a service."""
         with self._locks[service]:
             self._cleanup_old_requests(service)
             config: RateLimitConfig = self._configs[service]
@@ -156,7 +145,6 @@ class RateLimiter:
             }
 
     def _cleanup_old_requests(self, service: APIService) -> None:
-        """Remove old requests outside the time window."""
         config: RateLimitConfig = self._configs[service]
         current_time: float = time.time()
         window: deque = self._request_windows[service]
@@ -170,7 +158,6 @@ _instance_lock: threading.Lock = threading.Lock()
 
 
 def get_rate_limiter(config: Optional[Dict[APIService, RateLimitConfig]] = None) -> RateLimiter:
-    """Get singleton rate limiter instance."""
     global _rate_limiter_instance
 
     if _rate_limiter_instance is None:
@@ -182,14 +169,12 @@ def get_rate_limiter(config: Optional[Dict[APIService, RateLimitConfig]] = None)
 
 
 def set_rate_limiter(rate_limiter: RateLimiter) -> None:
-    """Set the global rate limiter instance (for testing)."""
     global _rate_limiter_instance
     with _instance_lock:
         _rate_limiter_instance = rate_limiter
 
 
 def reset_rate_limiter() -> None:
-    """Reset the global rate limiter instance (for testing)."""
     global _rate_limiter_instance
     with _instance_lock:
         _rate_limiter_instance = None

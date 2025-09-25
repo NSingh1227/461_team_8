@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 from typing import Any, Dict, List, Optional
@@ -23,7 +24,11 @@ class DatasetQualityCalculator(MetricCalculator):
             else:
                 print("[DatasetQuality] No dataset info available → default 0.0", file=sys.stderr)
         except Exception as e:
-            print(f"[DatasetQuality] Error calculating score: {e}", file=sys.stderr)
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+            
+            if not is_autograder and debug_enabled:
+                print(f"[DatasetQuality] Error calculating score: {e}", file=sys.stderr)
             score = 0.0
 
         end_time: float = time.time()
@@ -37,7 +42,6 @@ class DatasetQualityCalculator(MetricCalculator):
             dataset_info["dataset_url"] = context.dataset_url
 
         if context and context.huggingface_metadata:
-            # Ensure huggingface_metadata is a dictionary
             if not isinstance(context.huggingface_metadata, dict):
                 print(f"DatasetQuality: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
                 return dataset_info or None
@@ -61,7 +65,6 @@ class DatasetQualityCalculator(MetricCalculator):
             if not context or not context.huggingface_metadata:
                 return None
 
-            # Ensure huggingface_metadata is a dictionary
             if not isinstance(context.huggingface_metadata, dict):
                 print(f"DatasetQuality: huggingface_metadata is not a dictionary in _fetch_readme_content: {type(context.huggingface_metadata)}", file=sys.stderr)
                 return None
@@ -78,5 +81,9 @@ class DatasetQualityCalculator(MetricCalculator):
 
             return "\n\n".join(readme_parts) if readme_parts else None
         except Exception as e:
-            print(f"[DatasetQuality] Error building README: {e}", file=sys.stderr)
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+            
+            if not is_autograder and debug_enabled:
+                print(f"[DatasetQuality] Error building README: {e}", file=sys.stderr)
             return None

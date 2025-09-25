@@ -25,7 +25,7 @@ from src.core.exceptions import *
 from unittest.mock import Mock, patch, MagicMock, mock_open
 
 def mock_open_config() -> Mock:
-    """Create a mock file object for config.json."""
+    
     mock_file = Mock()
     mock_file.read.return_value = '{"model_type": "test", "hidden_size": 768}'
     mock_file.__enter__ = Mock(return_value=mock_file)
@@ -34,34 +34,34 @@ def mock_open_config() -> Mock:
 
 
 class NoOpRateLimiter:
-    """No-op rate limiter for testing - doesn't actually limit anything."""
+    
     
     def __init__(self, *args, **kwargs) -> None:
-        """Initialize no-op rate limiter."""
+        
         pass
     
     def wait_if_needed(self, service: Any) -> None:
-        """No-op wait method - no delays."""
+        
         pass
     
     def handle_rate_limit_response(self, service: Any, retry_after: Optional[int] = None) -> None:
-        """No-op rate limit handling - no delays."""
+        
         pass
     
     def reset_failures(self, service: Any) -> None:
-        """No-op failure reset."""
+        
         pass
     
     def check_quota(self, service: Any) -> bool:
-        """Always return True - no quota limits."""
+        
         return True
     
     def has_quota(self, service: Any) -> bool:
-        """Always return True - no quota limits."""
+        
         return True
     
     def get_quota_status(self, service: Any) -> Dict[str, Any]:
-        """Return fake quota status."""
+        
         return {
             'current_requests': 0,
             'max_requests': 1000,
@@ -104,24 +104,19 @@ class TestSuite:
             print(f"\n--- {title} ---")
     
     def setup_no_op_rate_limiter(self) -> None:
-        """Set up a no-op rate limiter for fast testing."""
+
         try:
             from src.core.rate_limiter import get_rate_limiter, set_rate_limiter
-            # Store the original rate limiter
             self.original_rate_limiter = get_rate_limiter()
-            # Set the no-op rate limiter
             set_rate_limiter(NoOpRateLimiter())
             
-            # Also mock time.sleep to prevent any delays
             import time
             self.original_sleep = time.sleep
-            time.sleep = lambda x: None  # No-op sleep
+            time.sleep = lambda x: None             
         except Exception:
-            # If rate limiter setup fails, continue without it
             pass
     
     def restore_original_rate_limiter(self) -> None:
-        """Restore the original rate limiter for rate limiting tests."""
         try:
             from src.core.rate_limiter import set_rate_limiter, reset_rate_limiter
             if self.original_rate_limiter is not None:
@@ -129,12 +124,10 @@ class TestSuite:
             else:
                 reset_rate_limiter()
             
-            # Restore original time.sleep
             if hasattr(self, 'original_sleep'):
                 import time
                 time.sleep = self.original_sleep
         except Exception:
-            # If rate limiter restore fails, continue without it
             pass
 
 
@@ -1276,7 +1269,7 @@ class TestSuite:
                     if lines:
                         last_line: str = lines[-1]
                         import re
-                        match: Optional[re.Match[str]] = re.search(r'(\d+)%', last_line)
+                        match: Optional[re.Match[str]] = re.search(r'(\d+(?:\.\d+)?)%\s*$', last_line)
                         if match:
                             coverage_percent: str = match.group(1)
                             print(f"{self.passed_tests}/{self.total_tests} test cases passed. {coverage_percent}% line coverage achieved.")
@@ -1347,10 +1340,8 @@ class TestSuite:
             self.test_config_comprehensive()
             self.test_exceptions_comprehensive()
             
-            # Add focused tests for coverage without counting issues
             self.test_coverage_focused()
             
-            # Comprehensive tests commented out to fix test counting issue
             # self.test_llm_client_comprehensive()
             # self.test_llm_analyzer_comprehensive()
             # self.test_size_calculator_comprehensive()
@@ -1362,7 +1353,6 @@ class TestSuite:
             # self.test_http_client_comprehensive()
             # self.test_model_analyzer_comprehensive()
             
-            # Run additional comprehensive tests for better coverage
             # self.test_all_metric_calculators_comprehensive()
             # self.test_all_core_modules_comprehensive()
 
@@ -2251,269 +2241,223 @@ class TestSuite:
                     "choices": [{"message": {"content": '{"score": 0.8, "rationale": "test"}'}}]
                 })
             
-                # Test LLM client comprehensive coverage
+                
                 from src.core.llm_client import ask_for_json_score
                 result = ask_for_json_score("test prompt")
                 
-                # Test error response
+                
                 mock_llm_post.return_value = Mock(status_code=400, json=lambda: {"error": "bad request"})
                 result = ask_for_json_score("test prompt")
                 
-                # Test empty response
+                
                 mock_llm_post.return_value = Mock(status_code=200, json=lambda: {"choices": []})
                 result = ask_for_json_score("test prompt")
                 
-                # Test malformed JSON
+                
                 mock_llm_post.return_value = Mock(status_code=200, json=lambda: {
                     "choices": [{"message": {"content": "invalid json"}}]
                 })
                 result = ask_for_json_score("test prompt")
             
-                # Test Git Analyzer comprehensive coverage
+                
                 from src.core.git_analyzer import GitAnalyzer
                 analyzer = GitAnalyzer()
                 
-                # Test successful clone
+                
                 result = analyzer.clone_repository("https://github.com/test/repo")
                 
-                # Test clone failure
+                
                 mock_clone.side_effect = Exception("Clone failed")
                 result = analyzer.clone_repository("https://github.com/test/repo")
                 
-                # Test repository analysis
+                
                 mock_clone.return_value = None  # Reset side_effect
                 result = analyzer.analyze_repository("https://github.com/test/repo")
             
-                # Test Model Analyzer comprehensive coverage
+                
                 from src.core.model_analyzer import ModelDynamicAnalyzer
                 analyzer = ModelDynamicAnalyzer()
                 
-                # Test successful analysis
+                
                 result = analyzer.analyze_model_loading("test/model")
                 
-                # Test download failure
+                
                 mock_hf_download.side_effect = Exception("Download failed")
                 result = analyzer.analyze_model_loading("test/model")
             
-                # Test HTTP Client comprehensive coverage
+
                 from src.core.http_client import make_rate_limited_request
                 from src.core.rate_limiter import APIService
                 
-                # Test successful GET
                 result = make_rate_limited_request("GET", "https://api.test.com", APIService.GITHUB)
                 
-                # Test successful POST
                 result = make_rate_limited_request("POST", "https://api.test.com", APIService.GITHUB, json={"key": "value"})
                 
-                # Test error responses
                 mock_request.return_value = Mock(status_code=400, json=lambda: {"error": "bad request"})
                 result = make_rate_limited_request("GET", "https://api.test.com", APIService.GITHUB)
                 
                 mock_request.return_value = Mock(status_code=500, json=lambda: {"error": "server error"})
                 result = make_rate_limited_request("POST", "https://api.test.com", APIService.GITHUB, json={})
             
-                # Test Size Calculator comprehensive coverage
                 from src.metrics.size_calculator import SizeCalculator
                 calc = SizeCalculator()
                 
-                # Test successful calculation
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
-                # Test with different model info
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
-                # Test download failure
                 mock_size_download.side_effect = Exception("Download failed")
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
             
-                # Test LLM Analyzer comprehensive coverage
                 from src.metrics.llm_analyzer import LLMAnalyzer
                 analyzer = LLMAnalyzer()
                 
-                # Test dataset quality analysis
                 result = analyzer.analyze_dataset_quality({"dataset": "test dataset info"})
                 
-                # Test with None response
                 mock_llm_analyzer_post.return_value = Mock(status_code=400, json=lambda: {"error": "bad request"})
                 result = analyzer.analyze_dataset_quality({"dataset": "test"})
             
-                # Test Performance Claims Calculator comprehensive coverage
                 from src.metrics.performance_claims_calculator import PerformanceClaimsCalculator
                 calc = PerformanceClaimsCalculator()
                 
-                # Test successful calculation
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
-                # Test with no readme
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
             
-                # Test License Calculator comprehensive coverage
                 from src.metrics.license_calculator import LicenseCalculator
                 calc = LicenseCalculator()
                 
-                # Test successful calculation
-                result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
-                
-                # Test with no license info
-                result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
-                
-                # Test with different license types
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
-                # Test with GitHub metadata
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
-                # Test with no license found
+                result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
+                
+                result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
+                
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
             
-                # Test Dataset Quality Calculator comprehensive coverage
                 from src.metrics.dataset_quality_calculator import DatasetQualityCalculator
                 calc = DatasetQualityCalculator()
                 
-                # Test successful calculation
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
-                # Test with no dataset info
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
             
-                # Test Code Quality Calculator comprehensive coverage
                 from src.metrics.code_quality_calculator import CodeQualityCalculator
                 calc = CodeQualityCalculator()
                 
-                # Test successful calculation
                 result = calc.calculate_score({"url": "https://github.com/test/repo"})
                 
-                # Test with minimal git data
                 result = calc.calculate_score({"url": "https://github.com/test/repo"})
             
-                # Test Ramp Up Calculator comprehensive coverage
                 from src.metrics.ramp_up_calculator import RampUpCalculator
                 calc = RampUpCalculator()
                 
-                # Test successful calculation
                 result = calc.calculate_score({"url": "https://github.com/test/repo"})
                 
-                # Test with minimal data
                 result = calc.calculate_score({"url": "https://github.com/test/repo"})
             
-                # Test Bus Factor Calculator comprehensive coverage
                 from src.metrics.busfactor_calculator import BusFactorCalculator
                 calc = BusFactorCalculator()
                 
-                # Test successful calculation
                 result = calc.calculate_score({"url": "https://github.com/test/repo"})
                 
-                # Test with single contributor
                 result = calc.calculate_score({"url": "https://github.com/test/repo"})
             
-                # Test Dataset Code Calculator comprehensive coverage
                 from src.metrics.dataset_code_calculator import DatasetCodeCalculator
                 calc = DatasetCodeCalculator()
                 
-                # Test successful calculation
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
                 
-                # Test with minimal info
                 result = calc.calculate_score({"url": "https://huggingface.co/test/model"})
             
-            # Test Rate Limiter comprehensive coverage
             from src.core.rate_limiter import RateLimiter
             limiter = RateLimiter()
             
-            # Test quota checking
+                                   
             limiter.check_quota("github")
             limiter.check_quota("huggingface")
             limiter.check_quota("genai")
             
-            # Test request recording
+            
             limiter.record_request("github")
             limiter.record_request("huggingface")
             
-            # Test quota status
+            
             limiter.get_quota_status("github")
             limiter.get_quota_status("huggingface")
             
-            # Test rate limit handling
+            
             limiter.handle_rate_limit_response("github", 60)
             limiter.handle_rate_limit_response("huggingface", 30)
             
-            # Test wait functionality
+            
             limiter.wait_if_needed("github")
             limiter.wait_if_needed("huggingface")
             
-            # Test URL Processor comprehensive coverage
+            
             from src.core.url_processor import URLProcessor, categorize_url, URLType
             
-            # Test various URL categorizations
             categorize_url("https://huggingface.co/test/model")
             categorize_url("https://huggingface.co/datasets/test")
             categorize_url("https://github.com/test/repo")
             categorize_url("https://example.com/test")
             categorize_url("invalid-url")
             
-            # Test URL processor comprehensive coverage
+            
             processor = URLProcessor()
             
-            # Test with different URL types
+            
             processor.process_url("https://huggingface.co/test/model")
             processor.process_url("https://github.com/test/repo")
             processor.process_url("https://huggingface.co/datasets/test")
             
-            # Test with invalid URLs
+            
             processor.process_url("invalid-url")
             processor.process_url("")
             processor.process_url("https://example.com/test")
             
-            # Test URL processor edge cases
+            
             from src.core.url_processor import URLProcessor, categorize_url, URLType, process_url
             
-            # Test process_url function
             process_url("https://huggingface.co/test/model")
             process_url("https://github.com/test/repo")
             process_url("https://huggingface.co/datasets/test")
             process_url("invalid-url")
             
-            # Test URL processor with file reading
             with patch('src.core.url_processor.open', mock_open(read_data="https://huggingface.co/test/model\nhttps://github.com/test/repo")):
                 processor = URLProcessor()
                 processor.url_file = "test_urls.txt"
                 urls = processor.read_url_lines()
             
-            # Test URL processor with empty file
             with patch('src.core.url_processor.open', mock_open(read_data="")):
                 processor = URLProcessor()
                 processor.url_file = "empty_urls.txt"
                 urls = processor.read_url_lines()
             
-            # Test URL processor with malformed URLs
             with patch('src.core.url_processor.open', mock_open(read_data="invalid-url\n# comment\nhttps://huggingface.co/test/model")):
                 processor = URLProcessor()
                 processor.url_file = "mixed_urls.txt"
                 urls = processor.read_url_lines()
             
-            # Test Results Storage comprehensive coverage
             from src.storage.results_storage import ResultsStorage, MetricResult, ModelResult
             
             storage = ResultsStorage()
             
-            # Test metric storage
             metric = MetricResult("test_metric", 0.8, 100)
             storage.store_metric_result("test_model", metric)
             
-            # Test retrieval
             result = storage.get_metric_result("test_model", "test_metric")
             all_metrics = storage.get_all_metrics_for_model("test_model")
             
-            # Test completion checking
             is_complete = storage.is_model_complete("test_model")
             completed_models = storage.get_completed_models()
             
-            # Test clearing
             storage.clear()
             
-            # Test ModelResult creation and NDJSON output
             model_result = ModelResult(
                 url="https://huggingface.co/test/model",
                 net_score=0.8,
@@ -2536,13 +2480,10 @@ class TestSuite:
                 code_quality_latency=190
             )
             
-            # Test NDJSON output
             ndjson_line = model_result.to_ndjson_line()
             
-            # Test Config comprehensive coverage
             from src.core.config import get_log_level, get_github_token, get_genai_token
             
-            # Test log level parsing
             with patch.dict('os.environ', {'LOG_LEVEL': '2'}):
                 level = get_log_level()
             with patch.dict('os.environ', {'LOG_LEVEL': '1'}):
@@ -2552,26 +2493,20 @@ class TestSuite:
             with patch.dict('os.environ', {'LOG_LEVEL': 'invalid'}):
                 level = get_log_level()
             
-            # Test token retrieval
             github_token = get_github_token()
             genai_token = get_genai_token()
             
-            # Test Exceptions comprehensive coverage
             from src.core.exceptions import MetricCalculationException, APIRateLimitException, InvalidURLException
             
-            # Test exception string representations
             str(MetricCalculationException("test error"))
             str(APIRateLimitException("test api", 60))
             str(InvalidURLException("test url", "malformed"))
             
-            # Test exception properties
             exc = MetricCalculationException("test")
             exc = APIRateLimitException("test", 60)
             exc = InvalidURLException("test", "malformed")
             
-            # Add direct unit tests for low coverage files
             
-            # Test llm_client._extract_json_score function directly
             from src.core.llm_client import _extract_json_score
             result = _extract_json_score('{"score": 0.8, "rationale": "test"}')
             result = _extract_json_score('{"score": 1.5, "rationale": "test"}')  # Test clamping
@@ -2580,10 +2515,8 @@ class TestSuite:
             result = _extract_json_score('invalid json')
             result = _extract_json_score('')
             
-            # Test git_analyzer functions directly
             from src.core.git_analyzer import GitAnalyzer
             analyzer = GitAnalyzer()
-            # Test private methods with mock data
             try:
                 analyzer._count_lines('/tmp/nonexistent')
             except:
@@ -2601,10 +2534,8 @@ class TestSuite:
             except:
                 pass
             
-            # Test size_calculator functions directly
             from src.metrics.size_calculator import SizeCalculator
             size_calc = SizeCalculator()
-            # Test private methods with mock data
             try:
                 size_calc._get_model_info('test/model')
             except:
@@ -2618,10 +2549,8 @@ class TestSuite:
             except:
                 pass
             
-            # Test ramp_up_calculator functions directly
             from src.metrics.ramp_up_calculator import RampUpCalculator
             ramp_calc = RampUpCalculator()
-            # Test private methods with mock data
             try:
                 ramp_calc._analyze_readme_complexity('Simple readme')
             except:
@@ -2631,12 +2560,10 @@ class TestSuite:
             except:
                 pass
             
-            # Test model_analyzer functions directly
             from src.core.model_analyzer import ModelDynamicAnalyzer, ModelStaticAnalyzer
             dynamic_analyzer = ModelDynamicAnalyzer()
             static_analyzer = ModelStaticAnalyzer()
             
-            # Test with mock data
             try:
                 dynamic_analyzer.analyze_model_loading('test/model')
             except:
@@ -2650,7 +2577,6 @@ class TestSuite:
             except:
                 pass
             
-            # Test HTTP client functions directly
             from src.core.http_client import make_rate_limited_request
             from src.core.rate_limiter import APIService
             try:
@@ -2749,13 +2675,11 @@ class TestSuite:
         except Exception as e:
             self.print_test_result("URL Processor - Unknown URL Categorization", "No exception", f"Exception: {e}", False)
 
-    def test_llm_client_comprehensive(self) -> None:
-        """Test LLM client with comprehensive mocking."""
+    def test_llm_client_comprehensive(self) -> None:                
         self.print_header("LLM CLIENT COMPREHENSIVE TESTS")
         
         try:
             with patch('src.core.http_client.post_with_rate_limit') as mock_post:
-                # Mock successful response
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.json.return_value = {
@@ -2771,7 +2695,6 @@ class TestSuite:
                     if not self.coverage_mode:
                         print("✅ LLM Client success test passed")
                 
-                # Test error handling
                 mock_post.return_value = None
                 result = ask_for_json_score("Test prompt")
                 if result is None:
@@ -2779,7 +2702,6 @@ class TestSuite:
                     if not self.coverage_mode:
                         print("✅ LLM Client error handling test passed")
                 
-                # Test with invalid response
                 mock_response.status_code = 400
                 mock_response.text = "Bad Request"
                 mock_post.return_value = mock_response
@@ -2789,7 +2711,6 @@ class TestSuite:
                     if not self.coverage_mode:
                         print("✅ LLM Client invalid response test passed")
                 
-                # Test with exception
                 mock_post.side_effect = Exception("Network error")
                 result = ask_for_json_score("Test prompt")
                 if result is None:
@@ -2803,12 +2724,11 @@ class TestSuite:
                 print(f"❌ LLM Client test failed: {e}")
     
     def test_llm_analyzer_comprehensive(self) -> None:
-        """Test LLM analyzer with comprehensive mocking."""
+        
         self.print_header("LLM ANALYZER COMPREHENSIVE TESTS")
         
         try:
             with patch('src.core.http_client.post_with_rate_limit') as mock_post:
-                # Mock successful response
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.json.return_value = {
@@ -2819,21 +2739,18 @@ class TestSuite:
                 from src.metrics.llm_analyzer import LLMAnalyzer
                 analyzer = LLMAnalyzer()
                 
-                # Test dataset quality analysis
                 result = analyzer.analyze_dataset_quality({"description": "Test dataset"})
                 if result is not None:
                     self.passed_tests += 1
                     if not self.coverage_mode:
                         print("✅ LLM Analyzer dataset quality test passed")
                 
-                # Test _extract_score method
                 score = analyzer._extract_score("Score: 0.8")
                 if score == 0.8:
                     self.passed_tests += 1
                     if not self.coverage_mode:
                         print("✅ LLM Analyzer score extraction test passed")
                 
-                # Test error handling
                 mock_post.return_value = None
                 result = analyzer.analyze_dataset_quality({"description": "Test"})
                 if result == 0.0:
@@ -2847,13 +2764,13 @@ class TestSuite:
                 print(f"❌ LLM Analyzer test failed: {e}")
     
     def test_size_calculator_comprehensive(self) -> None:
-        """Test size calculator with comprehensive mocking."""
+        
         self.print_header("SIZE CALCULATOR COMPREHENSIVE TESTS")
         
         try:
             with patch('huggingface_hub.HfApi') as mock_api:
                 with patch('huggingface_hub.hf_hub_download') as mock_download:
-                    # Mock successful API calls
+                    
                     mock_api_instance = Mock()
                     mock_api_instance.list_repo_files.return_value = [
                         {"path": "config.json"},
@@ -2863,7 +2780,7 @@ class TestSuite:
                     mock_api.return_value = mock_api_instance
                     mock_download.return_value = "/tmp/test_config.json"
                     
-                    # Mock file reading
+                    
                     with patch('builtins.open', mock_open_config()):
                         from src.metrics.size_calculator import SizeCalculator
                         calculator = SizeCalculator()
@@ -2881,7 +2798,7 @@ class TestSuite:
                             if not self.coverage_mode:
                                 print("✅ Size Calculator success test passed")
                         
-                        # Test error handling
+                        
                         mock_api_instance.list_repo_files.side_effect = Exception("API error")
                         result = calculator.calculate_score(context)
                         if result is not None:
@@ -2889,7 +2806,7 @@ class TestSuite:
                             if not self.coverage_mode:
                                 print("✅ Size Calculator error handling test passed")
                         
-                        # Test with different file types
+                        
                         mock_api_instance.list_repo_files.return_value = [
                             {"path": "model.bin"},
                             {"path": "model.safetensors"},
@@ -2902,7 +2819,7 @@ class TestSuite:
                             if not self.coverage_mode:
                                 print("✅ Size Calculator different files test passed")
                         
-                        # Test with empty file list
+                        
                         mock_api_instance.list_repo_files.return_value = []
                         result = calculator.calculate_score(context)
                         if result is not None:
@@ -2916,13 +2833,13 @@ class TestSuite:
                 print(f"❌ Size Calculator test failed: {e}")
     
     def test_git_analyzer_comprehensive(self) -> None:
-        """Test Git analyzer with comprehensive mocking."""
+        
         self.print_header("GIT ANALYZER COMPREHENSIVE TESTS")
         
         try:
             with patch('dulwich.porcelain.clone') as mock_clone:
                 with patch('dulwich.repo.Repo') as mock_repo:
-                    # Mock successful clone and analysis
+                    
                     mock_repo_instance = Mock()
                     mock_repo_instance.get_commits.return_value = [
                         Mock(author=b"Author 1", commit_time=1000),
@@ -2941,7 +2858,7 @@ class TestSuite:
                         if not self.coverage_mode:
                             print("✅ Git Analyzer success test passed")
                     
-                    # Test error handling
+                    
                     mock_clone.side_effect = Exception("Clone failed")
                     result = analyzer.analyze_repository("https://github.com/test/repo")
                     if result is None:
@@ -2949,7 +2866,7 @@ class TestSuite:
                         if not self.coverage_mode:
                             print("✅ Git Analyzer error handling test passed")
                     
-                    # Test with different commit patterns
+                    
                     mock_clone.side_effect = None
                     mock_repo_instance.get_commits.return_value = [
                         Mock(author=b"Author 1", commit_time=1000),
@@ -2963,7 +2880,7 @@ class TestSuite:
                         if not self.coverage_mode:
                             print("✅ Git Analyzer single author test passed")
                     
-                    # Test with empty commit list
+
                     mock_repo_instance.get_commits.return_value = []
                     result = analyzer.analyze_repository("https://github.com/test/repo")
                     if result is not None:
@@ -2977,12 +2894,12 @@ class TestSuite:
                 print(f"❌ Git Analyzer test failed: {e}")
     
     def test_ramp_up_calculator_comprehensive(self) -> None:
-        """Test ramp-up calculator with comprehensive mocking."""
+        
         self.print_header("RAMP-UP CALCULATOR COMPREHENSIVE TESTS")
         
         try:
             with patch('src.core.http_client.get_with_rate_limit') as mock_get:
-                # Mock successful response
+                
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.json.return_value = {
@@ -3008,7 +2925,7 @@ class TestSuite:
                     if not self.coverage_mode:
                         print("✅ Ramp-Up Calculator success test passed")
                 
-                # Test error handling
+                
                 mock_get.return_value = None
                 result = calculator.calculate_score(context)
                 if result is not None:
@@ -3022,13 +2939,11 @@ class TestSuite:
                 print(f"❌ Ramp-Up Calculator test failed: {e}")
     
     def test_code_quality_calculator_comprehensive(self) -> None:
-        """Test code quality calculator with comprehensive mocking."""
         self.print_header("CODE QUALITY CALCULATOR COMPREHENSIVE TESTS")
         
         try:
             with patch('src.core.http_client.get_with_rate_limit') as mock_get:
                 with patch('huggingface_hub.HfApi') as mock_api:
-                    # Mock successful responses
                     mock_response = Mock()
                     mock_response.status_code = 200
                     mock_response.json.return_value = {"test": "data"}
@@ -3058,7 +2973,6 @@ class TestSuite:
                         if not self.coverage_mode:
                             print("✅ Code Quality Calculator success test passed")
                     
-                    # Test error handling
                     mock_get.return_value = None
                     result = calculator.calculate_score(context)
                     if result is not None:
@@ -3072,12 +2986,10 @@ class TestSuite:
                 print(f"❌ Code Quality Calculator test failed: {e}")
     
     def test_performance_claims_calculator_comprehensive(self) -> None:
-        """Test performance claims calculator with comprehensive mocking."""
         self.print_header("PERFORMANCE CLAIMS CALCULATOR COMPREHENSIVE TESTS")
         
         try:
             with patch('src.core.http_client.get_with_rate_limit') as mock_get:
-                # Mock successful response
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.text = "This model achieves 95% accuracy on benchmark tests."
@@ -3099,7 +3011,6 @@ class TestSuite:
                     if not self.coverage_mode:
                         print("✅ Performance Claims Calculator success test passed")
                 
-                # Test error handling
                 mock_get.return_value = None
                 result = calculator.calculate_score(context)
                 if result is not None:
@@ -3113,12 +3024,10 @@ class TestSuite:
                 print(f"❌ Performance Claims Calculator test failed: {e}")
     
     def test_dataset_quality_calculator_comprehensive(self) -> None:
-        """Test dataset quality calculator with comprehensive mocking."""
         self.print_header("DATASET QUALITY CALCULATOR COMPREHENSIVE TESTS")
         
         try:
             with patch('src.core.http_client.get_with_rate_limit') as mock_get:
-                # Mock successful response
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.json.return_value = {
@@ -3144,7 +3053,6 @@ class TestSuite:
                     if not self.coverage_mode:
                         print("✅ Dataset Quality Calculator success test passed")
                 
-                # Test error handling
                 mock_get.return_value = None
                 result = calculator.calculate_score(context)
                 if result is not None:
@@ -3158,13 +3066,11 @@ class TestSuite:
                 print(f"❌ Dataset Quality Calculator test failed: {e}")
     
     def test_model_analyzer_comprehensive(self) -> None:
-        """Test Model analyzer with comprehensive mocking."""
         self.print_header("MODEL ANALYZER COMPREHENSIVE TESTS")
         
         try:
             with patch('huggingface_hub.HfApi') as mock_api:
                 with patch('huggingface_hub.hf_hub_download') as mock_download:
-                    # Mock successful API calls
                     mock_api_instance = Mock()
                     mock_api_instance.list_repo_files.return_value = [
                         {"path": "config.json"},
@@ -3174,7 +3080,6 @@ class TestSuite:
                     mock_api.return_value = mock_api_instance
                     mock_download.return_value = "/tmp/test_config.json"
                     
-                    # Mock file reading
                     with patch('builtins.open', mock_open_config()):
                         from src.core.model_analyzer import ModelDynamicAnalyzer
                         analyzer = ModelDynamicAnalyzer()
@@ -3185,7 +3090,6 @@ class TestSuite:
                             if not self.coverage_mode:
                                 print("✅ Model Analyzer success test passed")
                         
-                        # Test error handling
                         mock_api_instance.list_repo_files.side_effect = Exception("API error")
                         result = analyzer.analyze_model_loading("test/model")
                         if result is None:
@@ -3199,11 +3103,9 @@ class TestSuite:
                 print(f"❌ Model Analyzer test failed: {e}")
 
     def test_all_metric_calculators_comprehensive(self) -> None:
-        """Test all metric calculators comprehensively for coverage."""
         self.print_header("ALL METRIC CALCULATORS COMPREHENSIVE TESTS")
         
         try:
-            # Test Bus Factor Calculator
             with patch('src.core.http_client.get_with_rate_limit') as mock_get:
                 with patch('src.core.git_analyzer.porcelain.clone') as mock_clone:
                     mock_response = Mock()
@@ -3234,7 +3136,6 @@ class TestSuite:
                         if not self.coverage_mode:
                             print("✅ Bus Factor Calculator comprehensive test passed")
             
-            # Test License Calculator
             from src.metrics.license_calculator import LicenseCalculator
             calculator = LicenseCalculator()
             
@@ -3251,7 +3152,6 @@ class TestSuite:
                 if not self.coverage_mode:
                     print("✅ License Calculator comprehensive test passed")
             
-            # Test Dataset Code Calculator
             from src.metrics.dataset_code_calculator import DatasetCodeCalculator
             calculator = DatasetCodeCalculator()
             
@@ -3274,11 +3174,9 @@ class TestSuite:
                 print(f"❌ All Metric Calculators test failed: {e}")
 
     def test_all_core_modules_comprehensive(self) -> None:
-        """Test all core modules comprehensively for coverage."""
         self.print_header("ALL CORE MODULES COMPREHENSIVE TESTS")
         
         try:
-            # Test URL Processor
             with patch('src.core.http_client.get_with_rate_limit') as mock_get:
                 with patch('src.core.http_client.post_with_rate_limit') as mock_post:
                     mock_response = Mock()
@@ -3289,7 +3187,6 @@ class TestSuite:
                     
                     from src.core.url_processor import URLProcessor
                     
-                    # Create a temporary test file
                     import tempfile
                     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
                         f.write("https://huggingface.co/test/model\n")
@@ -3307,12 +3204,10 @@ class TestSuite:
                         import os
                         os.unlink(temp_file)
             
-            # Test Results Storage
             from src.storage.results_storage import ResultsStorage, ModelResult, MetricResult
             
             storage = ResultsStorage()
             
-            # Test storing and retrieving results
             metric_result = MetricResult("test_metric", 0.8, 100, timestamp=1234567890.0)
             storage.store_metric_result("test_model", metric_result)
             
@@ -3321,8 +3216,7 @@ class TestSuite:
                 self.passed_tests += 1
                 if not self.coverage_mode:
                     print("✅ Results Storage comprehensive test passed")
-            
-            # Test ModelResult creation and NDJSON output
+
             model_result = ModelResult(
                 url="https://huggingface.co/test/model",
                 net_score=0.8,

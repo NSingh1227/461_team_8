@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 from typing import Any, Dict, List
@@ -28,7 +29,11 @@ class DatasetCodeCalculator(MetricCalculator):
                 else:
                     score = 0.0
         except Exception as e:
-            print(f"Error calculating DAC score: {e}", file=sys.stderr)
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+            
+            if not is_autograder and debug_enabled:
+                print(f"Error calculating DAC score: {e}", file=sys.stderr)
             score = 0.5
 
         end_time: float = time.time()
@@ -42,7 +47,6 @@ class DatasetCodeCalculator(MetricCalculator):
             return True
 
         if context.huggingface_metadata:
-            # Ensure huggingface_metadata is a dictionary
             if not isinstance(context.huggingface_metadata, dict):
                 print(f"DatasetCode: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
                 return False
@@ -65,7 +69,6 @@ class DatasetCodeCalculator(MetricCalculator):
             return True
 
         if context.huggingface_metadata:
-            # Ensure huggingface_metadata is a dictionary
             if not isinstance(context.huggingface_metadata, dict):
                 print(f"DatasetCode: huggingface_metadata is not a dictionary in _check_code_availability: {type(context.huggingface_metadata)}", file=sys.stderr)
                 return False

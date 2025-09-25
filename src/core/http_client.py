@@ -18,7 +18,6 @@ def make_rate_limited_request(
     max_retries: int = 3,
     **kwargs: Any
 ) -> Optional[requests.Response]:
-    """Make a rate-limited HTTP request with retry logic."""
     rate_limiter = get_rate_limiter()
 
     for attempt in range(max_retries + 1):
@@ -70,17 +69,14 @@ def make_rate_limited_request(
 
 def get_with_rate_limit(url: str, service: APIService,
                         **kwargs: Any) -> Optional[requests.Response]:
-    """Make a rate-limited GET request."""
     return make_rate_limited_request('GET', url, service, **kwargs)
 
 
 def post_with_rate_limit(url: str, service: APIService,
                          **kwargs: Any) -> Optional[requests.Response]:
-    """Make a rate-limited POST request."""
     return make_rate_limited_request('POST', url, service, **kwargs)
 
 
 def head_with_rate_limit(url: str, service: APIService,
                          **kwargs: Any) -> Optional[requests.Response]:
-    """Make a rate-limited HEAD request."""
     return make_rate_limited_request('HEAD', url, service, **kwargs)

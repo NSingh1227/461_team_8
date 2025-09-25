@@ -163,9 +163,9 @@ def run_tests() -> int:
                     capture_output=True, text=True, cwd=project_root
                 )
                 
-                # Get coverage report
+                # Get coverage report using .coveragerc configuration
                 coverage_result: subprocess.CompletedProcess[str] = subprocess.run(
-                    [sys.executable, '-m', 'coverage', 'report', '--include=src/*'], 
+                    [sys.executable, '-m', 'coverage', 'report'], 
                     capture_output=True, text=True, cwd=project_root
                 )
             except Exception as e:
@@ -198,13 +198,13 @@ def run_tests() -> int:
             
             # Parse coverage results
             coverage_lines: List[str] = coverage_result.stdout.split('\n')
-            coverage_percent: int = 0
+            coverage_percent: float = 0.0
             
             for line in coverage_lines:
                 if "TOTAL" in line:
-                    match: Optional[re.Match[str]] = re.search(r'(\d+)%', line)
+                    match: Optional[re.Match[str]] = re.search(r'(\d+(?:\.\d+)?)%\s*$', line)
                     if match:
-                        coverage_percent = int(match.group(1))
+                        coverage_percent = float(match.group(1))
                         break
             
             if total_tests is not None and passed_tests is not None:

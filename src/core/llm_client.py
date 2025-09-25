@@ -11,7 +11,6 @@ from .rate_limiter import APIService
 def ask_for_json_score(prompt: str,
                        api_url: str = "https://genai.rcac.purdue.edu/api/chat/completions",
                        model: str = "llama3.1:latest") -> Tuple[Optional[float], Optional[str]]:
-    """Ask LLM for a JSON score based on the given prompt."""
     api_key: Optional[str] = os.getenv("GEN_AI_STUDIO_API_KEY")
     if not api_key:
         is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
@@ -67,7 +66,6 @@ def ask_for_json_score(prompt: str,
 
 
 def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
-    """Extract score from LLM response content."""
     if not content:
         return None, "Empty response"
 
@@ -78,7 +76,6 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
 
         if isinstance(score, (int, float)):
             score = float(score)
-            # Ensure score is between 0 and 1
             score = max(0.0, min(1.0, score))
             return score, rationale
 
@@ -94,7 +91,6 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
 
             if isinstance(score, (int, float)):
                 score = float(score)
-                # Ensure score is between 0 and 1
                 score = max(0.0, min(1.0, score))
                 return score, rationale
         except json.JSONDecodeError:
@@ -105,7 +101,6 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
     if score_match:
         try:
             score_value: float = float(score_match.group(1))
-            # Ensure score is between 0 and 1
             score_value = max(0.0, min(1.0, score_value))
             return score_value, content.strip()
         except ValueError:
@@ -115,7 +110,6 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
     if score_match:
         try:
             score_value = float(score_match.group(1))
-            # Ensure score is between 0 and 1
             score_value = max(0.0, min(1.0, score_value))
             return score_value, content.strip()
         except ValueError:

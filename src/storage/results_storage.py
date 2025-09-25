@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 @dataclass
 class MetricResult:
     metric_name: str
-    score: Any  # Can be float or Dict[str, float] for Size metric
+    score: Any              
     calculation_time_ms: int
     timestamp: str
 
