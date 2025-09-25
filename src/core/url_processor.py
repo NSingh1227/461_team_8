@@ -293,7 +293,7 @@ class URLProcessor:
                     metrics: Dict[str, MetricResult] = self._calculate_all_metrics(model_context)
                     net_score: float = self._calculate_net_score(metrics)
                     net_score_latency: int = (
-                        max(metric.calculation_time_ms for metric in metrics.values())
+                        sum(metric.calculation_time_ms for metric in metrics.values())
                         if metrics else 0)
                     for metric in metrics.values():
                         self.results_storage.store_metric_result(primary_url, metric)
