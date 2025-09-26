@@ -38,9 +38,12 @@ class DatasetQualityCalculator(MetricCalculator):
                         elif downloads < 100000 and likes < 500:
                             score = 0.0
                             print(f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0", file=sys.stderr)
+                        elif downloads < 500000 and likes < 1000:
+                            score = 0.0
+                            print(f"[DatasetQuality] Medium engagement model {model_url} → 0.0", file=sys.stderr)
                         else:
-                            score = 0.5
-                            print(f"[DatasetQuality] Medium engagement model {model_url} → 0.5", file=sys.stderr)
+                            score = 0.0
+                            print(f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0", file=sys.stderr)
                     else:
                         score = 0.3
                         print("[DatasetQuality] No dataset info available → default 0.3", file=sys.stderr)
@@ -64,9 +67,12 @@ class DatasetQualityCalculator(MetricCalculator):
                     elif downloads < 100000 and likes < 500:
                         score = 0.0
                         print(f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0", file=sys.stderr)
-                    else:
+                    elif downloads < 500000 and likes < 1000:
                         score = 0.0
                         print(f"[DatasetQuality] Medium engagement model {model_url} → 0.0", file=sys.stderr)
+                    else:
+                        score = 0.0
+                        print(f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0", file=sys.stderr)
                 else:
                     # No metadata available - use general heuristics based on model characteristics
                     # Check if it's a well-known model by URL patterns

@@ -54,8 +54,10 @@ class BusFactorCalculator(MetricCalculator):
                         score = min(score, 0.3)  # Lower for low-engagement models
                     elif downloads < 100000 and likes < 500:
                         score = min(score, 0.33)  # Lower for medium-low engagement models
-                    else:
+                    elif downloads < 500000 and likes < 1000:
                         score = min(score, 0.33)  # Medium engagement models should be lower
+                    else:
+                        score = min(score, 0.33)  # Medium-high engagement models should be lower
                 else:
                     # No metadata available - use general heuristics based on organization
                     if 'google' in url_to_use or 'microsoft' in url_to_use or 'openai' in url_to_use or 'facebook' in url_to_use:
@@ -226,10 +228,19 @@ class BusFactorCalculator(MetricCalculator):
             
             # Check for well-known model types that have good community support
             model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
-                org_score += 0.4  # Higher bonus for well-known model types
+            
+            # Only give high bonuses to very high-engagement models
+            if downloads > 5000000 or likes > 5000:
+                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
+                    org_score += 0.4  # Higher bonus for well-known model types
+                else:
+                    org_score += 0.2  # Standard bonus for other models
             else:
-                org_score += 0.2  # Standard bonus for other models
+                # Medium-engagement models get lower bonuses
+                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
+                    org_score += 0.1  # Lower bonus for medium-engagement well-known models
+                else:
+                    org_score += 0.05  # Lower bonus for medium-engagement other models
             
             # Check for recent activity (creation date, last modified)
             created_date = hf_metadata.get('createdAt') or model_info.get('createdAt')

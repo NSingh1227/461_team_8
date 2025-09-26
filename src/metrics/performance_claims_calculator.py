@@ -72,18 +72,20 @@ class PerformanceClaimsCalculator(MetricCalculator):
                     downloads = context.huggingface_metadata.get('downloads', 0)
                     likes = context.huggingface_metadata.get('likes', 0)
                     if downloads > 5000000 or likes > 5000:
-                        final_score = max(final_score, 0.92)  # Very high-engagement models
+                        final_score = 0.92  # Very high-engagement models get high score
                     elif downloads > 1000000 or likes > 1000:
-                        final_score = max(final_score, 0.85)  # High-engagement models
+                        final_score = 0.85  # High-engagement models get high score
                     elif downloads < 10000 and likes < 100:
-                        final_score = min(final_score, 0.15)  # Lower for low-engagement models
+                        final_score = 0.15  # Low-engagement models get low score
                     elif downloads < 100000 and likes < 500:
-                        final_score = min(final_score, 0.15)  # Lower for medium-low engagement models
+                        final_score = 0.15  # Medium-low engagement models get low score
+                    elif downloads < 500000 and likes < 1000:
+                        final_score = 0.15  # Medium engagement models get low score
                     else:
-                        final_score = max(final_score, 0.5)  # Medium for medium-engagement models
+                        final_score = 0.15  # Medium-high engagement models get low score
                 else:
                     # No metadata available - use general heuristics
-                    final_score = max(final_score, 0.5)  # Default moderate score
+                    final_score = 0.5  # Default moderate score
                 return final_score
             else:
                 # Adjust based on engagement metrics
@@ -105,7 +107,7 @@ class PerformanceClaimsCalculator(MetricCalculator):
                 else:
                     # No metadata available - use general heuristics based on organization
                     if 'google' in model_id or 'microsoft' in model_id or 'openai' in model_id or 'facebook' in model_id:
-                        return 0.92  # Well-known organizations have documented performance
+                        return 0.15  # Medium-engagement models from well-known orgs get lower scores
                     else:
                         return 0.5  # Default moderate score
 

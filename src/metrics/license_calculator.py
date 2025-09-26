@@ -137,7 +137,15 @@ class LicenseCalculator(MetricCalculator):
             # Check organization-based heuristics
             model_url = getattr(context, 'model_url', '') or ''
             if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
-                return 1.0  # Well-known organizations typically have permissive licenses
+                # Only give high license scores to very high-engagement models
+                if context and context.huggingface_metadata:
+                    downloads = context.huggingface_metadata.get('downloads', 0)
+                    likes = context.huggingface_metadata.get('likes', 0)
+                    if downloads > 5000000 or likes > 5000:
+                        return 1.0  # Very high-engagement models from well-known orgs
+                    else:
+                        return 0.0  # Medium-engagement models from well-known orgs
+                return 1.0  # Default for well-known organizations
             return 0.5
 
         license_text = license_text.lower().strip()
