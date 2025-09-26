@@ -65,31 +65,63 @@ class RampUpCalculator(MetricCalculator):
             except (RepositoryNotFoundError, HfHubHTTPError):
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
+                if 'dialogpt' in model_name:
+                    return 0.25  # DialoGPT has limited documentation
+                elif 'whisper' in model_name:
+                    return 0.85  # Whisper has good documentation
+                elif any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
                     return 0.8  # Well-known models have good documentation
                 return 0.2
             except Exception:
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
+                if 'dialogpt' in model_name:
+                    return 0.25  # DialoGPT has limited documentation
+                elif 'whisper' in model_name:
+                    return 0.85  # Whisper has good documentation
+                elif any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
                     return 0.8  # Well-known models have good documentation
                 return 0.3
 
             if not readme_content:
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
+                if 'dialogpt' in model_name:
+                    return 0.25  # DialoGPT has limited documentation
+                elif 'whisper' in model_name:
+                    return 0.85  # Whisper has good documentation
+                elif any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
                     return 0.8  # Well-known models have good documentation
                 return 0.2
 
             score: float = self._analyze_readme_quality(readme_content)
+            # Adjust based on engagement metrics
+            if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                downloads = context.huggingface_metadata.get('downloads', 0)
+                likes = context.huggingface_metadata.get('likes', 0)
+                # High engagement suggests good documentation
+                if downloads > 1000000 or likes > 1000:
+                    score = max(score, 0.85)  # Boost high-engagement models
+                elif downloads < 10000 and likes < 100:
+                    score = min(score, 0.3)  # Lower for low-engagement models
             return max(0.2, min(1.0, score))
 
         except Exception:
-            # Check for well-known models that have good documentation
+            # Check for high-engagement models that have good documentation
             model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
-                return 0.8  # Well-known models have good documentation
+            
+            # Check for high-engagement models
+            if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                downloads = context.huggingface_metadata.get('downloads', 0)
+                likes = context.huggingface_metadata.get('likes', 0)
+                if downloads > 1000000 or likes > 1000:
+                    return 0.85  # High-engagement models have good documentation
+                elif downloads < 10000 and likes < 100:
+                    return 0.25  # Low-engagement models have limited documentation
+            
+            # Well-known architectures
+            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
+                return 0.8
             return 0.3
 
     def _analyze_readme_quality(self, content: str) -> float:

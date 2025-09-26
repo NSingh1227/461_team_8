@@ -21,28 +21,53 @@ class DatasetQualityCalculator(MetricCalculator):
             dataset_info: Optional[Dict[str, Any]] = self._prepare_dataset_info(context)
             if dataset_info:
                 score = self.llm_analyzer.analyze_dataset_quality(dataset_info)
-                # If LLM analyzer returns 0.0, fall back to well-known model check
+                # If LLM analyzer returns 0.0, fall back to smart heuristics
                 if score == 0.0:
                     model_url = context.model_url or ""
                     model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                    if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
-                        score = 0.7
-                        print(f"[DatasetQuality] LLM returned 0.0, using well-known model {model_url} → 0.7", file=sys.stderr)
-                    elif any(org in model_url.lower() for org in ['microsoft', 'google', 'openai', 'meta', 'facebook', 'huggingface']):
-                        score = 0.6
-                        print(f"[DatasetQuality] LLM returned 0.0, using popular organization model {model_url} → 0.6", file=sys.stderr)
+                    
+                    # Check for high-engagement models (likely to have good datasets)
+                    if context.huggingface_metadata:
+                        downloads = context.huggingface_metadata.get('downloads', 0)
+                        likes = context.huggingface_metadata.get('likes', 0)
+                        if downloads > 1000000 or likes > 1000:
+                            score = 0.7
+                            print(f"[DatasetQuality] High engagement model {model_url} → 0.7", file=sys.stderr)
+                        elif any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
+                            score = 0.6
+                            print(f"[DatasetQuality] Official organization model {model_url} → 0.6", file=sys.stderr)
+                        elif any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
+                            score = 0.7
+                            print(f"[DatasetQuality] Well-known architecture {model_url} → 0.7", file=sys.stderr)
+                        else:
+                            score = 0.0
+                            print(f"[DatasetQuality] Low engagement model {model_url} → 0.0", file=sys.stderr)
+                    else:
+                        score = 0.0
+                        print(f"[DatasetQuality] No metadata available {model_url} → 0.0", file=sys.stderr)
             else:
-                # Check for well-known models with implicit high-quality datasets
+                # Check for models with implicit high-quality datasets using smart heuristics
                 model_url = context.model_url or ""
                 model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
-                    # These models are known to be trained on high-quality datasets
-                    score = 0.7
-                    print(f"[DatasetQuality] Well-known model {model_url} → default 0.7", file=sys.stderr)
-                elif any(org in model_url.lower() for org in ['microsoft', 'google', 'openai', 'meta', 'facebook', 'huggingface']):
-                    score = 0.6
-                    print(f"[DatasetQuality] Popular organization model {model_url} → default 0.6", file=sys.stderr)
+                
+                # Check for high-engagement models (likely to have good datasets)
+                if context.huggingface_metadata:
+                    downloads = context.huggingface_metadata.get('downloads', 0)
+                    likes = context.huggingface_metadata.get('likes', 0)
+                    if downloads > 1000000 or likes > 1000:
+                        score = 0.7
+                        print(f"[DatasetQuality] High engagement model {model_url} → default 0.7", file=sys.stderr)
+                    elif any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
+                        score = 0.6
+                        print(f"[DatasetQuality] Official organization model {model_url} → default 0.6", file=sys.stderr)
+                    elif any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
+                        score = 0.7
+                        print(f"[DatasetQuality] Well-known architecture {model_url} → default 0.7", file=sys.stderr)
+                    else:
+                        score = 0.0
+                        print(f"[DatasetQuality] Low engagement model {model_url} → default 0.0", file=sys.stderr)
                 else:
+                    score = 0.0
                     print("[DatasetQuality] No dataset info available → default 0.0", file=sys.stderr)
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']

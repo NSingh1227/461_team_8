@@ -66,10 +66,22 @@ class DatasetCodeCalculator(MetricCalculator):
         # Check for well-known models that implicitly have datasets
         model_url = context.model_url or ""
         model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
-            # These models are known to be trained on documented datasets
+        
+        # Check for models with comprehensive documentation (high downloads, likes, official orgs)
+        if context.huggingface_metadata:
+            downloads = context.huggingface_metadata.get('downloads', 0)
+            likes = context.huggingface_metadata.get('likes', 0)
+            # High engagement suggests good documentation
+            if downloads > 1000000 or likes > 1000:
+                return True
+            # Check for official organizations with good documentation
+            if any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
+                return True
+        
+        # Check for well-established model architectures
+        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
             return True
-
+            
         return False
 
     def _check_code_availability(self, context: ModelContext) -> bool:
@@ -95,8 +107,22 @@ class DatasetCodeCalculator(MetricCalculator):
         # Check for well-known models that have accessible code
         model_url = context.model_url or ""
         model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
-            # These models have well-documented code implementations
+        
+        # Check for models with comprehensive documentation (high downloads, likes, official orgs)
+        if context.huggingface_metadata:
+            downloads = context.huggingface_metadata.get('downloads', 0)
+            likes = context.huggingface_metadata.get('likes', 0)
+            # High engagement suggests good code accessibility
+            if downloads > 1000000 or likes > 1000:
+                return True
+            # Check for official organizations with good code accessibility
+            if any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
+                return True
+        
+        # Check for well-established model architectures
+        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
             return True
+            
+        return False
 
         return False

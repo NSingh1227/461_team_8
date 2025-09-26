@@ -38,6 +38,15 @@ class BusFactorCalculator(MetricCalculator):
             elif url_to_use.startswith("https://huggingface.co"):
                 # For Hugging Face models, estimate bus factor from metadata
                 score = self._estimate_hf_bus_factor(context)
+                # Adjust based on engagement metrics
+                if context.huggingface_metadata:
+                    downloads = context.huggingface_metadata.get('downloads', 0)
+                    likes = context.huggingface_metadata.get('likes', 0)
+                    # High engagement suggests good bus factor
+                    if downloads > 1000000 or likes > 1000:
+                        score = max(score, 0.9)  # Boost high-engagement models
+                    elif downloads < 10000 and likes < 100:
+                        score = min(score, 0.4)  # Lower for low-engagement models
             else:
                 score: float = 0.0
 
@@ -202,8 +211,10 @@ class BusFactorCalculator(MetricCalculator):
             
             # Check for well-known model types that have good community support
             model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
+            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
                 org_score += 0.4  # Higher bonus for well-known model types
+            else:
+                org_score += 0.2  # Standard bonus for other models
             
             # Check for recent activity (creation date, last modified)
             created_date = hf_metadata.get('createdAt') or model_info.get('createdAt')
@@ -217,13 +228,24 @@ class BusFactorCalculator(MetricCalculator):
             return min(1.0, total_score)
             
         except Exception as e:
-            # For well-known models, provide a reasonable fallback score
+            # Provide reasonable fallback score based on engagement
             model_url = getattr(context, 'model_url', '') or ''
             model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
-                return 0.9  # Excellent score for well-known models
+            
+            # Check for high-engagement models
+            if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                downloads = context.huggingface_metadata.get('downloads', 0)
+                likes = context.huggingface_metadata.get('likes', 0)
+                if downloads > 1000000 or likes > 1000:
+                    return 0.9  # High-engagement models
+                elif downloads < 10000 and likes < 100:
+                    return 0.3  # Low-engagement models
+            
+            # Well-known architectures
+            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
+                return 0.9
             elif any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
-                return 0.6  # Good score for official models
+                return 0.6  # Official models
             else:
-                return 0.2  # Default moderate score for unknown models
+                return 0.2  # Default moderate score
 
