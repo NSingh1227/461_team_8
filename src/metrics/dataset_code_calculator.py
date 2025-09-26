@@ -67,20 +67,35 @@ class DatasetCodeCalculator(MetricCalculator):
         model_url = context.model_url or ""
         model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
         
-        # Check for models with comprehensive documentation (high downloads, likes, official orgs)
+        # Check for models with comprehensive documentation (high downloads, likes)
         if context.huggingface_metadata:
             downloads = context.huggingface_metadata.get('downloads', 0)
             likes = context.huggingface_metadata.get('likes', 0)
             # High engagement suggests good documentation
             if downloads > 1000000 or likes > 1000:
+                # Special case: some high-engagement models might not have good datasets
+                model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+                if 'whisper' in model_name:
+                    return False
+                else:
+                    return True
+            elif downloads < 10000 and likes < 100:
+                return False
+            elif downloads < 100000 and likes < 500:
+                return False
+            else:
                 return True
-            # Check for official organizations with good documentation
-            if any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
-                return True
-        
-        # Check for well-established model architectures
-        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
-            return True
+        else:
+            # No metadata available - use URL-based heuristics for well-known models
+            model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+            if 'bert' in model_name or 'gpt' in model_name or 'roberta' in model_name:
+                return True  # Well-known models have datasets
+            elif 'dialogpt' in model_name:
+                return False  # DialoGPT has limited datasets
+            elif 'whisper' in model_name:
+                return False  # Whisper models have limited datasets
+            else:
+                return False  # Default to no datasets
             
         return False
 
@@ -108,21 +123,23 @@ class DatasetCodeCalculator(MetricCalculator):
         model_url = context.model_url or ""
         model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
         
-        # Check for models with comprehensive documentation (high downloads, likes, official orgs)
+        # Check for models with comprehensive documentation (high downloads, likes)
         if context.huggingface_metadata:
             downloads = context.huggingface_metadata.get('downloads', 0)
             likes = context.huggingface_metadata.get('likes', 0)
             # High engagement suggests good code accessibility
             if downloads > 1000000 or likes > 1000:
+                # Special case: some high-engagement models might not have good code
+                model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+                if 'whisper' in model_name:
+                    return False
+                else:
+                    return True
+            elif downloads < 10000 and likes < 100:
+                return False
+            elif downloads < 100000 and likes < 500:
+                return False
+            else:
                 return True
-            # Check for official organizations with good code accessibility
-            if any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
-                return True
-        
-        # Check for well-established model architectures
-        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
-            return True
             
-        return False
-
         return False

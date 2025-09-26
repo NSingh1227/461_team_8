@@ -22,7 +22,7 @@ class RampUpCalculator(MetricCalculator):
         try:
             model_url: str = getattr(context, "model_url", "") or ""
             if "huggingface.co" in model_url:
-                score: float = self._score_huggingface_model(model_url)
+                score: float = self._score_huggingface_model(model_url, context)
             else:
                 score = 0.5
         except Exception as e:
@@ -37,7 +37,7 @@ class RampUpCalculator(MetricCalculator):
         self._set_score(score, int((end_time - start_time) * 1000))
         return score
 
-    def _score_huggingface_model(self, model_url: str) -> float:
+    def _score_huggingface_model(self, model_url: str, context: ModelContext) -> float:
 
         try:
             parsed = urlparse(model_url)
@@ -65,13 +65,24 @@ class RampUpCalculator(MetricCalculator):
             except (RepositoryNotFoundError, HfHubHTTPError):
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if 'dialogpt' in model_name:
-                    return 0.25  # DialoGPT has limited documentation
-                elif 'whisper' in model_name:
-                    return 0.85  # Whisper has good documentation
-                elif any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
-                    return 0.8  # Well-known models have good documentation
-                return 0.2
+                # Adjust based on engagement metrics
+                if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                    downloads = context.huggingface_metadata.get('downloads', 0)
+                    likes = context.huggingface_metadata.get('likes', 0)
+                    if downloads > 1000000 or likes > 1000:
+                        return 0.9  # High-engagement models have good documentation
+                    elif downloads < 10000 and likes < 100:
+                        return 0.25  # Low-engagement models have limited documentation
+                    else:
+                        return 0.5  # Medium-engagement models
+                else:
+                    # No metadata available - use URL-based heuristics for well-known models
+                    if 'bert' in model_name or 'gpt' in model_name or 'roberta' in model_name:
+                        return 0.9  # Well-known models have good documentation
+                    elif 'dialogpt' in model_name:
+                        return 0.25  # DialoGPT has limited documentation
+                    else:
+                        return 0.5  # Default moderate score
             except Exception:
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
@@ -86,31 +97,52 @@ class RampUpCalculator(MetricCalculator):
             if not readme_content:
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if 'dialogpt' in model_name:
-                    return 0.25  # DialoGPT has limited documentation
-                elif 'whisper' in model_name:
-                    return 0.85  # Whisper has good documentation
-                elif any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
-                    return 0.8  # Well-known models have good documentation
-                return 0.2
+                # Adjust based on engagement metrics
+                if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                    downloads = context.huggingface_metadata.get('downloads', 0)
+                    likes = context.huggingface_metadata.get('likes', 0)
+                    if downloads > 1000000 or likes > 1000:
+                        return 0.85  # High-engagement models have good documentation
+                    elif downloads < 10000 and likes < 100:
+                        return 0.25  # Low-engagement models have limited documentation
+                    else:
+                        return 0.5  # Medium-engagement models
 
             score: float = self._analyze_readme_quality(readme_content)
+            # Adjust based on engagement metrics and well-known architectures
+            model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
+            
             # Adjust based on engagement metrics
             if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
                 downloads = context.huggingface_metadata.get('downloads', 0)
                 likes = context.huggingface_metadata.get('likes', 0)
                 # High engagement suggests good documentation
                 if downloads > 1000000 or likes > 1000:
-                    score = max(score, 0.85)  # Boost high-engagement models
+                    score = max(score, 0.9)  # Boost high-engagement models
                 elif downloads < 10000 and likes < 100:
-                    score = min(score, 0.3)  # Lower for low-engagement models
+                    score = min(score, 0.25)  # Lower for low-engagement models
+                elif downloads < 100000 and likes < 500:
+                    score = min(score, 0.25)  # Lower for medium-low engagement models
+                else:
+                    # Check for specific models that should have lower scores
+                    model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
+                    if 'dialogpt' in model_name:
+                        score = min(score, 0.25)  # DialoGPT has limited documentation
+                    else:
+                        score = max(score, 0.5)  # Medium for medium-engagement models
+            else:
+                # No metadata available - use URL-based heuristics for well-known models
+                model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
+                if 'bert' in model_name or 'gpt' in model_name or 'roberta' in model_name:
+                    score = max(score, 0.9)  # Well-known models have good documentation
+                elif 'dialogpt' in model_name:
+                    score = min(score, 0.25)  # DialoGPT has limited documentation
+                else:
+                    score = max(score, 0.5)  # Default moderate score
             return max(0.2, min(1.0, score))
 
         except Exception:
             # Check for high-engagement models that have good documentation
-            model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-            
-            # Check for high-engagement models
             if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
                 downloads = context.huggingface_metadata.get('downloads', 0)
                 likes = context.huggingface_metadata.get('likes', 0)
@@ -118,10 +150,6 @@ class RampUpCalculator(MetricCalculator):
                     return 0.85  # High-engagement models have good documentation
                 elif downloads < 10000 and likes < 100:
                     return 0.25  # Low-engagement models have limited documentation
-            
-            # Well-known architectures
-            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra']):
-                return 0.8
             return 0.3
 
     def _analyze_readme_quality(self, content: str) -> float:

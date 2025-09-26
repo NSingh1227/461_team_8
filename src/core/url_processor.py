@@ -120,7 +120,18 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
 
         response = get_with_rate_limit(api_url, APIService.HUGGINGFACE, timeout=10)
         if response and response.status_code == 200:
-            return response.json()
+            data = response.json()
+            # Handle case where API returns a list instead of dict (e.g., for /tree/main URLs)
+            if isinstance(data, list):
+                # If it's a list, take the first item if it exists, otherwise return None
+                if len(data) > 0 and isinstance(data[0], dict):
+                    return data[0]
+                else:
+                    return None
+            elif isinstance(data, dict):
+                return data
+            else:
+                return None
         else:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']

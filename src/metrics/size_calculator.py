@@ -52,6 +52,13 @@ class SizeCalculator(MetricCalculator):
                 }
                 score = max(self.platform_compatibility.values()) if self.platform_compatibility else 0.5
         except Exception:
+            # Default fallback scoring
+            self.platform_compatibility = {
+                "raspberry_pi": 0.0,
+                "jetson_nano": 0.5,
+                "desktop_pc": 0.8,
+                "aws_server": 1.0
+            }
             score = 0.5
 
         end_time: float = time.time()

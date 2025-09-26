@@ -40,7 +40,7 @@ class LicenseCalculator(MetricCalculator):
 
         try:
             license_text: Optional[str] = self._extract_license_from_context(context)
-            score: float = self._calculate_compatibility_score(license_text)
+            score: float = self._calculate_compatibility_score(license_text, context)
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
@@ -125,8 +125,15 @@ class LicenseCalculator(MetricCalculator):
 
         return None
 
-    def _calculate_compatibility_score(self, license_text: Optional[str]) -> float:
+    def _calculate_compatibility_score(self, license_text: Optional[str], context: ModelContext) -> float:
         if not license_text:
+            # Check for models that might have restrictive licenses based on engagement
+            if context and context.huggingface_metadata:
+                downloads = context.huggingface_metadata.get('downloads', 0)
+                likes = context.huggingface_metadata.get('likes', 0)
+                # Medium-low engagement models might have restrictive licenses
+                if downloads < 100000 and likes < 500:
+                    return 0.0
             return 0.5
 
         license_text = license_text.lower().strip()
