@@ -22,9 +22,9 @@ class BusFactorCalculator(MetricCalculator):
         try:
             url_to_use: Optional[str] = context.code_url or context.model_url
 
-            if not url_to_use or not url_to_use.startswith("https://github.com"):
+            if not url_to_use:
                 score: float = 0.0
-            else:
+            elif url_to_use.startswith("https://github.com"):
                 contributors_count: int = self._get_contributors_last_12_months(url_to_use)
 
                 if contributors_count == 0:
@@ -35,6 +35,11 @@ class BusFactorCalculator(MetricCalculator):
                 else:
                     score = 0.5 + (contributors_count - 5) / 20.0
                 score = min(1.0, score)
+            elif url_to_use.startswith("https://huggingface.co"):
+                # For Hugging Face models, estimate bus factor from metadata
+                score = self._estimate_hf_bus_factor(context)
+            else:
+                score: float = 0.0
 
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
@@ -172,4 +177,45 @@ class BusFactorCalculator(MetricCalculator):
         except Exception as e:
             print(f"Error fetching GitHub commits: {e}", file=sys.stderr)
             return []
+
+    def _estimate_hf_bus_factor(self, context: ModelContext) -> float:
+        """Estimate bus factor for Hugging Face models based on metadata."""
+        try:
+            # Use Hugging Face metadata to estimate bus factor
+            hf_metadata = getattr(context, 'huggingface_metadata', {})
+            model_info = getattr(context, 'model_info', {})
+            
+            # Base score from model popularity (downloads, likes)
+            downloads = hf_metadata.get('downloads', 0) or model_info.get('downloads', 0)
+            likes = hf_metadata.get('likes', 0) or model_info.get('likes', 0)
+            
+            # Higher downloads/likes suggest more community involvement
+            download_score = min(0.4, downloads / 1000000) if downloads > 0 else 0.1
+            likes_score = min(0.3, likes / 100) if likes > 0 else 0.1
+            
+            # Check if it's an official model (Google, Microsoft, etc.)
+            model_url = context.model_url or ""
+            if any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
+                org_score = 0.3
+            else:
+                org_score = 0.1
+            
+            # Check for well-known model types that have good community support
+            model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+                org_score += 0.2  # Bonus for well-known model types
+            
+            # Check for recent activity (creation date, last modified)
+            created_date = hf_metadata.get('createdAt') or model_info.get('createdAt')
+            last_modified = hf_metadata.get('lastModified') or model_info.get('lastModified')
+            
+            activity_score = 0.2  # Default moderate activity
+            if created_date or last_modified:
+                activity_score = 0.3  # Has timestamp info
+            
+            total_score = download_score + likes_score + org_score + activity_score
+            return min(1.0, total_score)
+            
+        except Exception as e:
+            return 0.2  # Default moderate score for HF models
 

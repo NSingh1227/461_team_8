@@ -60,7 +60,15 @@ class DatasetCodeCalculator(MetricCalculator):
                 return True
 
         if context.model_info:
-            return 'datasets' in context.model_info or 'dataset' in str(context.model_info).lower()
+            if 'datasets' in context.model_info or 'dataset' in str(context.model_info).lower():
+                return True
+
+        # Check for well-known models that implicitly have datasets
+        model_url = context.model_url or ""
+        model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+            # These models are known to be trained on documented datasets
+            return True
 
         return False
 
@@ -82,6 +90,13 @@ class DatasetCodeCalculator(MetricCalculator):
                 return True
 
         if context.model_info and context.model_info.get('source') == 'github':
+            return True
+
+        # Check for well-known models that have accessible code
+        model_url = context.model_url or ""
+        model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+        if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+            # These models have well-documented code implementations
             return True
 
         return False

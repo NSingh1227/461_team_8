@@ -74,10 +74,10 @@ class ModelResult:
             "license": round(self.license_score, 2),
             "license_latency": self.license_latency,
             "size_score": {
-                "raspberry_pi": round(self.size_score.get("raspberry_pi", 0.0), 2),
-                "jetson_nano": round(self.size_score.get("jetson_nano", 0.0), 2),
-                "desktop_pc": round(self.size_score.get("desktop_pc", 0.0), 2),
-                "aws_server": round(self.size_score.get("aws_server", 0.0), 2)
+                "raspberry_pi": round(self.size_score.get("raspberry_pi", 0.0), 2) if isinstance(self.size_score, dict) else 0.0,
+                "jetson_nano": round(self.size_score.get("jetson_nano", 0.0), 2) if isinstance(self.size_score, dict) else 0.0,
+                "desktop_pc": round(self.size_score.get("desktop_pc", 0.0), 2) if isinstance(self.size_score, dict) else 0.0,
+                "aws_server": round(self.size_score.get("aws_server", 0.0), 2) if isinstance(self.size_score, dict) else 0.0
             },
             "size_score_latency": self.size_latency,
             "dataset_and_code_score": round(self.dataset_code_score, 2),
