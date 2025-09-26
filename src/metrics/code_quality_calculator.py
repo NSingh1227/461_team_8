@@ -70,7 +70,6 @@ class CodeQualityCalculator(MetricCalculator):
     def _score_from_hf_metadata(self, context: ModelContext) -> float:
         # Check for high-engagement models first
         model_url = context.model_url or ""
-        model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
         
         # Check for high-engagement models (likely to have good code quality)
         if context.huggingface_metadata:
@@ -90,28 +89,6 @@ class CodeQualityCalculator(MetricCalculator):
                 return 0.93  # Well-known organizations have high code quality
             else:
                 return 0.4  # Default moderate quality
-        
-        score: float = 0.4
-
-        if context.huggingface_metadata:
-            downloads: int = context.huggingface_metadata.get('downloads', 0)
-            if downloads > 1000000:
-                score += 0.3
-            elif downloads > 100000:
-                score += 0.2
-            elif downloads > 10000:
-                score += 0.1
-
-            likes: int = context.huggingface_metadata.get('likes', 0)
-            if likes > 100:
-                score += 0.2
-            elif likes > 10:
-                score += 0.1
-
-            if context.huggingface_metadata.get('tags'):
-                score += 0.1
-
-        return min(1.0, score)
 
     def _score_from_dynamic_analysis(self, model_url: str) -> float:    
         try:

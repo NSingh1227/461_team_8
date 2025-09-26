@@ -65,7 +65,6 @@ class DatasetCodeCalculator(MetricCalculator):
 
         # Check for well-known models that implicitly have datasets
         model_url = context.model_url or ""
-        model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
         
         # Check for models with comprehensive documentation (high downloads, likes)
         if context.huggingface_metadata:
@@ -112,7 +111,6 @@ class DatasetCodeCalculator(MetricCalculator):
 
         # Check for well-known models that have accessible code
         model_url = context.model_url or ""
-        model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
         
         # Check for models with comprehensive documentation (high downloads, likes)
         if context.huggingface_metadata:

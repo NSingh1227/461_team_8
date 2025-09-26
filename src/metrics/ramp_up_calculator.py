@@ -112,7 +112,6 @@ class RampUpCalculator(MetricCalculator):
 
             score: float = self._analyze_readme_quality(readme_content)
             # Adjust based on engagement metrics
-            model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
             
             # Adjust based on engagement metrics
             if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:

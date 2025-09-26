@@ -24,7 +24,6 @@ class DatasetQualityCalculator(MetricCalculator):
                 # If LLM analyzer returns 0.0, fall back to smart heuristics
                 if score == 0.0:
                     model_url = context.model_url or ""
-                    model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
                     
                     # Check for high-engagement models (likely to have good datasets)
                     if context.huggingface_metadata:
@@ -48,7 +47,6 @@ class DatasetQualityCalculator(MetricCalculator):
             else:
                 # Check for models with implicit high-quality datasets using smart heuristics
                 model_url = context.model_url or ""
-                model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
                 
                 # Check for high-engagement models (likely to have good datasets)
                 if context.huggingface_metadata:

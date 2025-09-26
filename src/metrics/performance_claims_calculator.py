@@ -1,10 +1,9 @@
 import os
 import sys
 import time
-from typing import List, Optional
+from typing import Optional
 from urllib.parse import urlparse
 
-import requests
 
 from .base import MetricCalculator, ModelContext
 

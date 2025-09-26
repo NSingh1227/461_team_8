@@ -242,7 +242,7 @@ class BusFactorCalculator(MetricCalculator):
             total_score = download_score + likes_score + org_score + activity_score
             return min(1.0, total_score)
             
-        except Exception as e:
+        except Exception:
             # Provide reasonable fallback score based on engagement
             model_url = getattr(context, 'model_url', '') or ''
             model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
