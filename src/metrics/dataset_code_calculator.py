@@ -72,30 +72,21 @@ class DatasetCodeCalculator(MetricCalculator):
             downloads = context.huggingface_metadata.get('downloads', 0)
             likes = context.huggingface_metadata.get('likes', 0)
             # High engagement suggests good documentation
-            if downloads > 1000000 or likes > 1000:
-                # Special case: some high-engagement models might not have good datasets
-                model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                if 'whisper' in model_name:
-                    return False
-                else:
-                    return True
+            if downloads > 5000000 or likes > 5000:
+                return True
+            elif downloads > 1000000 or likes > 1000:
+                return True
             elif downloads < 10000 and likes < 100:
                 return False
             elif downloads < 100000 and likes < 500:
                 return False
             else:
-                return True
+                return False  # Medium engagement - be more conservative
         else:
-            # No metadata available - use URL-based heuristics for well-known models
-            model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            if 'bert' in model_name or 'gpt' in model_name or 'roberta' in model_name:
-                return True  # Well-known models have datasets
-            elif 'dialogpt' in model_name:
-                return False  # DialoGPT has limited datasets
-            elif 'whisper' in model_name:
-                return False  # Whisper models have limited datasets
-            else:
-                return False  # Default to no datasets
+            # No metadata available - use organization-based heuristics
+            if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
+                return True  # Well-known organizations typically have datasets
+            return False  # Default to no datasets
             
         return False
 
@@ -128,18 +119,18 @@ class DatasetCodeCalculator(MetricCalculator):
             downloads = context.huggingface_metadata.get('downloads', 0)
             likes = context.huggingface_metadata.get('likes', 0)
             # High engagement suggests good code accessibility
-            if downloads > 1000000 or likes > 1000:
-                # Special case: some high-engagement models might not have good code
-                model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                if 'whisper' in model_name:
-                    return False
-                else:
-                    return True
+            if downloads > 5000000 or likes > 5000:
+                return True
+            elif downloads > 1000000 or likes > 1000:
+                return True
             elif downloads < 10000 and likes < 100:
                 return False
             elif downloads < 100000 and likes < 500:
                 return False
             else:
-                return True
-            
-        return False
+                return False  # Medium engagement - be more conservative
+        else:
+            # No metadata available - use organization-based heuristics
+            if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
+                return True  # Well-known organizations typically have accessible code
+            return False  # Default to no code

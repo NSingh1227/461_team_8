@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Any, Optional
 
@@ -9,6 +10,13 @@ _session: requests.Session = requests.Session()
 _session.headers.update({
     'User-Agent': 'ECE461-Team8-ModelAnalyzer/1.0'
 })
+
+# Add Hugging Face API token if available
+hf_token = os.environ.get('HF_API_TOKEN')
+if hf_token:
+    _session.headers.update({
+        'Authorization': f'Bearer {hf_token}'
+    })
 
 
 def make_rate_limited_request(

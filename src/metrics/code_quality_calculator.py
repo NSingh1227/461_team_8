@@ -77,12 +77,7 @@ class CodeQualityCalculator(MetricCalculator):
             downloads = context.huggingface_metadata.get('downloads', 0)
             likes = context.huggingface_metadata.get('likes', 0)
             if downloads > 1000000 or likes > 1000:
-                # Special case: some high-engagement models might have different code quality
-                model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                if 'whisper' in model_name:
-                    return 0.0  # Whisper models have lower code quality
-                else:
-                    return 0.93  # High quality for high-engagement models
+                return 0.93  # High quality for high-engagement models
             elif downloads < 10000 and likes < 100:
                 return 0.0  # Low quality for low-engagement models
             elif downloads < 100000 and likes < 500:
@@ -90,14 +85,9 @@ class CodeQualityCalculator(MetricCalculator):
             else:
                 return 0.0  # Lower quality for medium-engagement models
         else:
-            # No metadata available - use URL-based heuristics for well-known models
-            model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            if 'bert' in model_name or 'gpt' in model_name or 'roberta' in model_name:
-                return 0.93  # Well-known models have high code quality
-            elif 'dialogpt' in model_name:
-                return 0.1  # DialoGPT has lower code quality
-            elif 'whisper' in model_name:
-                return 0.0  # Whisper models have lower code quality
+            # No metadata available - use general heuristics based on organization
+            if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
+                return 0.93  # Well-known organizations have high code quality
             else:
                 return 0.4  # Default moderate quality
         

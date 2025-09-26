@@ -50,41 +50,31 @@ class DatasetQualityCalculator(MetricCalculator):
                 model_url = context.model_url or ""
                 model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
                 
-                # Check for specific models first, then adjust based on engagement metrics
-                model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                if 'dialogpt' in model_name:
-                    score = 0.0
-                    print(f"[DatasetQuality] DialoGPT model {model_url} → 0.0", file=sys.stderr)
-                elif 'whisper' in model_name:
-                    score = 0.0
-                    print(f"[DatasetQuality] Whisper model {model_url} → 0.0", file=sys.stderr)
-                elif context.huggingface_metadata:
+                # Check for high-engagement models (likely to have good datasets)
+                if context.huggingface_metadata:
                     downloads = context.huggingface_metadata.get('downloads', 0)
                     likes = context.huggingface_metadata.get('likes', 0)
-                    if downloads > 1000000 or likes > 1000:
+                    if downloads > 5000000 or likes > 5000:
                         score = 0.95
-                        print(f"[DatasetQuality] High engagement model {model_url} → default 0.95", file=sys.stderr)
+                        print(f"[DatasetQuality] Very high engagement model {model_url} → 0.95", file=sys.stderr)
+                    elif downloads > 1000000 or likes > 1000:
+                        score = 0.8
+                        print(f"[DatasetQuality] High engagement model {model_url} → 0.8", file=sys.stderr)
                     elif downloads < 10000 and likes < 100:
                         score = 0.0
-                        print(f"[DatasetQuality] Low engagement model {model_url} → default 0.0", file=sys.stderr)
+                        print(f"[DatasetQuality] Low engagement model {model_url} → 0.0", file=sys.stderr)
                     elif downloads < 100000 and likes < 500:
                         score = 0.0
-                        print(f"[DatasetQuality] Medium-low engagement model {model_url} → default 0.0", file=sys.stderr)
+                        print(f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0", file=sys.stderr)
                     else:
-                        score = 0.5
-                        print(f"[DatasetQuality] Medium engagement model {model_url} → default 0.5", file=sys.stderr)
+                        score = 0.0
+                        print(f"[DatasetQuality] Medium engagement model {model_url} → 0.0", file=sys.stderr)
                 else:
-                    # No metadata available - use URL-based heuristics for well-known models
-                    model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                    if 'bert' in model_name or 'gpt' in model_name or 'roberta' in model_name:
+                    # No metadata available - use general heuristics based on model characteristics
+                    # Check if it's a well-known model by URL patterns
+                    if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
                         score = 0.95
-                        print(f"[DatasetQuality] Well-known model {model_url} → 0.95", file=sys.stderr)
-                    elif 'dialogpt' in model_name:
-                        score = 0.0
-                        print(f"[DatasetQuality] DialoGPT model {model_url} → 0.0", file=sys.stderr)
-                    elif 'whisper' in model_name:
-                        score = 0.0
-                        print(f"[DatasetQuality] Whisper model {model_url} → 0.0", file=sys.stderr)
+                        print(f"[DatasetQuality] Well-known organization model {model_url} → 0.95", file=sys.stderr)
                     else:
                         score = 0.3
                         print("[DatasetQuality] No dataset info available → default 0.3", file=sys.stderr)

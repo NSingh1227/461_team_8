@@ -21,7 +21,7 @@ from src.core.rate_limiter import get_rate_limiter, reset_rate_limiter, APIServi
 from src.core.http_client import get_with_rate_limit, head_with_rate_limit
 from src.core.llm_client import ask_for_json_score
 from src.core.config import Config
-from src.core.exceptions import *
+from src.core.exceptions import MetricCalculationException, APIRateLimitException, InvalidURLException, ConfigurationException
 
 from unittest.mock import Mock, patch, MagicMock, mock_open
 
@@ -30,17 +30,17 @@ class TestURLProcessor(unittest.TestCase):
     def test_categorize_url_model(self):
         url = "https://huggingface.co/google/bert-base-uncased"
         result = categorize_url(url)
-        self.assertEqual(result, URLType.MODEL)
+        self.assertEqual(result, URLType.HUGGINGFACE_MODEL)
     
     def test_categorize_url_dataset(self):
         url = "https://huggingface.co/datasets/squad"
         result = categorize_url(url)
-        self.assertEqual(result, URLType.DATASET)
+        self.assertEqual(result, URLType.HUGGINGFACE_DATASET)
     
     def test_categorize_url_code(self):
         url = "https://github.com/user/repo"
         result = categorize_url(url)
-        self.assertEqual(result, URLType.CODE)
+        self.assertEqual(result, URLType.GITHUB_REPO)
     
     def test_categorize_url_invalid(self):
         url = "https://invalid-url.com"
@@ -71,6 +71,16 @@ class TestMetricCalculators(unittest.TestCase):
             model_info={}
         )
         self.context.huggingface_metadata = {"downloads": 1000, "likes": 50}
+        
+        # Mock network calls to prevent real API requests
+        self.mock_patcher = patch('src.core.http_client._session.request')
+        self.mock_request = self.mock_patcher.start()
+        self.mock_request.return_value.status_code = 200
+        self.mock_request.return_value.json.return_value = {"test": "data"}
+        self.mock_request.return_value.text = "# Test README\nThis is a test model."
+    
+    def tearDown(self):
+        self.mock_patcher.stop()
     
     def test_bus_factor_calculator(self):
         calculator = BusFactorCalculator()
@@ -131,30 +141,53 @@ class TestMetricCalculators(unittest.TestCase):
 
 class TestModelResult(unittest.TestCase):
     def test_model_result_creation(self):
-        result = ModelResult("test_model")
-        self.assertEqual(result.name, "test_model")
-        self.assertEqual(result.category, "MODEL")
+        result = ModelResult(
+            url="https://huggingface.co/test_model",
+            net_score=0.5,
+            net_score_latency=100,
+            size_score={"raspberry_pi": 0.5},
+            size_latency=50,
+            license_score=1.0,
+            license_latency=10,
+            ramp_up_score=0.8,
+            ramp_up_latency=30,
+            bus_factor_score=0.7,
+            bus_factor_latency=20,
+            dataset_code_score=0.6,
+            dataset_code_latency=25,
+            dataset_quality_score=0.9,
+            dataset_quality_latency=40,
+            code_quality_score=0.8,
+            code_quality_latency=35,
+            performance_claims_score=0.75,
+            performance_claims_latency=45
+        )
+        self.assertEqual(result.url, "https://huggingface.co/test_model")
+        # Check that the model name is extracted correctly
+        self.assertEqual(result._extract_model_name(), "test_model")
     
     def test_model_result_to_ndjson(self):
-        result = ModelResult("test_model")
-        result.net_score = 0.85
-        result.net_score_latency = 100
-        result.ramp_up_score = 0.9
-        result.ramp_up_latency = 50
-        result.bus_factor_score = 0.8
-        result.bus_factor_latency = 30
-        result.performance_claims_score = 0.75
-        result.performance_claims_latency = 40
-        result.license_score = 1.0
-        result.license_latency = 10
-        result.size_score = {"raspberry_pi": 0.5, "jetson_nano": 0.7, "desktop_pc": 0.9, "aws_server": 1.0}
-        result.size_latency = 20
-        result.dataset_code_score = 0.8
-        result.dataset_code_latency = 25
-        result.dataset_quality_score = 0.7
-        result.dataset_quality_latency = 35
-        result.code_quality_score = 0.6
-        result.code_quality_latency = 45
+        result = ModelResult(
+            url="https://huggingface.co/test_model",
+            net_score=0.85,
+            net_score_latency=100,
+            size_score={"raspberry_pi": 0.5, "jetson_nano": 0.7, "desktop_pc": 0.9, "aws_server": 1.0},
+            size_latency=20,
+            license_score=1.0,
+            license_latency=10,
+            ramp_up_score=0.9,
+            ramp_up_latency=50,
+            bus_factor_score=0.8,
+            bus_factor_latency=30,
+            dataset_code_score=0.8,
+            dataset_code_latency=25,
+            dataset_quality_score=0.7,
+            dataset_quality_latency=35,
+            code_quality_score=0.6,
+            code_quality_latency=45,
+            performance_claims_score=0.75,
+            performance_claims_latency=40
+        )
         
         ndjson_line = result.to_ndjson_line()
         self.assertIsInstance(ndjson_line, str)
@@ -171,9 +204,10 @@ class TestLLMAnalyzer(unittest.TestCase):
     def test_analyze_readme_quality(self, mock_ask):
         mock_ask.return_value = (0.8, "Good documentation")
         analyzer = LLMAnalyzer()
-        
+    
         readme_content = "# Model\nThis is a test model with good documentation."
-        score = analyzer.analyze_readme_quality(readme_content)
+        # Use the correct method name from LLMAnalyzer
+        score = analyzer.analyze_dataset_quality({"readme": readme_content})
         self.assertIsInstance(score, float)
         self.assertGreaterEqual(score, 0.0)
         self.assertLessEqual(score, 1.0)
@@ -209,7 +243,7 @@ class TestHTTPClient(unittest.TestCase):
         mock_response.json.return_value = {"test": "data"}
         mock_request.return_value = mock_response
         
-        result = get_with_rate_limit("https://api.example.com/test")
+        result = get_with_rate_limit("https://api.example.com/test", APIService.GITHUB)
         self.assertIsNotNone(result)
         self.assertEqual(result.status_code, 200)
     
@@ -219,7 +253,7 @@ class TestHTTPClient(unittest.TestCase):
         mock_response.status_code = 200
         mock_request.return_value = mock_response
         
-        result = head_with_rate_limit("https://api.example.com/test")
+        result = head_with_rate_limit("https://api.example.com/test", APIService.GITHUB)
         self.assertIsNotNone(result)
         self.assertEqual(result.status_code, 200)
 
@@ -234,15 +268,17 @@ class TestExceptions(unittest.TestCase):
     def test_metric_calculation_exception(self):
         exc = MetricCalculationException("test_metric", "test error")
         self.assertEqual(exc.metric_name, "test_metric")
-        self.assertEqual(exc.message, "test error")
+        self.assertEqual(str(exc), "Failed to calculate test_metric metric: test error")
     
-    def test_api_exception(self):
-        exc = APIException("test error")
-        self.assertEqual(exc.message, "test error")
+    def test_api_rate_limit_exception(self):
+        exc = APIRateLimitException("test_api", 60)
+        self.assertEqual(exc.api_name, "test_api")
+        self.assertEqual(exc.retry_after, 60)
     
-    def test_validation_exception(self):
-        exc = ValidationException("test error")
-        self.assertEqual(exc.message, "test error")
+    def test_invalid_url_exception(self):
+        exc = InvalidURLException("https://invalid.com", "Invalid format")
+        self.assertEqual(exc.url, "https://invalid.com")
+        self.assertEqual(exc.reason, "Invalid format")
 
 
 class TestEdgeCases(unittest.TestCase):
@@ -272,6 +308,17 @@ class TestEdgeCases(unittest.TestCase):
 
 
 class TestIntegration(unittest.TestCase):
+    def setUp(self):
+        # Mock network calls to prevent real API requests
+        self.mock_patcher = patch('src.core.http_client._session.request')
+        self.mock_request = self.mock_patcher.start()
+        self.mock_request.return_value.status_code = 200
+        self.mock_request.return_value.json.return_value = {"test": "data"}
+        self.mock_request.return_value.text = "# Test README\nThis is a test model."
+    
+    def tearDown(self):
+        self.mock_patcher.stop()
+    
     def test_full_pipeline(self):
         context = ModelContext(
             model_url="https://huggingface.co/test/model",

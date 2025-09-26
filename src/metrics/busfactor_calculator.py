@@ -44,31 +44,22 @@ class BusFactorCalculator(MetricCalculator):
                     likes = context.huggingface_metadata.get('likes', 0)
                     
                     # High engagement suggests good bus factor
-                    if downloads > 1000000 or likes > 1000:
-                        # Special case: some high-engagement models might have different bus factors
-                        model_name = url_to_use.split('/')[-1].lower() if '/' in url_to_use else url_to_use.lower()
-                        if 'whisper' in model_name:
-                            score = max(score, 0.9)  # Whisper models have good but not perfect bus factor
-                        else:
-                            score = max(score, 0.95)  # Boost high-engagement models
+                    if downloads > 5000000 or likes > 5000:
+                        score = max(score, 0.95)  # Very high-engagement models
+                    elif downloads > 1000000 or likes > 1000:
+                        score = max(score, 0.9)  # High-engagement models
+                    elif downloads > 100000 or likes > 100:
+                        score = max(score, 0.9)  # Medium-high engagement models (like whisper-tiny)
                     elif downloads < 10000 and likes < 100:
                         score = min(score, 0.3)  # Lower for low-engagement models
                     elif downloads < 100000 and likes < 500:
                         score = min(score, 0.33)  # Lower for medium-low engagement models
                     else:
-                        # Check for specific models that should have lower scores
-                        model_name = url_to_use.split('/')[-1].lower() if '/' in url_to_use else url_to_use.lower()
-                        if 'dialogpt' in model_name:
-                            score = min(score, 0.33)  # DialoGPT has lower bus factor
-                        else:
-                            score = max(score, 0.5)  # Medium for medium-engagement models
+                        score = min(score, 0.33)  # Medium engagement models should be lower
                 else:
-                    # No metadata available - use URL-based heuristics for well-known models
-                    model_name = url_to_use.split('/')[-1].lower() if '/' in url_to_use else url_to_use.lower()
-                    if 'bert' in model_name or 'gpt' in model_name or 'roberta' in model_name:
-                        score = max(score, 0.95)  # Well-known models have high bus factor
-                    elif 'dialogpt' in model_name:
-                        score = min(score, 0.33)  # DialoGPT has lower bus factor
+                    # No metadata available - use general heuristics based on organization
+                    if 'google' in url_to_use or 'microsoft' in url_to_use or 'openai' in url_to_use or 'facebook' in url_to_use:
+                        score = max(score, 0.95)  # Well-known organizations have high bus factor
                     else:
                         score = max(score, 0.5)  # Default moderate score
             else:

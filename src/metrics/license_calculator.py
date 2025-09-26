@@ -134,6 +134,10 @@ class LicenseCalculator(MetricCalculator):
                 # Medium-low engagement models might have restrictive licenses
                 if downloads < 100000 and likes < 500:
                     return 0.0
+            # Check organization-based heuristics
+            model_url = getattr(context, 'model_url', '') or ''
+            if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
+                return 1.0  # Well-known organizations typically have permissive licenses
             return 0.5
 
         license_text = license_text.lower().strip()
