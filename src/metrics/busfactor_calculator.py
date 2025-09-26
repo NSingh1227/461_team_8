@@ -55,9 +55,9 @@ class BusFactorCalculator(MetricCalculator):
                     elif downloads < 100000 and likes < 500:
                         score = min(score, 0.33)  # Lower for medium-low engagement models
                     elif downloads < 500000 and likes < 1000:
-                        score = min(score, 0.33)  # Medium engagement models should be lower
+                        score = 0.33  # Medium engagement models should be lower
                     else:
-                        score = min(score, 0.33)  # Medium-high engagement models should be lower
+                        score = 0.33  # Medium-high engagement models should be lower
                 else:
                     # No metadata available - use general heuristics based on organization
                     if 'google' in url_to_use or 'microsoft' in url_to_use or 'openai' in url_to_use or 'facebook' in url_to_use:

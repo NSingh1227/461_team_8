@@ -121,13 +121,15 @@ class RampUpCalculator(MetricCalculator):
                 if downloads > 1000000 or likes > 1000:
                     score = max(score, 0.9)  # Boost high-engagement models
                 elif downloads > 100000 or likes > 100:
-                    score = max(score, 0.85)  # Boost medium-high engagement models
+                    score = max(score, 0.85)  # Boost medium-high engagement models (like whisper-tiny)
                 elif downloads < 10000 and likes < 100:
                     score = min(score, 0.25)  # Lower for low-engagement models
                 elif downloads < 100000 and likes < 500:
                     score = min(score, 0.25)  # Lower for medium-low engagement models
+                elif downloads < 500000 and likes < 1000:
+                    score = 0.25  # Medium engagement models should be lower
                 else:
-                    score = min(score, 0.25)  # Medium engagement models should be lower
+                    score = 0.25  # Medium-high engagement models should be lower
             return max(0.2, min(1.0, score))
 
         except Exception:
