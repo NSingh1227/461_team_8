@@ -2762,14 +2762,14 @@ class TestSuite:
                     pass
                 
                 # Test more HTTP client edge cases
-                from src.core.http_client import make_rate_limited_request
-                from src.core.rate_limiter import APIService
-                
-                # Test with different HTTP methods
-                try:
-                    result = make_rate_limited_request("PUT", "https://example.com", APIService.GITHUB)
-                except:
-                    pass
+            from src.core.http_client import make_rate_limited_request
+            from src.core.rate_limiter import APIService
+            
+            # Test with different HTTP methods
+            try:
+                result = make_rate_limited_request("PUT", "https://example.com", APIService.GITHUB)
+            except:
+                pass
                 
                 try:
                     result = make_rate_limited_request("DELETE", "https://example.com", APIService.GITHUB)
