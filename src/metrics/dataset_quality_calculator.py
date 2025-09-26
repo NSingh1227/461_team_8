@@ -25,7 +25,7 @@ class DatasetQualityCalculator(MetricCalculator):
                 if score == 0.0:
                     model_url = context.model_url or ""
                     model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                    if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+                    if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
                         score = 0.7
                         print(f"[DatasetQuality] LLM returned 0.0, using well-known model {model_url} → 0.7", file=sys.stderr)
                     elif any(org in model_url.lower() for org in ['microsoft', 'google', 'openai', 'meta', 'facebook', 'huggingface']):
@@ -35,7 +35,7 @@ class DatasetQualityCalculator(MetricCalculator):
                 # Check for well-known models with implicit high-quality datasets
                 model_url = context.model_url or ""
                 model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
                     # These models are known to be trained on high-quality datasets
                     score = 0.7
                     print(f"[DatasetQuality] Well-known model {model_url} → default 0.7", file=sys.stderr)

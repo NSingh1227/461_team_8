@@ -202,7 +202,7 @@ class BusFactorCalculator(MetricCalculator):
             
             # Check for well-known model types that have good community support
             model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
                 org_score += 0.4  # Higher bonus for well-known model types
             
             # Check for recent activity (creation date, last modified)
@@ -220,7 +220,7 @@ class BusFactorCalculator(MetricCalculator):
             # For well-known models, provide a reasonable fallback score
             model_url = getattr(context, 'model_url', '') or ''
             model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+            if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
                 return 0.9  # Excellent score for well-known models
             elif any(org in model_url.lower() for org in ['google', 'microsoft', 'openai', 'meta', 'facebook', 'huggingface']):
                 return 0.6  # Good score for official models

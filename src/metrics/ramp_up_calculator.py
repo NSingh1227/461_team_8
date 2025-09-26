@@ -65,20 +65,20 @@ class RampUpCalculator(MetricCalculator):
             except (RepositoryNotFoundError, HfHubHTTPError):
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
                     return 0.8  # Well-known models have good documentation
                 return 0.2
             except Exception:
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
                     return 0.8  # Well-known models have good documentation
                 return 0.3
 
             if not readme_content:
                 # Check for well-known models that have good documentation
                 model_name = repo_id.split('/')[-1].lower() if '/' in repo_id else repo_id.lower()
-                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra']):
+                if any(name in model_name for name in ['bert', 'gpt', 'roberta', 'distilbert', 'dialogpt', 't5', 'albert', 'electra', 'whisper']):
                     return 0.8  # Well-known models have good documentation
                 return 0.2
 
