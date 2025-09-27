@@ -19,12 +19,16 @@ class LLMAnalyzer:
         self.api_key: Optional[str] = api_key or os.getenv("GEN_AI_STUDIO_API_KEY")
 
     def _post_to_genai(self, messages: List[Dict[str, str]]) -> Optional[str]:
-        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in [
+            'true', '1', 'yes']
+        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in [
+            'true', '1', 'yes']
 
         if not self.api_key:
             if not is_autograder and debug_enabled:
-                print("[LLMAnalyzer] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.", file=sys.stderr)
+                print(
+                    "[LLMAnalyzer] Missing GEN_AI_STUDIO_API_KEY. Please set it in your environment.",
+                    file=sys.stderr)
             return None
         try:
             payload: Dict[str, Any] = {"model": self.model, "messages": messages}
@@ -41,17 +45,23 @@ class LLMAnalyzer:
             )
             if response and response.status_code == 200:
                 data: Dict[str, Any] = response.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                return str(content) if content is not None else None
             else:
                 if response:
-                    is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                    debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+                    is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                        'true', '1', 'yes']
+                    debug_enabled = os.environ.get('DEBUG', '').lower() in [
+                        'true', '1', 'yes']
 
                     if not is_autograder and debug_enabled:
-                        print(f"[LLMAnalyzer] API error {response.status_code}: {response.text}", file=sys.stderr)
+                        print(
+                            f"[LLMAnalyzer] API error {response.status_code}: {response.text}",
+                            file=sys.stderr)
                 return None
         except Exception as e:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                'true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
 
             if not is_autograder and debug_enabled:
@@ -75,10 +85,10 @@ class LLMAnalyzer:
         if not content:
             return 0.0
         try:
-            match: Optional[re.Match[str]] = re.search(r"-?\d+(?:\.\d+)?", content.strip())
+            match: Optional[re.Match[str]] = re.search(
+                r"-?\d+(?:\.\d+)?", content.strip())
             if match:
                 score: float = round(float(match.group(0)), 2)
-                # Ensure score is between 0 and 1
                 return max(0.0, min(1.0, score))
         except Exception:
             pass

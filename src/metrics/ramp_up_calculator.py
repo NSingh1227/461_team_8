@@ -6,7 +6,8 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from huggingface_hub import hf_hub_download
-from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
+from huggingface_hub.utils import (HfHubHTTPError,  # type: ignore
+                                   RepositoryNotFoundError)
 
 from .base import MetricCalculator, ModelContext
 
@@ -26,9 +27,10 @@ class RampUpCalculator(MetricCalculator):
             else:
                 score = 0.5
         except Exception as e:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                'true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
+
             if not is_autograder and debug_enabled:
                 print(f"Error calculating Ramp Up score: {e}", file=sys.stderr)
             score = 0.0
@@ -62,8 +64,9 @@ class RampUpCalculator(MetricCalculator):
                     with open(readme_path, 'r', encoding='utf-8') as f:
                         readme_content = f.read()
             except (RepositoryNotFoundError, HfHubHTTPError):
-                # Adjust based on engagement metrics
-                if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                if hasattr(
+                        context,
+                        'huggingface_metadata') and context.huggingface_metadata:
                     downloads = context.huggingface_metadata.get('downloads', 0)
                     likes = context.huggingface_metadata.get('likes', 0)
                     if downloads > 1000000 or likes > 1000:
@@ -75,14 +78,15 @@ class RampUpCalculator(MetricCalculator):
                     else:
                         return 0.25  # Medium-engagement models should be lower
                 else:
-                    # No metadata available - use general heuristics based on organization
-                    if 'google' in repo_id or 'microsoft' in repo_id or 'openai' in repo_id or 'facebook' in repo_id:
-                        return 0.9  # Well-known organizations have good documentation
+                    org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
+                    if any(org in repo_id.lower() for org in org_indicators):
+                        return 0.9
                     else:
                         return 0.5  # Default moderate score
             except Exception:
-                # Adjust based on engagement metrics
-                if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                if hasattr(
+                        context,
+                        'huggingface_metadata') and context.huggingface_metadata:
                     downloads = context.huggingface_metadata.get('downloads', 0)
                     likes = context.huggingface_metadata.get('likes', 0)
                     if downloads > 1000000 or likes > 1000:
@@ -96,8 +100,9 @@ class RampUpCalculator(MetricCalculator):
                 return 0.3
 
             if not readme_content:
-                # Adjust based on engagement metrics
-                if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+                if hasattr(
+                        context,
+                        'huggingface_metadata') and context.huggingface_metadata:
                     downloads = context.huggingface_metadata.get('downloads', 0)
                     likes = context.huggingface_metadata.get('likes', 0)
                     if downloads > 1000000 or likes > 1000:
@@ -111,13 +116,12 @@ class RampUpCalculator(MetricCalculator):
                 return 0.3
 
             score: float = self._analyze_readme_quality(readme_content)
-            # Adjust based on engagement metrics
-            
-            # Adjust based on engagement metrics
-            if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+
+            if hasattr(
+                    context,
+                    'huggingface_metadata') and context.huggingface_metadata:
                 downloads = context.huggingface_metadata.get('downloads', 0)
                 likes = context.huggingface_metadata.get('likes', 0)
-                # High engagement suggests good documentation
                 if downloads > 1000000 or likes > 1000:
                     score = max(score, 0.9)  # Boost high-engagement models
                 elif downloads > 200000 or likes > 200:
@@ -133,8 +137,9 @@ class RampUpCalculator(MetricCalculator):
             return max(0.2, min(1.0, score))
 
         except Exception:
-            # Check for high-engagement models that have good documentation
-            if hasattr(context, 'huggingface_metadata') and context.huggingface_metadata:
+            if hasattr(
+                    context,
+                    'huggingface_metadata') and context.huggingface_metadata:
                 downloads = context.huggingface_metadata.get('downloads', 0)
                 likes = context.huggingface_metadata.get('likes', 0)
                 if downloads > 1000000 or likes > 1000:
@@ -150,27 +155,26 @@ class RampUpCalculator(MetricCalculator):
             return 0.3
 
         content_lower = content.lower()
-        
-        # Look for documentation quality indicators
+
         quality_indicators = [
             'installation', 'install', 'setup', 'getting started',
             'quick start', 'tutorial', 'example', 'usage',
             'documentation', 'api', 'reference', 'guide',
             'requirements', 'dependencies', 'environment'
         ]
-        
+
         score = 0.3
         found_indicators = 0
-        
+
         for indicator in quality_indicators:
             if indicator in content_lower:
                 found_indicators += 1
-        
+
         if found_indicators >= 5:
             score = 0.8
         elif found_indicators >= 3:
             score = 0.6
         elif found_indicators >= 1:
             score = 0.4
-        
+
         return score

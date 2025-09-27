@@ -79,7 +79,7 @@ class GitAnalyzer:
                     first_commit: Commit = commits[-1]
                     metadata["first_commit_date"] = first_commit.commit_time
 
-                    contributors: set = set()
+                    contributors: set[bytes] = set()
                     for commit in commits:
                         if commit.author:
                             contributors.add(commit.author)
@@ -105,7 +105,8 @@ class GitAnalyzer:
                             ext: str = filename.split('.')[-1].lower()
                             languages[ext] = languages.get(ext, 0) + 1
 
-                        if filename.lower() in ['readme.md', 'readme.txt', 'readme.rst']:
+                        if filename.lower() in [
+                                'readme.md', 'readme.txt', 'readme.rst']:
                             metadata["has_readme"] = True
                         elif filename.lower() in ['license', 'license.txt', 'license.md']:
                             metadata["has_license"] = True
@@ -150,20 +151,16 @@ class GitAnalyzer:
                 import shutil
                 shutil.rmtree(temp_dir)
             except Exception as e:
-                is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-                
+                is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                    'true', '1', 'yes']
+                debug_enabled = os.environ.get('DEBUG', '').lower() in [
+                    'true', '1', 'yes']
+
                 if not is_autograder and debug_enabled:
-                    print(f"Warning: Failed to clean up {temp_dir}: {e}", file=sys.stderr)
+                    print(
+                        f"Warning: Failed to clean up {temp_dir}: {e}",
+                        file=sys.stderr)
         self.temp_dirs.clear()
 
     def __del__(self) -> None:
         self.cleanup()
-
-
-def analyze_git_repository(repo_url: str) -> Dict[str, Any]:
-    analyzer: GitAnalyzer = GitAnalyzer()
-    try:
-        return analyzer.analyze_github_repo(repo_url)
-    finally:
-        analyzer.cleanup()

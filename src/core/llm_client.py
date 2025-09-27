@@ -10,11 +10,14 @@ from .rate_limiter import APIService
 
 def ask_for_json_score(prompt: str,
                        api_url: str = "https://genai.rcac.purdue.edu/api/chat/completions",
-                       model: str = "llama3.1:latest") -> Tuple[Optional[float], Optional[str]]:
+                       model: str = "llama3.1:latest") -> Tuple[Optional[float],
+                                                                Optional[str]]:
     api_key: Optional[str] = os.getenv("GEN_AI_STUDIO_API_KEY")
     if not api_key:
-        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in [
+            'true', '1', 'yes']
+        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in [
+            'true', '1', 'yes']
 
         if not is_autograder and debug_enabled:
             print("[LLMClient] Missing GEN_AI_STUDIO_API_KEY. "
@@ -48,8 +51,10 @@ def ask_for_json_score(prompt: str,
             return _extract_json_score(content)
         else:
             if response:
-                is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+                is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                    'true', '1', 'yes']
+                debug_enabled = os.environ.get('DEBUG', '').lower() in [
+                    'true', '1', 'yes']
 
                 if not is_autograder and debug_enabled:
                     print(f"[LLMClient] API error {response.status_code}: "
@@ -82,7 +87,8 @@ def _extract_json_score(content: str) -> Tuple[Optional[float], Optional[str]]:
     except json.JSONDecodeError:
         pass
 
-    json_match: Optional[re.Match[str]] = re.search(r'\{[^}]*"score"[^}]*\}', content, re.DOTALL)
+    json_match: Optional[re.Match[str]] = re.search(
+        r'\{[^}]*"score"[^}]*\}', content, re.DOTALL)
     if json_match:
         try:
             data = json.loads(json_match.group())

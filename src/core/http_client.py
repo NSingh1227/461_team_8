@@ -11,7 +11,6 @@ _session.headers.update({
     'User-Agent': 'ECE461-Team8-ModelAnalyzer/1.0'
 })
 
-# Add Hugging Face API token if available
 hf_token = os.environ.get('HF_API_TOKEN')
 if hf_token:
     _session.headers.update({

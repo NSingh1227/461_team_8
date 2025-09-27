@@ -35,13 +35,16 @@ class ModelDynamicAnalyzer:
                 config = self._load_model_config(repo_id)
                 if config:
                     if not isinstance(config, dict):
-                        print(f"ModelAnalyzer: config is not a dictionary: {type(config)}", file=sys.stderr)
+                        print(
+                            f"ModelAnalyzer: config is not a dictionary: {type(config)}", file=sys.stderr)
                         analysis["error"] = f"Config is not a dictionary: {type(config)}"
                     else:
                         analysis["model_type"] = config.get("model_type", "unknown")
-                        analysis["architecture"] = config.get("architectures", ["unknown"])
+                        analysis["architecture"] = config.get(
+                            "architectures", ["unknown"])
                         analysis["vocab_size"] = config.get("vocab_size", 0)
-                        analysis["max_length"] = config.get("max_position_embeddings", 0)
+                        analysis["max_length"] = config.get(
+                            "max_position_embeddings", 0)
                         analysis["num_parameters"] = config.get("num_parameters", 0)
             except Exception as e:
                 analysis["error"] = f"Config loading failed: {str(e)}"
@@ -92,11 +95,13 @@ class ModelDynamicAnalyzer:
                 import json
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config_data = json.load(f)
-                
+
                 if not isinstance(config_data, dict):
-                    print(f"Warning: Config data for {repo_id} is not a dictionary", file=sys.stderr)
+                    print(
+                        f"Warning: Config data for {repo_id} is not a dictionary",
+                        file=sys.stderr)
                     return None
-                
+
                 return config_data
 
         except Exception as e:
@@ -105,7 +110,7 @@ class ModelDynamicAnalyzer:
 
     def _load_tokenizer(self, repo_id: str) -> Optional[Any]:
         try:
-            from transformers import AutoTokenizer
+            from transformers import AutoTokenizer  # type: ignore
 
             tokenizer = AutoTokenizer.from_pretrained(
                 repo_id,
@@ -115,16 +120,19 @@ class ModelDynamicAnalyzer:
             return tokenizer
 
         except Exception as e:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                'true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
+
             if not is_autograder and debug_enabled:
-                print(f"Warning: Could not load tokenizer for {repo_id}: {e}", file=sys.stderr)
+                print(
+                    f"Warning: Could not load tokenizer for {repo_id}: {e}",
+                    file=sys.stderr)
             return None
 
     def _load_model_info(self, repo_id: str) -> Optional[Dict[str, Any]]:
         try:
-            from transformers import AutoConfig
+            from transformers import AutoConfig  # type: ignore
 
             config = AutoConfig.from_pretrained(
                 repo_id,
@@ -133,11 +141,15 @@ class ModelDynamicAnalyzer:
             )
 
             if isinstance(config, str):
-                is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-                
+                is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                    'true', '1', 'yes']
+                debug_enabled = os.environ.get('DEBUG', '').lower() in [
+                    'true', '1', 'yes']
+
                 if not is_autograder and debug_enabled:
-                    print(f"Warning: AutoConfig returned a string instead of config object for {repo_id}", file=sys.stderr)
+                    print(
+                        f"Warning: AutoConfig returned a string instead of config object for {repo_id}",
+                        file=sys.stderr)
                 return {
                     "size_mb": 0.0,
                     "config_loaded": False,
@@ -152,23 +164,30 @@ class ModelDynamicAnalyzer:
             }
 
         except Exception as e:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                'true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
+
             if not is_autograder and debug_enabled:
-                print(f"Warning: Could not load model info for {repo_id}: {e}", file=sys.stderr)
+                print(
+                    f"Warning: Could not load model info for {repo_id}: {e}",
+                    file=sys.stderr)
             return None
 
     def _estimate_model_size_from_config(self, config: Any) -> float:
         try:
             if isinstance(config, str):
-                is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-                
+                is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                    'true', '1', 'yes']
+                debug_enabled = os.environ.get('DEBUG', '').lower() in [
+                    'true', '1', 'yes']
+
                 if not is_autograder and debug_enabled:
-                    print(f"Warning: Config is a string, not a config object", file=sys.stderr)
+                    print(
+                        "Warning: Config is a string, not a config object",
+                        file=sys.stderr)
                 return 0.0
-            
+
             hidden_size: int = getattr(config, 'hidden_size', 0)
             num_layers: int = getattr(config, 'num_hidden_layers', 0)
             vocab_size: int = getattr(config, 'vocab_size', 0)
@@ -193,7 +212,7 @@ class ModelDynamicAnalyzer:
             return 0.0
 
     def validate_model_completeness(self, repo_id: str) -> Dict[str, Any]:
-       
+
         try:
             validation: Dict[str, Any] = {
                 "repo_id": repo_id,
@@ -207,8 +226,12 @@ class ModelDynamicAnalyzer:
                 "recommendations": []
             }
 
-            tokenizer_files: List[str] = ["tokenizer.json", "tokenizer_config.json", "vocab.json"]
-            model_files: List[str] = ["pytorch_model.bin", "model.safetensors", "tf_model.h5"]
+            tokenizer_files: List[str] = [
+                "tokenizer.json", "tokenizer_config.json", "vocab.json"]
+            model_files: List[str] = [
+                "pytorch_model.bin",
+                "model.safetensors",
+                "tf_model.h5"]
 
             try:
                 self._load_model_config(repo_id)
@@ -291,28 +314,16 @@ class ModelDynamicAnalyzer:
                 import shutil
                 shutil.rmtree(temp_dir)
             except Exception as e:
-                is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-                
+                is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                    'true', '1', 'yes']
+                debug_enabled = os.environ.get('DEBUG', '').lower() in [
+                    'true', '1', 'yes']
+
                 if not is_autograder and debug_enabled:
-                    print(f"Warning: Failed to clean up {temp_dir}: {e}", file=sys.stderr)
+                    print(
+                        f"Warning: Failed to clean up {temp_dir}: {e}",
+                        file=sys.stderr)
         self.temp_dirs.clear()
 
     def __del__(self) -> None:
         self.cleanup()
-
-
-def analyze_model_dynamically(repo_id: str) -> Dict[str, Any]:
-    analyzer: ModelDynamicAnalyzer = ModelDynamicAnalyzer()
-    try:
-        return analyzer.analyze_model_loading(repo_id)
-    finally:
-        analyzer.cleanup()
-
-
-def validate_model_completeness(repo_id: str) -> Dict[str, Any]:
-    analyzer: ModelDynamicAnalyzer = ModelDynamicAnalyzer()
-    try:
-        return analyzer.validate_model_completeness(repo_id)
-    finally:
-        analyzer.cleanup()

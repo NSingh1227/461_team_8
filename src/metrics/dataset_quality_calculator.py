@@ -21,71 +21,95 @@ class DatasetQualityCalculator(MetricCalculator):
             dataset_info: Optional[Dict[str, Any]] = self._prepare_dataset_info(context)
             if dataset_info:
                 score = self.llm_analyzer.analyze_dataset_quality(dataset_info)
-                # If LLM analyzer returns 0.0, fall back to smart heuristics
                 if score == 0.0:
                     model_url = context.model_url or ""
-                    
-                    # Check for high-engagement models (likely to have good datasets)
+
                     if context.huggingface_metadata:
                         downloads = context.huggingface_metadata.get('downloads', 0)
                         likes = context.huggingface_metadata.get('likes', 0)
                         if downloads > 1000000 or likes > 1000:
                             score = 0.95
-                            print(f"[DatasetQuality] High engagement model {model_url} → 0.95", file=sys.stderr)
+                            print(
+                                f"[DatasetQuality] High engagement model {model_url} → 0.95",
+                                file=sys.stderr)
                         elif downloads < 10000 and likes < 100:
                             score = 0.0
-                            print(f"[DatasetQuality] Low engagement model {model_url} → 0.0", file=sys.stderr)
+                            print(
+                                f"[DatasetQuality] Low engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                         elif downloads < 100000 and likes < 500:
                             score = 0.0
-                            print(f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0", file=sys.stderr)
+                            print(
+                                f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                         elif downloads < 500000 and likes < 1000:
                             score = 0.0
-                            print(f"[DatasetQuality] Medium engagement model {model_url} → 0.0", file=sys.stderr)
+                            print(
+                                f"[DatasetQuality] Medium engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                         else:
                             score = 0.0
-                            print(f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0", file=sys.stderr)
+                            print(
+                                f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                     else:
                         score = 0.3
-                        print("[DatasetQuality] No dataset info available → default 0.3", file=sys.stderr)
+                        print(
+                            "[DatasetQuality] No dataset info available → default 0.3",
+                            file=sys.stderr)
             else:
-                # Check for models with implicit high-quality datasets using smart heuristics
                 model_url = context.model_url or ""
-                
-                # Check for high-engagement models (likely to have good datasets)
+
                 if context.huggingface_metadata:
                     downloads = context.huggingface_metadata.get('downloads', 0)
                     likes = context.huggingface_metadata.get('likes', 0)
                     if downloads > 5000000 or likes > 5000:
                         score = 0.95
-                        print(f"[DatasetQuality] Very high engagement model {model_url} → 0.95", file=sys.stderr)
+                        print(
+                            f"[DatasetQuality] Very high engagement model {model_url} → 0.95",
+                            file=sys.stderr)
                     elif downloads > 1000000 or likes > 1000:
                         score = 0.8
-                        print(f"[DatasetQuality] High engagement model {model_url} → 0.8", file=sys.stderr)
+                        print(
+                            f"[DatasetQuality] High engagement model {model_url} → 0.8",
+                            file=sys.stderr)
                     elif downloads < 10000 and likes < 100:
                         score = 0.0
-                        print(f"[DatasetQuality] Low engagement model {model_url} → 0.0", file=sys.stderr)
+                        print(
+                            f"[DatasetQuality] Low engagement model {model_url} → 0.0",
+                            file=sys.stderr)
                     elif downloads < 100000 and likes < 500:
                         score = 0.0
-                        print(f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0", file=sys.stderr)
+                        print(
+                            f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0",
+                            file=sys.stderr)
                     elif downloads < 500000 and likes < 1000:
                         score = 0.0
-                        print(f"[DatasetQuality] Medium engagement model {model_url} → 0.0", file=sys.stderr)
+                        print(
+                            f"[DatasetQuality] Medium engagement model {model_url} → 0.0",
+                            file=sys.stderr)
                     else:
                         score = 0.0
-                        print(f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0", file=sys.stderr)
+                        print(
+                            f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0",
+                            file=sys.stderr)
                 else:
-                    # No metadata available - use general heuristics based on model characteristics
-                    # Check if it's a well-known model by URL patterns
-                    if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
+                    org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
+                    if any(org in model_url.lower() for org in org_indicators):
                         score = 0.95
-                        print(f"[DatasetQuality] Well-known organization model {model_url} → 0.95", file=sys.stderr)
+                        print(
+                            f"[DatasetQuality] Well-known organization model {model_url} → 0.95",
+                            file=sys.stderr)
                     else:
                         score = 0.3
-                        print("[DatasetQuality] No dataset info available → default 0.3", file=sys.stderr)
+                        print(
+                            "[DatasetQuality] No dataset info available → default 0.3",
+                            file=sys.stderr)
         except Exception as e:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                'true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
+
             if not is_autograder and debug_enabled:
                 print(f"[DatasetQuality] Error calculating score: {e}", file=sys.stderr)
             score = 0.0
@@ -102,9 +126,11 @@ class DatasetQualityCalculator(MetricCalculator):
 
         if context and context.huggingface_metadata:
             if not isinstance(context.huggingface_metadata, dict):
-                print(f"DatasetQuality: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
+                print(
+                    f"DatasetQuality: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}",
+                    file=sys.stderr)
                 return dataset_info or None
-                
+
             datasets: Any = context.huggingface_metadata.get("datasets", [])
             if datasets:
                 dataset_info["datasets"] = datasets
@@ -125,7 +151,9 @@ class DatasetQualityCalculator(MetricCalculator):
                 return None
 
             if not isinstance(context.huggingface_metadata, dict):
-                print(f"DatasetQuality: huggingface_metadata is not a dictionary in _fetch_readme_content: {type(context.huggingface_metadata)}", file=sys.stderr)
+                print(
+                    f"DatasetQuality: huggingface_metadata is not a dictionary in _fetch_readme_content: {type(context.huggingface_metadata)}",
+                    file=sys.stderr)
                 return None
 
             readme_parts: List[str] = []
@@ -136,13 +164,15 @@ class DatasetQualityCalculator(MetricCalculator):
 
             datasets: Any = context.huggingface_metadata.get("datasets", [])
             if datasets:
-                readme_parts.append(f"## Datasets\nThis model uses: {', '.join(datasets)}")
+                readme_parts.append(
+                    f"## Datasets\nThis model uses: {', '.join(datasets)}")
 
             return "\n\n".join(readme_parts) if readme_parts else None
         except Exception as e:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                'true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
+
             if not is_autograder and debug_enabled:
                 print(f"[DatasetQuality] Error building README: {e}", file=sys.stderr)
             return None

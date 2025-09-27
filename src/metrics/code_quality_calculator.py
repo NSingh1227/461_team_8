@@ -18,10 +18,10 @@ class CodeQualityCalculator(MetricCalculator):
         try:
             score: float
             if context.model_url and 'huggingface.co' in context.model_url:
-                # For Hugging Face models, use metadata-based scoring first
                 score = self._score_from_hf_metadata(context)
             elif context.model_info and 'github_metadata' in context.model_info:
-                score = self._score_from_github_metadata(context.model_info['github_metadata'])
+                score = self._score_from_github_metadata(
+                    context.model_info['github_metadata'])
             else:
                 score = self._score_from_dynamic_analysis(context.model_url or "")
         except Exception as e:
@@ -34,9 +34,11 @@ class CodeQualityCalculator(MetricCalculator):
 
     def _score_from_github_metadata(self, github_data: Dict[str, Any]) -> float:
         if not isinstance(github_data, dict):
-            print(f"CodeQuality: github_data is not a dictionary: {type(github_data)}", file=sys.stderr)
+            print(
+                f"CodeQuality: github_data is not a dictionary: {type(github_data)}",
+                file=sys.stderr)
             return 0.5
-            
+
         score: float = 0.3
 
         language: str = github_data.get('language', '').lower()
@@ -68,10 +70,8 @@ class CodeQualityCalculator(MetricCalculator):
         return min(1.0, score)
 
     def _score_from_hf_metadata(self, context: ModelContext) -> float:
-        # Check for high-engagement models first
         model_url = context.model_url or ""
-        
-        # Check for high-engagement models (likely to have good code quality)
+
         if context.huggingface_metadata:
             downloads = context.huggingface_metadata.get('downloads', 0)
             likes = context.huggingface_metadata.get('likes', 0)
@@ -84,13 +84,13 @@ class CodeQualityCalculator(MetricCalculator):
             else:
                 return 0.0  # Lower quality for medium-engagement models
         else:
-            # No metadata available - use general heuristics based on organization
-            if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
-                return 0.93  # Well-known organizations have high code quality
+            org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
+            if any(org in model_url.lower() for org in org_indicators):
+                return 0.93
             else:
-                return 0.4  # Default moderate quality
+                return 0.4
 
-    def _score_from_dynamic_analysis(self, model_url: str) -> float:    
+    def _score_from_dynamic_analysis(self, model_url: str) -> float:
         try:
             from urllib.parse import urlparse
 
@@ -108,9 +108,10 @@ class CodeQualityCalculator(MetricCalculator):
             analyzer: ModelDynamicAnalyzer = ModelDynamicAnalyzer()
             try:
                 analysis: Dict[str, Any] = analyzer.analyze_model_loading(repo_id)
-                validation: Dict[str, Any] = analyzer.validate_model_completeness(repo_id)
+                validation: Dict[str,
+                                 Any] = analyzer.validate_model_completeness(repo_id)
 
-                score: float = 0.3  
+                score: float = 0.3
 
                 if analysis.get("can_load_model", False):
                     score += 0.3
@@ -137,20 +138,24 @@ class CodeQualityCalculator(MetricCalculator):
             from huggingface_hub import HfApi
 
             api: HfApi = HfApi()
-            repo_files: List[Dict[str, Any]] = api.list_repo_files(repo_id=repo_id, repo_type="model")  # type: ignore
+            repo_files: List[Dict[str, Any]] = api.list_repo_files(
+                repo_id=repo_id, repo_type="model")  # type: ignore
 
             test_files: List[str] = []
             notebook_files: List[str] = []
 
             for file_info in repo_files:
                 if not isinstance(file_info, dict):
-                    is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-                    debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-                    
+                    is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                        'true', '1', 'yes']
+                    debug_enabled = os.environ.get('DEBUG', '').lower() in [
+                        'true', '1', 'yes']
+
                     if not is_autograder and debug_enabled:
-                        print(f"CodeQuality: file_info is not a dictionary: {type(file_info)}", file=sys.stderr)
+                        print(
+                            f"CodeQuality: file_info is not a dictionary: {type(file_info)}", file=sys.stderr)
                     continue
-                    
+
                 filename: str = file_info.get("path", "")
                 if filename.lower().endswith('.py') and 'test' in filename.lower():
                     test_files.append(filename)

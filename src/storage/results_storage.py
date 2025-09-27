@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 @dataclass
 class MetricResult:
     metric_name: str
-    score: Any              
+    score: Any
     calculation_time_ms: int
     timestamp: str
 
@@ -60,11 +60,10 @@ class ModelResult:
     def _format_decimal(self, value: float) -> float:
         """Format decimal to 2 decimal places as numeric value"""
         return round(value, 2)
-    
+
     def to_ndjson_line(self) -> str:
         model_name = self._extract_model_name()
 
-        # Format all decimal values to 2 decimal places as numeric values
         net_score_val = self._format_decimal(self.net_score)
         ramp_up_val = self._format_decimal(self.ramp_up_score)
         bus_factor_val = self._format_decimal(self.bus_factor_score)
@@ -73,30 +72,34 @@ class ModelResult:
         dataset_code_val = self._format_decimal(self.dataset_code_score)
         dataset_quality_val = self._format_decimal(self.dataset_quality_score)
         code_quality_val = self._format_decimal(self.code_quality_score)
-        
-        # Format size scores
+
         size_score_dict = {}
         if isinstance(self.size_score, dict):
             size_score_dict = {
-                "raspberry_pi": self._format_decimal(self.size_score.get("raspberry_pi", 0.0)),
-                "jetson_nano": self._format_decimal(self.size_score.get("jetson_nano", 0.0)),
-                "desktop_pc": self._format_decimal(self.size_score.get("desktop_pc", 0.0)),
-                "aws_server": self._format_decimal(self.size_score.get("aws_server", 0.0))
-            }
+                "raspberry_pi": self._format_decimal(
+                    self.size_score.get(
+                        "raspberry_pi", 0.0)), "jetson_nano": self._format_decimal(
+                    self.size_score.get(
+                        "jetson_nano", 0.0)), "desktop_pc": self._format_decimal(
+                    self.size_score.get(
+                        "desktop_pc", 0.0)), "aws_server": self._format_decimal(
+                    self.size_score.get(
+                        "aws_server", 0.0))}
         else:
             size_score_dict = {
                 "raspberry_pi": 0.0,
-                "jetson_nano": 0.0, 
+                "jetson_nano": 0.0,
                 "desktop_pc": 0.0,
                 "aws_server": 0.0
             }
 
         class DecimalEncoder(json.JSONEncoder):
-            def encode(self, obj):
+            def encode(self, obj: Any) -> str:
                 if isinstance(obj, float):
                     return f'{obj:.2f}'
                 elif isinstance(obj, dict):
-                    return '{' + ','.join(f'"{k}":{self.encode(v)}' for k, v in obj.items()) + '}'
+                    return '{' + ','.join(f'"{k}":{self.encode(v)}' for k,
+                                          v in obj.items()) + '}'
                 elif isinstance(obj, list):
                     return '[' + ','.join(self.encode(v) for v in obj) + ']'
                 return super().encode(obj)
@@ -127,7 +130,7 @@ class ModelResult:
 
 
 class ResultsStorage:
-    def __init__(self):
+    def __init__(self) -> None:
         self._model_results: Dict[str, Dict[str, MetricResult]] = {}
         self._completed_models: List[ModelResult] = []
 
@@ -137,7 +140,10 @@ class ResultsStorage:
 
         self._model_results[model_url][metric_result.metric_name] = metric_result
 
-    def get_metric_result(self, model_url: str, metric_name: str) -> Optional[MetricResult]:
+    def get_metric_result(
+            self,
+            model_url: str,
+            metric_name: str) -> Optional[MetricResult]:
         return self._model_results.get(model_url, {}).get(metric_name)
 
     def get_all_metrics_for_model(self, model_url: str) -> Dict[str, MetricResult]:
@@ -152,12 +158,16 @@ class ResultsStorage:
         model_metrics = set(self._model_results.get(model_url, {}).keys())
         return required_metrics.issubset(model_metrics)
 
-    def finalize_model_result(self, model_url: str, net_score: float, net_score_latency: int) -> ModelResult:
+    def finalize_model_result(
+            self,
+            model_url: str,
+            net_score: float,
+            net_score_latency: int) -> ModelResult:
         if not self.is_model_complete(model_url):
-            raise ValueError(f"Model {model_url} does not have all required metrics calculated")
+            raise ValueError(
+                f"Model {model_url} does not have all required metrics calculated")
 
         metrics = self._model_results[model_url]
-
 
         size_metric = metrics["Size"]
         if isinstance(size_metric.score, dict):

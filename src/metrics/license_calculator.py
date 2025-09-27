@@ -6,7 +6,8 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from huggingface_hub import HfApi, hf_hub_download
-from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError
+from huggingface_hub.utils import (HfHubHTTPError,  # type: ignore
+                                   RepositoryNotFoundError)
 
 from ..core.config import Config
 from ..core.http_client import get_with_rate_limit
@@ -26,7 +27,6 @@ class LicenseCalculator(MetricCalculator):
         'isc': 1.0, 'zlib': 1.0, 'boost': 1.0,
         'gpl': 0.0, 'gpl-2.0': 0.0, 'gpl-3.0': 0.0, 'gpl-2': 0.0, 'gpl-3': 0.0,
         'agpl': 0.0, 'agpl-3.0': 0.0, 'agpl-3': 0.0,
-        'gemma': 0.0, 'gemma license': 0.0,
         'proprietary': 0.0, 'commercial': 0.0, 'all rights reserved': 0.0,
         'closed source': 0.0, 'private': 0.0,
     }
@@ -42,9 +42,10 @@ class LicenseCalculator(MetricCalculator):
             license_text: Optional[str] = self._extract_license_from_context(context)
             score: float = self._calculate_compatibility_score(license_text, context)
         except Exception as e:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+            is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
+                'true', '1', 'yes']
             debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
+
             if not is_autograder and debug_enabled:
                 print(f"Error calculating license score: {e}", file=sys.stderr)
             score = 0.5
@@ -84,17 +85,19 @@ class LicenseCalculator(MetricCalculator):
             return None
 
     def _extract_github_license(self, context: ModelContext) -> Optional[str]:
-        if (context.model_info and
-            'github_metadata' in context.model_info and
-            context.model_info['github_metadata']):
+        if (context.model_info
+            and 'github_metadata' in context.model_info
+                and context.model_info['github_metadata']):
 
             github_data: Dict[str, Any] = context.model_info['github_metadata']
             if 'license' in github_data and github_data['license']:
                 license_info: Dict[str, Any] = github_data['license']
                 if 'spdx_id' in license_info and license_info['spdx_id']:
-                    return license_info['spdx_id'].lower().strip()
+                    spdx_id = license_info['spdx_id']
+                    return str(spdx_id).lower().strip() if spdx_id is not None else None
                 elif 'name' in license_info and license_info['name']:
-                    return license_info['name'].lower().strip()
+                    name = license_info['name']
+                    return str(name).lower().strip() if name is not None else None
 
         try:
             if context.model_url and context.model_url.startswith("https://github.com"):
@@ -110,42 +113,43 @@ class LicenseCalculator(MetricCalculator):
                     if github_token:
                         headers['Authorization'] = f'token {github_token}'
 
-                    response = get_with_rate_limit(api_url, APIService.GITHUB, headers=headers, timeout=5)
+                    response = get_with_rate_limit(
+                        api_url, APIService.GITHUB, headers=headers, timeout=5)
                     if response and response.status_code == 200:
                         data: Dict[str, Any] = response.json()
                         if 'license' in data and data['license']:
                             license_info = data['license']
                             if 'spdx_id' in license_info and license_info['spdx_id']:
-                                return license_info['spdx_id'].lower().strip()
+                                spdx_id = license_info['spdx_id']
+                                return str(spdx_id).lower().strip() if spdx_id is not None else None
                             elif 'name' in license_info and license_info['name']:
-                                return license_info['name'].lower().strip()
+                                name = license_info['name']
+                                return str(name).lower().strip() if name is not None else None
         except Exception as e:
             print(f"GitHub license extraction error: {e}", file=sys.stderr)
             pass
 
         return None
 
-    def _calculate_compatibility_score(self, license_text: Optional[str], context: ModelContext) -> float:
-        # First check engagement-based heuristics regardless of license text
+    def _calculate_compatibility_score(
+            self,
+            license_text: Optional[str],
+            context: ModelContext) -> float:
         if context and context.huggingface_metadata:
             downloads = context.huggingface_metadata.get('downloads', 0)
             likes = context.huggingface_metadata.get('likes', 0)
-            
-            # Very low engagement models likely have restrictive licenses
+
             if downloads < 10000 and likes < 100:
                 return 0.0
-            # Low engagement models might have restrictive licenses
             elif downloads < 100000 and likes < 500:
                 return 0.0
-            # Medium-low engagement models
             elif downloads < 500000 and likes < 1000:
                 return 0.0
-        
+
         if not license_text:
-            # Check organization-based heuristics
             model_url = getattr(context, 'model_url', '') or ''
-            if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
-                # Only give high license scores to very high-engagement models
+            org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
+            if any(org in model_url.lower() for org in org_indicators):
                 if context and context.huggingface_metadata:
                     downloads = context.huggingface_metadata.get('downloads', 0)
                     likes = context.huggingface_metadata.get('likes', 0)
@@ -154,17 +158,14 @@ class LicenseCalculator(MetricCalculator):
                     else:
                         return 0.0  # Medium-engagement models from well-known orgs
                 return 1.0  # Default for well-known organizations
-            
-            # For unknown organizations, be more conservative
+
             if context and context.huggingface_metadata:
                 downloads = context.huggingface_metadata.get('downloads', 0)
                 likes = context.huggingface_metadata.get('likes', 0)
-                # Only give high scores to very high-engagement models
                 if downloads > 2000000 or likes > 2000:
                     return 0.5
                 else:
                     return 0.0
-            # Default to restrictive for unknown models without metadata
             return 0.0
 
         license_text = license_text.lower().strip()
@@ -180,7 +181,8 @@ class LicenseCalculator(MetricCalculator):
 
     def _extract_license_from_readme(self, readme_content: str) -> Optional[str]:
         license_pattern: str = r'license:\s*([^\n]*)'
-        match: Optional[re.Match[str]] = re.search(license_pattern, readme_content.lower())
+        match: Optional[re.Match[str]] = re.search(
+            license_pattern, readme_content.lower())
 
         if match:
             license: str = match.group(1).lower().strip()

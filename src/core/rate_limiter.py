@@ -58,12 +58,14 @@ class RateLimiter:
         )
     }
 
-    def __init__(self, custom_configs: Optional[Dict[APIService, RateLimitConfig]] = None) -> None:
+    def __init__(self,
+                 custom_configs: Optional[Dict[APIService,
+                                               RateLimitConfig]] = None) -> None:
         self._configs: Dict[APIService, RateLimitConfig] = self.DEFAULT_CONFIGS.copy()
         if custom_configs:
             self._configs.update(custom_configs)
 
-        self._request_windows: Dict[APIService, deque] = {
+        self._request_windows: Dict[APIService, deque[float]] = {
             service: deque() for service in APIService
         }
 
@@ -92,7 +94,8 @@ class RateLimiter:
 
             if len(self._request_windows[service]) >= config.requests_per_window:
                 oldest_request: float = self._request_windows[service][0]
-                wait_time: float = config.window_seconds - (time.time() - oldest_request)
+                wait_time: float = config.window_seconds - \
+                    (time.time() - oldest_request)
 
                 if wait_time > 0:
                     print(f"[RateLimiter] {service.value} quota exceeded. "
@@ -103,7 +106,7 @@ class RateLimiter:
             self._request_windows[service].append(time.time())
 
     def handle_rate_limit_response(self, service: APIService,
-                                  retry_after: Optional[int] = None) -> None:
+                                   retry_after: Optional[int] = None) -> None:
         with self._locks[service]:
             self._failure_counts[service] += 1
             config: RateLimitConfig = self._configs[service]
@@ -114,8 +117,8 @@ class RateLimiter:
                       f"Server requested {retry_after}s wait, using {wait_time}s",
                       file=sys.stderr)
             else:
-                backoff: float = (config.base_delay_seconds *
-                                  (2 ** (self._failure_counts[service] - 1)))
+                backoff: float = (config.base_delay_seconds
+                                  * (2 ** (self._failure_counts[service] - 1)))
                 jitter: float = random.uniform(0, backoff * 0.1)
                 wait_time = min(backoff + jitter, config.max_backoff_seconds)
                 print(f"[RateLimiter] {service.value} rate limited. "
@@ -147,7 +150,7 @@ class RateLimiter:
     def _cleanup_old_requests(self, service: APIService) -> None:
         config: RateLimitConfig = self._configs[service]
         current_time: float = time.time()
-        window: deque = self._request_windows[service]
+        window: deque[float] = self._request_windows[service]
 
         while window and (current_time - window[0]) > config.window_seconds:
             window.popleft()
@@ -157,7 +160,8 @@ _rate_limiter_instance: Optional[RateLimiter] = None
 _instance_lock: threading.Lock = threading.Lock()
 
 
-def get_rate_limiter(config: Optional[Dict[APIService, RateLimitConfig]] = None) -> RateLimiter:
+def get_rate_limiter(
+        config: Optional[Dict[APIService, RateLimitConfig]] = None) -> RateLimiter:
     global _rate_limiter_instance
 
     if _rate_limiter_instance is None:

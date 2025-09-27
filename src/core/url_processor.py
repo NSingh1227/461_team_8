@@ -23,6 +23,8 @@ from src.storage.results_storage import (MetricResult, ModelResult,
 from .config import Config
 from .http_client import get_with_rate_limit
 from .rate_limiter import APIService
+
+
 class URLType(Enum):
     HUGGINGFACE_MODEL = 'model'
     HUGGINGFACE_DATASET = 'dataset'
@@ -31,7 +33,10 @@ class URLType(Enum):
     HUGGINGFACE_SPACES = 'hf_spaces'
     EXTERNAL_DATASET = 'external_dataset'
     UNKNOWN = 'unknown'
-def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
+
+
+def fetch_huggingface_metadata(
+        url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
@@ -46,7 +51,7 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
                 api_path = f"/api/spaces/{path_parts[1]}/{path_parts[2]}"
             else:
                 return None
-        else:  
+        else:
             if len(path_parts) >= 2:
                 api_path = f"/api/models/{path_parts[0]}/{path_parts[1]}"
             else:
@@ -54,98 +59,54 @@ def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[D
 
         api_url = f"https://huggingface.co{api_path}"
         response = get_with_rate_limit(api_url, APIService.HUGGINGFACE)
-        
+
         if response and response.status_code == 200:
-            return response.json()
+            data = response.json()
+            return data if isinstance(data, dict) else None
         else:
-            print(f"Failed to fetch HF metadata: {response.status_code if response else 'No response'}", file=sys.stderr)
+            print(
+                f"Failed to fetch HF metadata: {response.status_code if response else 'No response'}",
+                file=sys.stderr)
             return None
-            
+
     except Exception as e:
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-        
+
         if not is_autograder and debug_enabled:
             print(f"Error fetching HF metadata: {e}", file=sys.stderr)
         return None
+
 
 def fetch_gitlab_metadata(url: str) -> Optional[Dict[str, Any]]:
     try:
         parsed_url = urlparse(url)
         path_parts = parsed_url.path.strip('/').split('/')
-        
+
         if len(path_parts) < 2:
             return None
-                
+
         project_path = '/'.join(path_parts[:2])
         encoded_path = project_path.replace('/', '%2F')
-        
+
         api_url = f"https://gitlab.com/api/v4/projects/{encoded_path}"
-        
+
         response = get_with_rate_limit(api_url, APIService.GENERAL_HTTP)
         if response and response.status_code == 200:
-            return response.json()
+            data = response.json()
+            return data if isinstance(data, dict) else None
         else:
-            print(f"Failed to fetch GitLab metadata: {response.status_code if response else 'No response'}", file=sys.stderr)
+            print(
+                f"Failed to fetch GitLab metadata: {response.status_code if response else 'No response'}",
+                file=sys.stderr)
             return None
-            
+
     except Exception as e:
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-        
+
         if not is_autograder and debug_enabled:
             print(f"Error fetching GitLab metadata: {e}", file=sys.stderr)
-        return None
-
-def fetch_huggingface_metadata(url: str, api_type: str = "models") -> Optional[Dict[str, Any]]:
-    try:
-        parsed_url = urlparse(url)
-        path_parts = parsed_url.path.strip('/').split('/')
-
-        if api_type == "datasets":
-            if len(path_parts) >= 2 and path_parts[0] == "datasets":
-                if len(path_parts) >= 3:
-                    repo_id = "/".join(path_parts[1:3])
-                else:
-                    repo_id = path_parts[1]
-            else:
-                return None
-        else:
-            if len(path_parts) >= 2:
-                repo_id = "/".join(path_parts[0:2])
-            else:
-                return None
-
-        api_url = f"https://huggingface.co/api/{api_type}/{repo_id}"
-
-        response = get_with_rate_limit(api_url, APIService.HUGGINGFACE, timeout=10)
-        if response and response.status_code == 200:
-            data = response.json()
-            # Handle case where API returns a list instead of dict (e.g., for /tree/main URLs)
-            if isinstance(data, list):
-                # If it's a list, take the first item if it exists, otherwise return None
-                if len(data) > 0 and isinstance(data[0], dict):
-                    return data[0]
-                else:
-                    return None
-            elif isinstance(data, dict):
-                return data
-            else:
-                return None
-        else:
-            is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-            debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-            
-            if not is_autograder and debug_enabled:
-                print(f"Failed to fetch HF metadata: {response.status_code if response else 'No response'}", file=sys.stderr)
-            return None
-
-    except Exception as e:
-        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-        
-        if not is_autograder and debug_enabled:
-            print(f"Warning: Failed to fetch HuggingFace metadata for {url}: {e}", file=sys.stderr)
         return None
 
 
@@ -163,9 +124,11 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
             if github_token:
                 headers['Authorization'] = f'token {github_token}'
 
-            response = get_with_rate_limit(api_url, APIService.GITHUB, headers=headers, timeout=10)
+            response = get_with_rate_limit(
+                api_url, APIService.GITHUB, headers=headers, timeout=10)
             if response and response.status_code == 200:
-                return response.json()
+                data = response.json()
+                return data if isinstance(data, dict) else None
             else:
                 return None
         else:
@@ -174,10 +137,13 @@ def fetch_github_metadata(url: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
         debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
-        
+
         if not is_autograder and debug_enabled:
-            print(f"Warning: Failed to fetch GitHub metadata for {url}: {e}", file=sys.stderr)
+            print(
+                f"Warning: Failed to fetch GitHub metadata for {url}: {e}",
+                file=sys.stderr)
         return None
+
 
 def is_valid_url(url_string: str) -> bool:
     if not url_string or not isinstance(url_string, str):
@@ -217,21 +183,19 @@ def categorize_url(url_string: str) -> URLType:
             "data.gov", "www.data.gov",
             "archive.org", "www.archive.org"
         ]
-        
-        if (parsed_url.netloc in dataset_domains or 
-            'dataset' in parsed_url.path.lower() or
-            'data' in parsed_url.path.lower() or
-            any(keyword in parsed_url.path.lower() for keyword in ['imagenet', 'bookcorpus', 'wikipedia', 'squad', 'coco', 'mnist'])):
+
+        if (parsed_url.netloc in dataset_domains or 'dataset' in parsed_url.path.lower() or 'data' in parsed_url.path.lower() or any(
+                keyword in parsed_url.path.lower() for keyword in ['imagenet', 'bookcorpus', 'wikipedia', 'squad', 'coco', 'mnist'])):
             return URLType.EXTERNAL_DATASET
-        
+
         return URLType.UNKNOWN
+
 
 def process_url(url_string: str) -> URLType:
     if is_valid_url(url_string):
         return categorize_url(url_string)
     else:
         return URLType.UNKNOWN
-
 
 
 class URLProcessor:
@@ -241,7 +205,10 @@ class URLProcessor:
         self.results_storage: ResultsStorage = ResultsStorage()
         self.processed_datasets: set[str] = set()
 
-    def parse_input_line(self, line: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    def parse_input_line(self,
+                         line: str) -> Tuple[Optional[str],
+                                             Optional[str],
+                                             Optional[str]]:
         line = line.strip()
         if not line or line.startswith('#'):
             return None, None, None
@@ -259,7 +226,8 @@ class URLProcessor:
 
         return code_url, dataset_url, model_url
 
-    def read_url_lines(self) -> List[Tuple[Optional[str], Optional[str], Optional[str]]]:
+    def read_url_lines(
+            self) -> List[Tuple[Optional[str], Optional[str], Optional[str]]]:
         try:
             with open(self.file_path, 'r') as file:
                 lines: List[Tuple[Optional[str], Optional[str], Optional[str]]] = []
@@ -270,7 +238,9 @@ class URLProcessor:
                         if code_url or dataset_url or model_url:
                             lines.append((code_url, dataset_url, model_url))
                     except Exception as e:
-                        print(f"Warning: Failed to parse line {line_num}: {e}", file=sys.stderr)
+                        print(
+                            f"Warning: Failed to parse line {line_num}: {e}",
+                            file=sys.stderr)
                         continue
                 return lines
         except FileNotFoundError:
@@ -281,10 +251,13 @@ class URLProcessor:
             return []
 
     def process_urls_with_metrics(self) -> List[ModelResult]:
-        url_lines: List[Tuple[Optional[str], Optional[str], Optional[str]]] = self.read_url_lines()
+        url_lines: List[Tuple[Optional[str], Optional[str],
+                              Optional[str]]] = self.read_url_lines()
         model_results: List[ModelResult] = []
-        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
-        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
+        is_autograder: bool = os.environ.get('AUTOGRADER', '').lower() in [
+            'true', '1', 'yes']
+        debug_enabled: bool = os.environ.get('DEBUG', '').lower() in [
+            'true', '1', 'yes']
         if not is_autograder and debug_enabled:
             print(f"Found {len(url_lines)} URLs to process", file=sys.stderr)
 
@@ -318,7 +291,8 @@ class URLProcessor:
                     model_results.append(model_result)
                     continue
                 try:
-                    metrics: Dict[str, MetricResult] = self._calculate_all_metrics(model_context)
+                    metrics: Dict[str, MetricResult] = self._calculate_all_metrics(
+                        model_context)
                     net_score: float = self._calculate_net_score(metrics)
                     net_score_latency: int = (
                         sum(metric.calculation_time_ms for metric in metrics.values())
@@ -363,7 +337,7 @@ class URLProcessor:
                 net_score=0.0,
                 net_score_latency=0,
                 size_score={"raspberry_pi": 0.0, "jetson_nano": 0.0,
-                           "desktop_pc": 0.0, "aws_server": 0.0},
+                            "desktop_pc": 0.0, "aws_server": 0.0},
                 size_latency=0,
                 license_score=0.0,
                 license_latency=0,
@@ -381,14 +355,16 @@ class URLProcessor:
                 performance_claims_latency=0
             )
         except Exception as e:
-            print(f"Error creating default result for {model_url}: {e}", file=sys.stderr)
+            print(
+                f"Error creating default result for {model_url}: {e}",
+                file=sys.stderr)
 
             return ModelResult(
                 url=model_url,
                 net_score=0.0,
                 net_score_latency=0,
                 size_score={"raspberry_pi": 0.0, "jetson_nano": 0.0,
-                           "desktop_pc": 0.0, "aws_server": 0.0},
+                            "desktop_pc": 0.0, "aws_server": 0.0},
                 size_latency=0,
                 license_score=0.0,
                 license_latency=0,
@@ -406,7 +382,11 @@ class URLProcessor:
                 performance_claims_latency=0
             )
 
-    def _create_model_context(self, model_url: str, code_url: Optional[str] = None, dataset_url: Optional[str] = None) -> Optional[ModelContext]:
+    def _create_model_context(
+            self,
+            model_url: str,
+            code_url: Optional[str] = None,
+            dataset_url: Optional[str] = None) -> Optional[ModelContext]:
         try:
             url_type: URLType = process_url(model_url)
             handler: Optional[URLHandler] = get_handler(url_type)
@@ -436,9 +416,11 @@ class URLProcessor:
 
             if context.huggingface_metadata:
                 if not isinstance(context.huggingface_metadata, dict):
-                    print(f"URLProcessor: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}", file=sys.stderr)
+                    print(
+                        f"URLProcessor: huggingface_metadata is not a dictionary: {type(context.huggingface_metadata)}",
+                        file=sys.stderr)
                     return inferred_datasets
-                    
+
                 datasets: List[Any] = context.huggingface_metadata.get('datasets', [])
                 if datasets:
                     for dataset in datasets:
@@ -449,21 +431,25 @@ class URLProcessor:
                                 inferred_datasets.append(dataset_url)
                             else:
                                 inferred_datasets.append(dataset)
-                card_data: Dict[str, Any] = context.huggingface_metadata.get('cardData', {})
+                card_data: Dict[str, Any] = context.huggingface_metadata.get(
+                    'cardData', {})
                 if 'datasets' in card_data:
                     dataset_info: Any = card_data['datasets']
                     if isinstance(dataset_info, list):
                         for dataset in dataset_info:
-                            if isinstance(dataset, str) and not dataset.startswith('http'):
+                            if isinstance(
+                                    dataset, str) and not dataset.startswith('http'):
                                 dataset_url = f"https://huggingface.co/datasets/{dataset}"
                                 inferred_datasets.append(dataset_url)
             if context.model_info:
                 model_info_str: str = str(context.model_info).lower()
 
                 if 'bookcorpus' in model_info_str:
-                    inferred_datasets.append('https://huggingface.co/datasets/bookcorpus')
+                    inferred_datasets.append(
+                        'https://huggingface.co/datasets/bookcorpus')
                 if 'wikipedia' in model_info_str:
-                    inferred_datasets.append('https://huggingface.co/datasets/wikipedia')
+                    inferred_datasets.append(
+                        'https://huggingface.co/datasets/wikipedia')
                 if 'squad' in model_info_str:
                     inferred_datasets.append('https://huggingface.co/datasets/squad')
 
@@ -472,9 +458,11 @@ class URLProcessor:
 
         return inferred_datasets
 
-    def _calculate_all_metrics(self, model_context: ModelContext) -> Dict[str, MetricResult]:
+    def _calculate_all_metrics(
+            self, model_context: ModelContext) -> Dict[str, MetricResult]:
         timestamp: str = datetime.datetime.now().isoformat()
         metrics: Dict[str, MetricResult] = {}
+
         def calculate_license() -> Tuple[str, MetricResult]:
             try:
                 calc = LicenseCalculator()
@@ -490,7 +478,8 @@ class URLProcessor:
                 calc = DatasetCodeCalculator()
                 score = calc.calculate_score(model_context)
                 latency = calc.get_calculation_time() or 0
-                return "DatasetCode", MetricResult("DatasetCode", score, latency, timestamp)
+                return "DatasetCode", MetricResult(
+                    "DatasetCode", score, latency, timestamp)
             except Exception as e:
                 print(f"DatasetCode calculation failed: {e}", file=sys.stderr)
                 return "DatasetCode", MetricResult("DatasetCode", 0.5, 100, timestamp)
@@ -500,10 +489,12 @@ class URLProcessor:
                 calc = DatasetQualityCalculator()
                 score = calc.calculate_score(model_context)
                 latency = calc.get_calculation_time() or 0
-                return "DatasetQuality", MetricResult("DatasetQuality", score, latency, timestamp)
+                return "DatasetQuality", MetricResult(
+                    "DatasetQuality", score, latency, timestamp)
             except Exception as e:
                 print(f"DatasetQuality calculation failed: {e}", file=sys.stderr)
-                return "DatasetQuality", MetricResult("DatasetQuality", 0.5, 100, timestamp)
+                return "DatasetQuality", MetricResult(
+                    "DatasetQuality", 0.5, 100, timestamp)
 
         def calculate_bus_factor() -> Tuple[str, MetricResult]:
             try:
@@ -544,7 +535,8 @@ class URLProcessor:
                 calc = CodeQualityCalculator()
                 score = calc.calculate_score(model_context)
                 latency = calc.get_calculation_time() or 0
-                return "CodeQuality", MetricResult("CodeQuality", score, latency, timestamp)
+                return "CodeQuality", MetricResult(
+                    "CodeQuality", score, latency, timestamp)
             except Exception as e:
                 print(f"CodeQuality calculation failed: {e}", file=sys.stderr)
                 return "CodeQuality", MetricResult("CodeQuality", 0.9, 180, timestamp)
@@ -554,10 +546,12 @@ class URLProcessor:
                 calc = PerformanceClaimsCalculator()
                 score = calc.calculate_score(model_context)
                 latency = calc.get_calculation_time() or 0
-                return "PerformanceClaims", MetricResult("PerformanceClaims", score, latency, timestamp)
+                return "PerformanceClaims", MetricResult(
+                    "PerformanceClaims", score, latency, timestamp)
             except Exception as e:
                 print(f"PerformanceClaims calculation failed: {e}", file=sys.stderr)
-                return "PerformanceClaims", MetricResult("PerformanceClaims", 0.8, 220, timestamp)
+                return "PerformanceClaims", MetricResult(
+                    "PerformanceClaims", 0.8, 220, timestamp)
         metric_functions: List[Any] = [
             calculate_license,
             calculate_dataset_code,
@@ -583,14 +577,17 @@ class URLProcessor:
                     metrics[metric_name] = metric_result
                 except Exception as e:
                     metric_name = future_to_metric[future]
-                    print(f"Metric calculation {metric_name} failed: {e}", file=sys.stderr)
+                    print(
+                        f"Metric calculation {metric_name} failed: {e}",
+                        file=sys.stderr)
 
                     if metric_name == "calculate_size":
                         default_sizes = {
                             "raspberry_pi": 0.5, "jetson_nano": 0.6,
                             "desktop_pc": 0.8, "aws_server": 0.9
                         }
-                        metrics["Size"] = MetricResult("Size", default_sizes, 100, timestamp)
+                        metrics["Size"] = MetricResult(
+                            "Size", default_sizes, 100, timestamp)
                     else:
                         metrics[metric_name.replace("calculate_", "").title()] = (
                             MetricResult(
@@ -618,16 +615,20 @@ class URLProcessor:
                 metric_score: Any = metrics[metric_name].score
                 if metric_name == "Size" and isinstance(metric_score, dict):
 
-                    size_score: float = max(metric_score.values()) if metric_score else 0.5
+                    size_score: float = max(
+                        metric_score.values()) if metric_score else 0.5
                     net_score += weight * size_score
                 else:
                     net_score += weight * metric_score
 
         return round(net_score, 2)
+
+
 class URLHandler(ABC):
     @abstractmethod
     def process_url(self, url: str) -> ModelContext:
         pass
+
 
 class DatasetHandler(URLHandler):
     def process_url(self, url: str) -> ModelContext:
@@ -649,7 +650,8 @@ class DatasetHandler(URLHandler):
                 dataset_info["owner"] = None
                 dataset_info["name"] = path_parts[1]
 
-        huggingface_metadata: Optional[Dict[str, Any]] = fetch_huggingface_metadata(url, "datasets")
+        huggingface_metadata: Optional[Dict[str, Any]
+                                       ] = fetch_huggingface_metadata(url, "datasets")
 
         return ModelContext(
             model_url=url,
@@ -659,6 +661,8 @@ class DatasetHandler(URLHandler):
             local_repo_path=None,
             huggingface_metadata=huggingface_metadata
         )
+
+
 class ModelHandler(URLHandler):
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
@@ -675,7 +679,8 @@ class ModelHandler(URLHandler):
             model_info["owner"] = path_parts[0] if path_parts[0] else None
             model_info["name"] = path_parts[1] if len(path_parts) > 1 else None
 
-        huggingface_metadata: Optional[Dict[str, Any]] = fetch_huggingface_metadata(url, "models")
+        huggingface_metadata: Optional[Dict[str, Any]
+                                       ] = fetch_huggingface_metadata(url, "models")
 
         return ModelContext(
             model_url=url,
@@ -685,6 +690,8 @@ class ModelHandler(URLHandler):
             local_repo_path=None,
             huggingface_metadata=huggingface_metadata
         )
+
+
 class CodeHandler(URLHandler):
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
@@ -721,6 +728,7 @@ class CodeHandler(URLHandler):
             local_repo_path=None,
             huggingface_metadata=None
         )
+
 
 class GitLabHandler(URLHandler):
     def process_url(self, url: str) -> ModelContext:
@@ -759,6 +767,7 @@ class GitLabHandler(URLHandler):
             huggingface_metadata=None
         )
 
+
 class HFSpacesHandler(URLHandler):
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
@@ -775,7 +784,8 @@ class HFSpacesHandler(URLHandler):
             model_info["owner"] = path_parts[0]
             model_info["name"] = path_parts[1]
 
-        huggingface_metadata: Optional[Dict[str, Any]] = fetch_huggingface_metadata(url, "spaces")
+        huggingface_metadata: Optional[Dict[str, Any]
+                                       ] = fetch_huggingface_metadata(url, "spaces")
 
         return ModelContext(
             model_url=url,
@@ -786,10 +796,10 @@ class HFSpacesHandler(URLHandler):
             huggingface_metadata=huggingface_metadata
         )
 
+
 class ExternalDatasetHandler(URLHandler):
     def process_url(self, url: str) -> ModelContext:
         parsed_url = urlparse(url)
-        path_parts = parsed_url.path.strip('/').split('/')
 
         model_info: Dict[str, Any] = {
             "source": "external",
@@ -800,10 +810,10 @@ class ExternalDatasetHandler(URLHandler):
         }
 
         from .llm_client import ask_for_json_score
-        
+
         prompt = f"""
         Analyze this dataset URL and extract relevant information: {url}
-        
+
         Please provide a JSON response with the following fields:
         - name: The name of the dataset
         - description: A brief description of what the dataset contains
@@ -811,10 +821,10 @@ class ExternalDatasetHandler(URLHandler):
         - format: Data format (images, text, audio, etc.)
         - license: License information if available
         - quality_score: A score from 0.0 to 1.0 indicating dataset quality
-        
+
         If you cannot determine information from the URL alone, provide reasonable defaults.
         """
-        
+
         try:
             score, response = ask_for_json_score(prompt)
             if response and response.strip():
@@ -836,6 +846,7 @@ class ExternalDatasetHandler(URLHandler):
             local_repo_path=None,
             huggingface_metadata=None
         )
+
 
 def get_handler(url_type: URLType) -> Optional["URLHandler"]:
     if url_type == URLType.HUGGINGFACE_MODEL:
