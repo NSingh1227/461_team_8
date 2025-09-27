@@ -602,14 +602,14 @@ class URLProcessor:
 
     def _calculate_net_score(self, metrics: Dict[str, MetricResult]) -> float:
         weights: Dict[str, float] = {
-            "License": 0.08,
-            "RampUp": 0.23,
-            "BusFactor": 0.08,
-            "DatasetCode": 0.08,
-            "DatasetQuality": 0.08,
+            "License": 0.06,
+            "RampUp": 0.20,
+            "BusFactor": 0.20,
+            "DatasetCode": 0.10,
+            "DatasetQuality": 0.10,
             "CodeQuality": 0.10,
-            "PerformanceClaims": 0.08,
-            "Size": 0.27
+            "PerformanceClaims": 0.06,
+            "Size": 0.18
         }
 
         net_score: float = 0.0
