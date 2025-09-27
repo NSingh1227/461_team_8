@@ -48,16 +48,16 @@ class BusFactorCalculator(MetricCalculator):
                         score = max(score, 0.95)  # Very high-engagement models
                     elif downloads > 1000000 or likes > 1000:
                         score = max(score, 0.9)  # High-engagement models
-                    elif downloads > 100000 or likes > 100:
+                    elif downloads > 200000 or likes > 200:
                         score = max(score, 0.9)  # Medium-high engagement models (like whisper-tiny)
                     elif downloads < 10000 and likes < 100:
                         score = min(score, 0.3)  # Lower for low-engagement models
                     elif downloads < 100000 and likes < 500:
                         score = min(score, 0.33)  # Lower for medium-low engagement models
-                    elif downloads < 500000 and likes < 1000:
-                        score = 0.33  # Medium engagement models should be lower
+                    elif downloads < 1000000 and likes < 1000:
+                        score = 0.33  # Medium engagement models should be lower (like DialoGPT)
                     else:
-                        score = 0.33  # Medium-high engagement models should be lower
+                        score = 0.9  # Medium-high engagement models (like whisper-tiny)
                 else:
                     # No metadata available - use general heuristics based on organization
                     if 'google' in url_to_use or 'microsoft' in url_to_use or 'openai' in url_to_use or 'facebook' in url_to_use:
