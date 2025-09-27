@@ -83,9 +83,7 @@ class DatasetCodeCalculator(MetricCalculator):
             else:
                 return False
         else:
-            org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
-            if any(org in model_url.lower() for org in org_indicators):
-                return True
+            # Without metadata, we can't assess dataset availability intelligently
             return False
 
         return False
@@ -128,7 +126,5 @@ class DatasetCodeCalculator(MetricCalculator):
             else:
                 return False
         else:
-            org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
-            if any(org in model_url.lower() for org in org_indicators):
-                return True
+            # Without metadata, we can't assess code availability intelligently
             return False

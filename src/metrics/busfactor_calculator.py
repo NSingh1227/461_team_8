@@ -61,18 +61,8 @@ class BusFactorCalculator(MetricCalculator):
                     else:
                         score = 0.9  # Medium-high engagement models
                 else:
-                    # Intelligent scoring based on URL patterns and model characteristics
-                    model_name = url_to_use.split('/')[-1].lower() if '/' in url_to_use else url_to_use.lower()
-                    
-                    # Check for well-known organizations (higher bus factor)
-                    org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
-                    if any(org in url_to_use.lower() for org in org_indicators):
-                        score = 0.8  # High but not perfect
-                    # Check for research/academic indicators
-                    elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
-                        score = 0.6  # Medium-high for research models
-                    else:
-                        score = 0.4  # Default moderate score
+                    # Without metadata, we can't assess bus factor intelligently
+                    score = 0.2
             else:
                 score = 0.0
 

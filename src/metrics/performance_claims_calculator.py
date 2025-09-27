@@ -115,18 +115,8 @@ class PerformanceClaimsCalculator(MetricCalculator):
                     else:
                         return 0.15  # Medium engagement models should be lower
                 else:
-                    # Intelligent scoring based on model characteristics
-                    model_name = model_id.split('/')[-1].lower() if '/' in model_id else model_id.lower()
-                    
-                    # Check for well-known organizations
-                    org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
-                    if any(org in model_id.lower() for org in org_indicators):
-                        return 0.3  # Moderate score for org models
-                    # Check for research/academic models
-                    elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
-                        return 0.4  # Slightly higher for research models
-                    else:
-                        return 0.2  # Lower default score
+                    # Without metadata, we can't assess performance claims intelligently
+                    return 0.15
 
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in [

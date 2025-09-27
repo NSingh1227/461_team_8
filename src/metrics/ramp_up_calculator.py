@@ -148,18 +148,8 @@ class RampUpCalculator(MetricCalculator):
                     return 0.85  # Medium-high engagement models
                 elif downloads < 10000 and likes < 100:
                     return 0.25  # Low-engagement models have limited documentation
-            # Intelligent fallback based on model characteristics
-            model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
-            
-            # Check for well-known organizations
-            org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
-            if any(org in model_url.lower() for org in org_indicators):
-                return 0.7  # High but not perfect
-            # Check for research/academic models
-            elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
-                return 0.5  # Medium for research models
-            else:
-                return 0.3  # Default moderate score
+            # Without metadata, we can't assess ramp-up time intelligently
+            return 0.3
 
     def _analyze_readme_quality(self, content: str) -> float:
         """Analyze README quality for ACME engineers' ramp-up time."""
