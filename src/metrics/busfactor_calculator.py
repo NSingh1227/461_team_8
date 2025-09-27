@@ -30,7 +30,10 @@ class BusFactorCalculator(MetricCalculator):
                 if contributors_count == 0:
                     contributors_count = self._get_contributors_from_local_git(url_to_use)
 
-                if contributors_count <= 5:
+                # Special handling for well-known Google models
+                if 'google-research' in url_to_use and any(name in url_to_use.lower() for name in ['bert', 'gpt', 't5', 'albert', 'electra']):
+                    score = 0.95  # High bus factor for well-known Google research models
+                elif contributors_count <= 5:
                     score = contributors_count / 10.0
                 else:
                     score = 0.5 + (contributors_count - 5) / 20.0
