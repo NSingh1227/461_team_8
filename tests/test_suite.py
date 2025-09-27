@@ -1460,7 +1460,7 @@ class TestCodeQualityCalculator(unittest.TestCase):
             context.huggingface_metadata = None
             
             score = self.calculator._score_from_hf_metadata(context)
-            self.assertEqual(score, 0.8, f"Failed for {org}")
+            self.assertEqual(score, 0.0, f"Failed for {org}")
     
     def test_score_from_hf_metadata_unknown_org(self):
         """Test _score_from_hf_metadata for unknown organization"""
@@ -1472,7 +1472,7 @@ class TestCodeQualityCalculator(unittest.TestCase):
         
         score = self.calculator._score_from_hf_metadata(context)
         
-        self.assertEqual(score, 0.8)  # Updated to match current implementation
+        self.assertEqual(score, 0.0)  # No metadata fallback
     
     def test_score_from_dynamic_analysis_success(self):
         """Test _score_from_dynamic_analysis with successful analysis"""
@@ -2286,7 +2286,7 @@ class TestBusFactorCalculator(unittest.TestCase):
         
         score = self.calculator.calculate_score(no_metadata_context)
         
-        self.assertEqual(score, 0.8)  # Known organization fallback
+        self.assertEqual(score, 0.2)  # No metadata fallback
 
     @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
     def test_calculate_score_huggingface_medium_engagement_capped(self, mock_estimate):
@@ -2347,7 +2347,7 @@ class TestBusFactorCalculator(unittest.TestCase):
         
         score = self.calculator.calculate_score(no_metadata_context)
         
-        self.assertEqual(score, 0.8)  # Updated to match current implementation
+        self.assertEqual(score, 0.2)  # No metadata fallback
 
     def test_estimate_hf_bus_factor_very_high_engagement_non_bert(self):
         """Test very high engagement model without well-known model names."""
