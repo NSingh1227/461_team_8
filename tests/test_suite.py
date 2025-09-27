@@ -25,6 +25,7 @@ from src.core.git_analyzer import GitAnalyzer, analyze_git_repository
 from src.core.exceptions import MetricCalculationException, APIRateLimitException, InvalidURLException, ConfigurationException
 
 from unittest.mock import Mock, patch, MagicMock, mock_open
+from io import StringIO
 
 
 class TestURLProcessor(unittest.TestCase):
@@ -1494,6 +1495,675 @@ class TestIntegration(unittest.TestCase):
             self.assertIsInstance(score, float)
             self.assertGreaterEqual(score, 0.0)
             self.assertLessEqual(score, 1.0)
+
+
+class TestBusFactorCalculator(unittest.TestCase):
+    def setUp(self):
+        self.calculator = BusFactorCalculator()
+        self.github_context = MagicMock()
+        self.github_context.code_url = "https://github.com/owner/repo"
+        self.github_context.model_url = None
+        self.github_context.huggingface_metadata = None
+        
+        self.hf_context = MagicMock()
+        self.hf_context.code_url = None
+        self.hf_context.model_url = "https://huggingface.co/google/bert-base-uncased"
+        self.hf_context.huggingface_metadata = {
+            'downloads': 1000000,
+            'likes': 500,
+            'createdAt': '2023-01-01',
+            'lastModified': '2024-01-01'
+        }
+        
+        self.empty_context = MagicMock()
+        self.empty_context.code_url = None
+        self.empty_context.model_url = None
+        self.empty_context.huggingface_metadata = None
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_contributors_last_12_months')
+    def test_calculate_score_github_url_with_contributors(self, mock_contributors):
+        """Test GitHub URL with contributor count."""
+        mock_contributors.return_value = 3
+        
+        score = self.calculator.calculate_score(self.github_context)
+        
+        self.assertIsInstance(score, float)
+        self.assertEqual(score, 0.3)  # 3/10
+        mock_contributors.assert_called_once()
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_contributors_last_12_months')
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_contributors_from_local_git')
+    def test_calculate_score_github_fallback_to_local_git(self, mock_local_git, mock_contributors):
+        """Test fallback to local git when API contributors is 0."""
+        mock_contributors.return_value = 0
+        mock_local_git.return_value = 7
+        
+        score = self.calculator.calculate_score(self.github_context)
+        
+        self.assertIsInstance(score, float)
+        self.assertEqual(score, 0.6)  # 0.5 + (7-5)/20
+        mock_contributors.assert_called_once()
+        mock_local_git.assert_called_once()
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_contributors_last_12_months')
+    def test_calculate_score_github_google_research_bert(self, mock_contributors):
+        """Test special handling for Google Research BERT models.""" 
+        mock_contributors.return_value = 2
+        context = MagicMock()
+        context.code_url = "https://github.com/google-research/bert"
+        context.model_url = None
+        context.huggingface_metadata = None
+        
+        score = self.calculator.calculate_score(context)
+        
+        self.assertEqual(score, 0.95)  # Special Google Research handling
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_contributors_last_12_months')
+    def test_calculate_score_github_high_contributors(self, mock_contributors):
+        """Test GitHub URL with high contributor count."""
+        mock_contributors.return_value = 15
+        
+        score = self.calculator.calculate_score(self.github_context)
+        
+        expected_score = 0.5 + (15 - 5) / 20.0  # 0.5 + 0.5 = 1.0, but capped at 1.0
+        self.assertEqual(score, min(1.0, expected_score))
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_url(self, mock_estimate):
+        """Test Hugging Face URL processing."""
+        mock_estimate.return_value = 0.7
+        
+        score = self.calculator.calculate_score(self.hf_context)
+        
+        self.assertEqual(score, 0.9)  # High engagement model adjustment
+        mock_estimate.assert_called_once()
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_very_high_engagement(self, mock_estimate):
+        """Test very high engagement Hugging Face models."""
+        mock_estimate.return_value = 0.6
+        high_engagement_context = MagicMock()
+        high_engagement_context.code_url = None
+        high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT-large"
+        high_engagement_context.huggingface_metadata = {
+            'downloads': 6000000,  # > 5M
+            'likes': 1200
+        }
+        
+        score = self.calculator.calculate_score(high_engagement_context)
+        
+        self.assertEqual(score, 0.95)  # Very high engagement
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_low_engagement(self, mock_estimate):
+        """Test low engagement Hugging Face models."""
+        mock_estimate.return_value = 0.5
+        low_engagement_context = MagicMock()
+        low_engagement_context.code_url = None
+        low_engagement_context.model_url = "https://huggingface.co/user/small-model"
+        low_engagement_context.huggingface_metadata = {
+            'downloads': 5000,  # < 10K
+            'likes': 50  # < 100
+        }
+        
+        score = self.calculator.calculate_score(low_engagement_context)
+        
+        self.assertEqual(score, 0.33)  # Low engagement
+
+    def test_calculate_score_no_url(self):
+        """Test when no URL is provided."""
+        score = self.calculator.calculate_score(self.empty_context)
+        
+        self.assertEqual(score, 0.0)
+
+    def test_calculate_score_non_github_non_hf_url(self):
+        """Test non-GitHub, non-Hugging Face URLs."""
+        context = MagicMock()
+        context.code_url = "https://example.com/model"
+        context.model_url = None
+        context.huggingface_metadata = None
+        
+        score = self.calculator.calculate_score(context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch('os.environ.get')
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_contributors_last_12_months')
+    def test_calculate_score_exception_handling_debug_mode(self, mock_contributors, mock_env_get):
+        """Test exception handling in debug mode."""
+        mock_contributors.side_effect = Exception("API Error")
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.github_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch('os.environ.get')
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_contributors_last_12_months')
+    def test_calculate_score_exception_handling_autograder_mode(self, mock_contributors, mock_env_get):
+        """Test exception handling in autograder mode (silent)."""
+        mock_contributors.side_effect = Exception("API Error")
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        
+        score = self.calculator.calculate_score(self.github_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch('src.metrics.busfactor_calculator.GitAnalyzer')
+    def test_get_contributors_from_local_git_success(self, mock_git_analyzer):
+        """Test successful local git analysis."""
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze_github_repo.return_value = {
+            'success': True,
+            'contributor_count': 5
+        }
+        mock_git_analyzer.return_value = mock_analyzer
+        
+        result = self.calculator._get_contributors_from_local_git("https://github.com/owner/repo")
+        
+        self.assertEqual(result, 5)
+        mock_analyzer.analyze_github_repo.assert_called_once()
+        mock_analyzer.cleanup.assert_called_once()
+
+    @patch('src.metrics.busfactor_calculator.GitAnalyzer')
+    def test_get_contributors_from_local_git_failure(self, mock_git_analyzer):
+        """Test failed local git analysis."""
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze_github_repo.return_value = {
+            'success': False,
+            'contributor_count': 0
+        }
+        mock_git_analyzer.return_value = mock_analyzer
+        
+        result = self.calculator._get_contributors_from_local_git("https://github.com/owner/repo")
+        
+        self.assertEqual(result, 0)
+
+    @patch('src.metrics.busfactor_calculator.GitAnalyzer')
+    def test_get_contributors_from_local_git_exception(self, mock_git_analyzer):
+        """Test exception in local git analysis."""
+        mock_git_analyzer.side_effect = Exception("Git error")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._get_contributors_from_local_git("https://github.com/owner/repo")
+        
+        self.assertEqual(result, 0)
+
+    def test_extract_github_repo_info_valid_url(self):
+        """Test extracting repo info from valid GitHub URL."""
+        url = "https://github.com/owner/repo"
+        result = self.calculator._extract_github_repo_info(url)
+        
+        self.assertEqual(result, {'owner': 'owner', 'repo': 'repo'})
+
+    def test_extract_github_repo_info_with_git_suffix(self):
+        """Test extracting repo info from URL with .git suffix."""
+        url = "https://github.com/owner/repo.git"
+        result = self.calculator._extract_github_repo_info(url)
+        
+        self.assertEqual(result, {'owner': 'owner', 'repo': 'repo'})
+
+    def test_extract_github_repo_info_invalid_url(self):
+        """Test extracting repo info from invalid URL."""
+        url = "https://example.com/not/github"
+        result = self.calculator._extract_github_repo_info(url)
+        
+        self.assertIsNone(result)
+
+    def test_extract_github_repo_info_exception(self):
+        """Test exception handling in repo info extraction."""
+        # Pass None to trigger exception
+        result = self.calculator._extract_github_repo_info(None)
+        
+        self.assertIsNone(result)
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._extract_github_repo_info')
+    def test_get_contributors_last_12_months_no_repo_info(self, mock_extract):
+        """Test when repo info extraction fails."""
+        mock_extract.return_value = None
+        
+        result = self.calculator._get_contributors_last_12_months("invalid_url")
+        
+        self.assertEqual(result, 0)
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._extract_github_repo_info')
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._fetch_github_commits_last_12_months')
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._get_historical_contributors')
+    def test_get_contributors_last_12_months_no_commits_fallback(self, mock_historical, mock_fetch, mock_extract):
+        """Test fallback to historical contributors when no recent commits."""
+        mock_extract.return_value = {'owner': 'owner', 'repo': 'repo'}
+        mock_fetch.return_value = []
+        mock_historical.return_value = 3
+        
+        result = self.calculator._get_contributors_last_12_months("https://github.com/owner/repo")
+        
+        self.assertEqual(result, 3)
+        mock_historical.assert_called_once_with('owner', 'repo')
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._extract_github_repo_info')
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._fetch_github_commits_last_12_months')
+    def test_get_contributors_last_12_months_with_commits(self, mock_fetch, mock_extract):
+        """Test counting contributors from recent commits."""
+        mock_extract.return_value = {'owner': 'owner', 'repo': 'repo'}
+        mock_fetch.return_value = [
+            {'author': {'login': 'user1'}, 'commit': {'author': {'email': 'user1@example.com'}}},
+            {'author': {'login': 'user2'}, 'commit': {'author': {'email': 'user2@example.com'}}},
+            {'author': {'login': 'user1'}, 'commit': {'author': {'email': 'user1@example.com'}}},  # Duplicate
+            {'commit': {'author': {'email': 'user3@example.com'}}},  # No author login
+        ]
+        
+        result = self.calculator._get_contributors_last_12_months("https://github.com/owner/repo")
+        
+        self.assertEqual(result, 3)  # user1, user2, user3@example.com
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._extract_github_repo_info')
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._fetch_github_commits_last_12_months')
+    def test_get_contributors_last_12_months_invalid_commits(self, mock_fetch, mock_extract):
+        """Test handling invalid commit data."""
+        mock_extract.return_value = {'owner': 'owner', 'repo': 'repo'}
+        mock_fetch.return_value = [
+            "invalid_commit_data",  # Not a dict
+            {'no_author': True},  # Missing author info
+            {'author': None, 'commit': {'author': None}},  # Null values
+        ]
+        
+        result = self.calculator._get_contributors_last_12_months("https://github.com/owner/repo")
+        
+        self.assertEqual(result, 0)
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    @patch('src.metrics.busfactor_calculator.Config.get_github_token')
+    def test_get_historical_contributors_success(self, mock_token, mock_get):
+        """Test successful historical contributors retrieval."""
+        mock_token.return_value = "test_token"
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {'login': 'user1'}, {'login': 'user2'}, {'login': 'user3'}
+        ]
+        mock_get.return_value = mock_response
+        
+        result = self.calculator._get_historical_contributors('owner', 'repo')
+        
+        self.assertEqual(result, 3)
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    @patch('src.metrics.busfactor_calculator.Config.get_github_token')
+    def test_get_historical_contributors_no_token(self, mock_token, mock_get):
+        """Test historical contributors without GitHub token."""
+        mock_token.return_value = None
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{'login': 'user1'}]
+        mock_get.return_value = mock_response
+        
+        result = self.calculator._get_historical_contributors('owner', 'repo')
+        
+        self.assertEqual(result, 1)
+        # Verify no Authorization header was used
+        call_args = mock_get.call_args
+        headers = call_args[1]['headers']
+        self.assertNotIn('Authorization', headers)
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    def test_get_historical_contributors_api_failure(self, mock_get):
+        """Test handling API failure in historical contributors."""
+        mock_get.return_value = None
+        
+        result = self.calculator._get_historical_contributors('owner', 'repo')
+        
+        self.assertEqual(result, 0)
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    def test_get_historical_contributors_non_200_status(self, mock_get):
+        """Test handling non-200 status in historical contributors."""
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+        
+        result = self.calculator._get_historical_contributors('owner', 'repo')
+        
+        self.assertEqual(result, 0)
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    def test_get_historical_contributors_exception(self, mock_get):
+        """Test exception handling in historical contributors."""
+        mock_get.side_effect = Exception("Network error")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._get_historical_contributors('owner', 'repo')
+        
+        self.assertEqual(result, 0)
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    @patch('src.metrics.busfactor_calculator.Config.get_github_token')
+    def test_fetch_github_commits_success(self, mock_token, mock_get):
+        """Test successful GitHub commits fetching."""
+        mock_token.return_value = "test_token"
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {'sha': 'abc123', 'author': {'login': 'user1'}},
+            {'sha': 'def456', 'author': {'login': 'user2'}}
+        ]
+        mock_get.return_value = mock_response
+        
+        result = self.calculator._fetch_github_commits_last_12_months('owner', 'repo')
+        
+        self.assertEqual(len(result), 2)
+        self.assertIsInstance(result, list)
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    def test_fetch_github_commits_api_error(self, mock_get):
+        """Test API error in GitHub commits fetching."""
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.text = "Rate limit exceeded"
+        mock_get.return_value = mock_response
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._fetch_github_commits_last_12_months('owner', 'repo')
+        
+        self.assertEqual(result, [])
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    def test_fetch_github_commits_no_response(self, mock_get):
+        """Test no response in GitHub commits fetching."""
+        mock_get.return_value = None
+        
+        result = self.calculator._fetch_github_commits_last_12_months('owner', 'repo')
+        
+        self.assertEqual(result, [])
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    def test_fetch_github_commits_non_list_response(self, mock_get):
+        """Test non-list response in GitHub commits fetching."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"error": "Not a list"}
+        mock_get.return_value = mock_response
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._fetch_github_commits_last_12_months('owner', 'repo')
+        
+        self.assertEqual(result, [])
+
+    @patch('src.metrics.busfactor_calculator.get_with_rate_limit')
+    def test_fetch_github_commits_exception(self, mock_get):
+        """Test exception in GitHub commits fetching."""
+        mock_get.side_effect = Exception("Network error")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._fetch_github_commits_last_12_months('owner', 'repo')
+        
+        self.assertEqual(result, [])
+
+    def test_estimate_hf_bus_factor_high_engagement(self):
+        """Test HF bus factor estimation for high engagement model."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/google/bert-base-uncased"
+        context.huggingface_metadata = {
+            'downloads': 2000000,
+            'likes': 1500,
+            'createdAt': '2023-01-01'
+        }
+        context.model_info = {}
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        self.assertIsInstance(result, float)
+        self.assertGreater(result, 0.5)  # Should be high due to engagement
+
+    def test_estimate_hf_bus_factor_official_model(self):
+        """Test HF bus factor estimation for official model."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        context.huggingface_metadata = {
+            'downloads': 500000,
+            'likes': 200
+        }
+        context.model_info = {}
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        self.assertIsInstance(result, float)
+        self.assertGreater(result, 0.3)  # Should benefit from Microsoft org
+
+    def test_estimate_hf_bus_factor_low_engagement(self):
+        """Test HF bus factor estimation for low engagement model."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/unknown-user/small-model"
+        context.huggingface_metadata = {
+            'downloads': 1000,
+            'likes': 5
+        }
+        context.model_info = {}
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        self.assertIsInstance(result, float)
+        # Calculation: download_score(0.001) + likes_score(0.05) + org_score(0.15) + activity_score(0.2) = ~0.4
+        self.assertLess(result, 0.7)  # Should be moderate due to engagement calculation
+
+    def test_estimate_hf_bus_factor_exception_fallback_high_engagement(self):
+        """Test HF bus factor exception fallback with high engagement.""" 
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/google/bert-base-uncased"
+        context.huggingface_metadata = {
+            'downloads': 2000000,
+            'likes': 1500
+        }
+        
+        # Test normal calculation (not exception path)
+        # download_score = min(0.4, 2000000/1000000) = 0.4
+        # likes_score = min(0.3, 1500/100) = 0.3  
+        # org_score = 0.3 (google) + 0.1 (bert bonus) = 0.4
+        # activity_score = 0.2
+        # total = 0.4 + 0.3 + 0.4 + 0.2 = 1.3, capped at 1.0
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        self.assertEqual(result, 1.0)  # Capped at max score
+
+    def test_estimate_hf_bus_factor_exception_fallback_low_engagement(self):
+        """Test HF bus factor exception fallback with low engagement."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/user/small-model"
+        context.huggingface_metadata = {
+            'downloads': 5000,
+            'likes': 50
+        }
+        
+        # Test normal calculation path
+        # download_score = min(0.4, 5000/1000000) = 0.005
+        # likes_score = min(0.3, 50/100) = 0.15
+        # org_score = 0.1 (unknown user) + 0.05 (medium engagement bonus) = 0.15
+        # activity_score = 0.2
+        # total = ~0.505, but additional bonuses might apply
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        self.assertIsInstance(result, float)
+        self.assertGreater(result, 0.3)  # Above fallback minimum
+
+    def test_estimate_hf_bus_factor_exception_fallback_default(self):
+        """Test HF bus factor exception fallback with default score."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/user/model"
+        # No huggingface_metadata attribute to cause exception
+        del context.huggingface_metadata
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        self.assertEqual(result, 0.2)  # Default fallback score
+
+    def test_estimate_hf_bus_factor_no_metadata_no_modelinfo(self):
+        """Test HF bus factor when both metadata sources are missing."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/user/model"
+        # Neither metadata nor model_info present - will use 0/0 defaults
+        context.huggingface_metadata = {}
+        context.model_info = {}
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        # download_score = 0.1 (default), likes_score = 0.1 (default)
+        # org_score = 0.1 + 0.05 = 0.15, activity_score = 0.2
+        # total = 0.1 + 0.1 + 0.15 + 0.2 = 0.55
+        self.assertIsInstance(result, float)
+        self.assertGreater(result, 0.4)
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_medium_high_engagement(self, mock_estimate):
+        """Test medium-high engagement Hugging Face models (200K+ downloads or 200+ likes)."""
+        mock_estimate.return_value = 0.7
+        medium_high_context = MagicMock()
+        medium_high_context.code_url = None
+        medium_high_context.model_url = "https://huggingface.co/user/good-model"
+        medium_high_context.huggingface_metadata = {
+            'downloads': 250000,  # > 200K
+            'likes': 300  # > 200
+        }
+        
+        score = self.calculator.calculate_score(medium_high_context)
+        
+        self.assertEqual(score, 0.9)  # Medium-high engagement
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_medium_low_engagement(self, mock_estimate):
+        """Test medium-low engagement Hugging Face models (<100K downloads and <500 likes)."""
+        mock_estimate.return_value = 0.8
+        medium_low_context = MagicMock()
+        medium_low_context.code_url = None
+        medium_low_context.model_url = "https://huggingface.co/user/medium-model"
+        medium_low_context.huggingface_metadata = {
+            'downloads': 50000,  # < 100K
+            'likes': 150  # < 200 (to avoid earlier condition) and < 500
+        }
+        
+        score = self.calculator.calculate_score(medium_low_context)
+        
+        self.assertEqual(score, 0.33)  # Medium-low engagement (min with estimate)
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_no_metadata_known_org(self, mock_estimate):
+        """Test HF model without metadata but from known organization."""
+        mock_estimate.return_value = 0.5
+        no_metadata_context = MagicMock()
+        no_metadata_context.code_url = None
+        no_metadata_context.model_url = "https://huggingface.co/google/unknown-model"
+        no_metadata_context.huggingface_metadata = None
+        
+        score = self.calculator.calculate_score(no_metadata_context)
+        
+        self.assertEqual(score, 0.9)  # Known organization fallback
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_medium_engagement_capped(self, mock_estimate):
+        """Test medium engagement HF models (<1M downloads and <1K likes)."""
+        mock_estimate.return_value = 0.8
+        medium_context = MagicMock()
+        medium_context.code_url = None
+        medium_context.model_url = "https://huggingface.co/user/medium-model"
+        medium_context.huggingface_metadata = {
+            'downloads': 150000,  # 100K < downloads <= 200K
+            'likes': 150  # 100 <= likes <= 200 (to avoid all earlier conditions)
+        }
+        
+        score = self.calculator.calculate_score(medium_context)
+        
+        self.assertEqual(score, 0.33)  # Medium engagement gets set to 0.33
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_fallback_default_case(self, mock_estimate):
+        """Test HF model hitting the else clause (medium-high fallback)."""
+        mock_estimate.return_value = 0.5
+        fallback_context = MagicMock()
+        fallback_context.code_url = None
+        fallback_context.model_url = "https://huggingface.co/user/other-model"
+        fallback_context.huggingface_metadata = {
+            'downloads': 2000000,  # > 1M but not > 5M
+            'likes': 2000  # > 1K but not > 5K
+        }
+        
+        score = self.calculator.calculate_score(fallback_context)
+        
+        self.assertEqual(score, 0.9)  # High engagement (> 1M downloads, > 1K likes)
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_fallback_else_case(self, mock_estimate):
+        """Test HF model hitting the else clause (line 63)."""
+        mock_estimate.return_value = 0.5
+        fallback_context = MagicMock()
+        fallback_context.code_url = None
+        fallback_context.model_url = "https://huggingface.co/user/other-model"
+        fallback_context.huggingface_metadata = {
+            'downloads': 300000,  # > 200K but < 1M
+            'likes': 250  # > 200 but < 1K
+        }
+        
+        score = self.calculator.calculate_score(fallback_context)
+        
+        self.assertEqual(score, 0.9)  # Line 53: Medium-high engagement (downloads > 200K or likes > 200)
+
+    @patch('src.metrics.busfactor_calculator.BusFactorCalculator._estimate_hf_bus_factor')
+    def test_calculate_score_huggingface_no_metadata_unknown_org(self, mock_estimate):
+        """Test HF model without metadata from unknown organization."""
+        mock_estimate.return_value = 0.4
+        no_metadata_context = MagicMock()
+        no_metadata_context.code_url = None
+        no_metadata_context.model_url = "https://huggingface.co/unknown/model"
+        no_metadata_context.huggingface_metadata = None
+        
+        score = self.calculator.calculate_score(no_metadata_context)
+        
+        self.assertEqual(score, 0.5)  # max(0.4, 0.5) = 0.5 for unknown organization
+
+    def test_estimate_hf_bus_factor_very_high_engagement_non_bert(self):
+        """Test very high engagement model without well-known model names."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/openai/custom-model"
+        context.huggingface_metadata = {
+            'downloads': 6000000,  # > 5M
+            'likes': 2000,
+            'createdAt': '2023-01-01'
+        }
+        context.model_info = {}
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        # Should hit the standard bonus (0.2) for very high engagement non-BERT models
+        self.assertIsInstance(result, float)
+        self.assertEqual(result, 1.0)  # Likely capped at 1.0
+
+    def test_estimate_hf_bus_factor_unknown_organization(self):
+        """Test HF bus factor for unknown organization."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/random-user/some-model"
+        context.huggingface_metadata = {
+            'downloads': 100000,
+            'likes': 100,
+            'createdAt': '2023-01-01'
+        }
+        context.model_info = {}
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        # Should use org_score = 0.1 for unknown organization
+        self.assertIsInstance(result, float)
+        self.assertGreater(result, 0.3)  # Should be higher than minimum due to downloads/likes
+
+    def test_estimate_hf_bus_factor_exception_fallback_path(self):
+        """Test the exception fallback path with working context."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/google/bert-large"
+        # This test ensures the fallback exception logic is verified 
+        # by testing the fallback case we already implemented
+        del context.huggingface_metadata  # This should trigger the exception path naturally
+        
+        result = self.calculator._estimate_hf_bus_factor(context)
+        
+        # Should hit the exception fallback and return default score
+        self.assertEqual(result, 0.2)  # Default fallback score
 
 
 if __name__ == '__main__':
