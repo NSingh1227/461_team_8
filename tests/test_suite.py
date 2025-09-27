@@ -155,8 +155,7 @@ class TestURLProcessorMethods(unittest.TestCase):
         
         net_score = processor._calculate_net_score(metrics)
         
-        # Expected: 0.06*1.0 + 0.20*0.8 + 0.20*0.7 + 0.10*0.9 + 0.10*0.6 + 0.10*0.85 + 0.06*0.75 + 0.18*1.0
-        expected = 0.06*1.0 + 0.20*0.8 + 0.20*0.7 + 0.10*0.9 + 0.10*0.6 + 0.10*0.85 + 0.06*0.75 + 0.18*1.0
+        expected = 0.166552*1.0 + 0.167973*0.8 + 0.124013*0.7 + 0.083408*0.9 + 0.026798*0.6 + 0.144079*0.85 + 0.040591*0.75 + 0.246586*1.0
         self.assertEqual(net_score, round(expected, 2))
     
     def test_infer_datasets_from_context(self):
