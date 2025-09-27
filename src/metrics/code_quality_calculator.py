@@ -78,7 +78,7 @@ class CodeQualityCalculator(MetricCalculator):
             if downloads > 1000000 or likes > 1000:
                 return 0.93  # High quality for high-engagement models
             elif downloads < 10000 and likes < 100:
-                return 0.0  # Low quality for low-engagement models
+                return 0.1  # Low quality for low-engagement models
             elif downloads < 100000 and likes < 500:
                 return 0.1  # Lower quality for medium-low engagement models
             else:

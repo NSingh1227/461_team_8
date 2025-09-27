@@ -604,12 +604,12 @@ class URLProcessor:
         weights: Dict[str, float] = {
             "License": 0.05,
             "RampUp": 0.20,
-            "BusFactor": 0.15,
+            "BusFactor": 0.20,
             "DatasetCode": 0.10,
             "DatasetQuality": 0.10,
             "CodeQuality": 0.10,
             "PerformanceClaims": 0.05,
-            "Size": 0.25
+            "Size": 0.20
         }
 
         net_score: float = 0.0

@@ -102,7 +102,7 @@ class SizeCalculator(MetricCalculator):
                 downloads = context.huggingface_metadata.get('downloads', 0)
                 likes = context.huggingface_metadata.get('likes', 0)
                 
-                # Very high engagement models (like BERT) - medium-large size
+                # Very high engagement models - medium-large size
                 if downloads > 5000000 or likes > 5000:
                     return {
                         "raspberry_pi": 0.20,

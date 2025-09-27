@@ -57,37 +57,63 @@ class ModelResult:
         except Exception:
             return "unknown"
 
+    def _format_decimal(self, value: float) -> str:
+        """Format decimal to always show 2 decimal places"""
+        return f"{value:.2f}"
+    
     def to_ndjson_line(self) -> str:
         model_name = self._extract_model_name()
+
+        # Format all decimal values to 2 decimal places
+        net_score_str = self._format_decimal(self.net_score)
+        ramp_up_str = self._format_decimal(self.ramp_up_score)
+        bus_factor_str = self._format_decimal(self.bus_factor_score)
+        performance_claims_str = self._format_decimal(self.performance_claims_score)
+        license_str = self._format_decimal(self.license_score)
+        dataset_code_str = self._format_decimal(self.dataset_code_score)
+        dataset_quality_str = self._format_decimal(self.dataset_quality_score)
+        code_quality_str = self._format_decimal(self.code_quality_score)
+        
+        # Format size scores
+        size_score_dict = {}
+        if isinstance(self.size_score, dict):
+            size_score_dict = {
+                "raspberry_pi": self._format_decimal(self.size_score.get("raspberry_pi", 0.0)),
+                "jetson_nano": self._format_decimal(self.size_score.get("jetson_nano", 0.0)),
+                "desktop_pc": self._format_decimal(self.size_score.get("desktop_pc", 0.0)),
+                "aws_server": self._format_decimal(self.size_score.get("aws_server", 0.0))
+            }
+        else:
+            size_score_dict = {
+                "raspberry_pi": "0.00",
+                "jetson_nano": "0.00", 
+                "desktop_pc": "0.00",
+                "aws_server": "0.00"
+            }
 
         result_dict = {
             "name": model_name,
             "category": "MODEL",
-            "net_score": round(self.net_score, 2),
+            "net_score": net_score_str,
             "net_score_latency": self.net_score_latency,
-            "ramp_up_time": round(self.ramp_up_score, 2),
+            "ramp_up_time": ramp_up_str,
             "ramp_up_time_latency": self.ramp_up_latency,
-            "bus_factor": round(self.bus_factor_score, 2),
+            "bus_factor": bus_factor_str,
             "bus_factor_latency": self.bus_factor_latency,
-            "performance_claims": round(self.performance_claims_score, 2),
+            "performance_claims": performance_claims_str,
             "performance_claims_latency": self.performance_claims_latency,
-            "license": round(self.license_score, 2),
+            "license": license_str,
             "license_latency": self.license_latency,
-            "size_score": {
-                "raspberry_pi": round(self.size_score.get("raspberry_pi", 0.0), 2) if isinstance(self.size_score, dict) else 0.0,
-                "jetson_nano": round(self.size_score.get("jetson_nano", 0.0), 2) if isinstance(self.size_score, dict) else 0.0,
-                "desktop_pc": round(self.size_score.get("desktop_pc", 0.0), 2) if isinstance(self.size_score, dict) else 0.0,
-                "aws_server": round(self.size_score.get("aws_server", 0.0), 2) if isinstance(self.size_score, dict) else 0.0
-            },
+            "size_score": size_score_dict,
             "size_score_latency": self.size_latency,
-            "dataset_and_code_score": round(self.dataset_code_score, 2),
+            "dataset_and_code_score": dataset_code_str,
             "dataset_and_code_score_latency": self.dataset_code_latency,
-            "dataset_quality": round(self.dataset_quality_score, 2),
+            "dataset_quality": dataset_quality_str,
             "dataset_quality_latency": self.dataset_quality_latency,
-            "code_quality": round(self.code_quality_score, 2),
+            "code_quality": code_quality_str,
             "code_quality_latency": self.code_quality_latency
         }
-        return json.dumps(result_dict)
+        return json.dumps(result_dict, separators=(',', ':'))
 
 
 class ResultsStorage:

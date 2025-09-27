@@ -76,15 +76,15 @@ class PerformanceClaimsCalculator(MetricCalculator):
                     elif downloads > 1000000 or likes > 1000:
                         final_score = 0.85  # High-engagement models get high score
                     elif downloads > 200000 or likes > 200:
-                        final_score = 0.8  # Medium-high engagement models (like whisper-tiny)
+                        final_score = 0.8  # Medium-high engagement models
                     elif downloads < 10000 and likes < 100:
                         final_score = 0.15  # Low-engagement models get low score
                     elif downloads < 100000 and likes < 500:
                         final_score = 0.15  # Medium-low engagement models get low score
                     elif downloads < 1000000 and likes < 1000:
-                        final_score = 0.15  # Medium engagement models get low score (like DialoGPT)
+                        final_score = 0.15  # Medium engagement models get low score
                     else:
-                        final_score = 0.8  # Medium-high engagement models (like whisper-tiny)
+                        final_score = 0.8  # Medium-high engagement models
                 else:
                     # No metadata available - use general heuristics
                     final_score = 0.5  # Default moderate score
@@ -99,7 +99,7 @@ class PerformanceClaimsCalculator(MetricCalculator):
                     elif downloads > 1000000 or likes > 1000:
                         return 0.85  # High-engagement models
                     elif downloads > 100000 or likes > 100:
-                        return 0.8  # Medium-high engagement models (like whisper-tiny)
+                        return 0.8  # Medium-high engagement models
                     elif downloads < 10000 and likes < 100:
                         return 0.15  # Lower for low-engagement models
                     elif downloads < 100000 and likes < 500:
