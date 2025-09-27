@@ -57,22 +57,22 @@ class ModelResult:
         except Exception:
             return "unknown"
 
-    def _format_decimal(self, value: float) -> str:
-        """Format decimal to always show 2 decimal places as string"""
-        return f"{value:.2f}"
+    def _format_decimal(self, value: float) -> float:
+        """Format decimal to 2 decimal places as numeric value"""
+        return round(value, 2)
     
     def to_ndjson_line(self) -> str:
         model_name = self._extract_model_name()
 
-        # Format all decimal values to 2 decimal places as strings
-        net_score_str = self._format_decimal(self.net_score)
-        ramp_up_str = self._format_decimal(self.ramp_up_score)
-        bus_factor_str = self._format_decimal(self.bus_factor_score)
-        performance_claims_str = self._format_decimal(self.performance_claims_score)
-        license_str = self._format_decimal(self.license_score)
-        dataset_code_str = self._format_decimal(self.dataset_code_score)
-        dataset_quality_str = self._format_decimal(self.dataset_quality_score)
-        code_quality_str = self._format_decimal(self.code_quality_score)
+        # Format all decimal values to 2 decimal places as numeric values
+        net_score_val = self._format_decimal(self.net_score)
+        ramp_up_val = self._format_decimal(self.ramp_up_score)
+        bus_factor_val = self._format_decimal(self.bus_factor_score)
+        performance_claims_val = self._format_decimal(self.performance_claims_score)
+        license_val = self._format_decimal(self.license_score)
+        dataset_code_val = self._format_decimal(self.dataset_code_score)
+        dataset_quality_val = self._format_decimal(self.dataset_quality_score)
+        code_quality_val = self._format_decimal(self.code_quality_score)
         
         # Format size scores
         size_score_dict = {}
@@ -85,32 +85,32 @@ class ModelResult:
             }
         else:
             size_score_dict = {
-                "raspberry_pi": "0.00",
-                "jetson_nano": "0.00", 
-                "desktop_pc": "0.00",
-                "aws_server": "0.00"
+                "raspberry_pi": 0.0,
+                "jetson_nano": 0.0, 
+                "desktop_pc": 0.0,
+                "aws_server": 0.0
             }
 
         result_dict = {
             "name": model_name,
             "category": "MODEL",
-            "net_score": net_score_str,
+            "net_score": net_score_val,
             "net_score_latency": self.net_score_latency,
-            "ramp_up_time": ramp_up_str,
+            "ramp_up_time": ramp_up_val,
             "ramp_up_time_latency": self.ramp_up_latency,
-            "bus_factor": bus_factor_str,
+            "bus_factor": bus_factor_val,
             "bus_factor_latency": self.bus_factor_latency,
-            "performance_claims": performance_claims_str,
+            "performance_claims": performance_claims_val,
             "performance_claims_latency": self.performance_claims_latency,
-            "license": license_str,
+            "license": license_val,
             "license_latency": self.license_latency,
             "size_score": size_score_dict,
             "size_score_latency": self.size_latency,
-            "dataset_and_code_score": dataset_code_str,
+            "dataset_and_code_score": dataset_code_val,
             "dataset_and_code_score_latency": self.dataset_code_latency,
-            "dataset_quality": dataset_quality_str,
+            "dataset_quality": dataset_quality_val,
             "dataset_quality_latency": self.dataset_quality_latency,
-            "code_quality": code_quality_str,
+            "code_quality": code_quality_val,
             "code_quality_latency": self.code_quality_latency
         }
         return json.dumps(result_dict, separators=(',', ':'))
