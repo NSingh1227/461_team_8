@@ -21,6 +21,7 @@ from src.core.rate_limiter import get_rate_limiter, reset_rate_limiter, APIServi
 from src.core.http_client import get_with_rate_limit, head_with_rate_limit
 from src.core.llm_client import ask_for_json_score
 from src.core.config import Config
+from src.core.git_analyzer import GitAnalyzer, analyze_git_repository
 from src.core.exceptions import MetricCalculationException, APIRateLimitException, InvalidURLException, ConfigurationException
 
 from unittest.mock import Mock, patch, MagicMock, mock_open
@@ -558,6 +559,396 @@ class TestEdgeCases(unittest.TestCase):
         self.assertIsInstance(score, float)
         self.assertGreaterEqual(score, 0.0)
         self.assertLessEqual(score, 1.0)
+
+
+class TestGitAnalyzer(unittest.TestCase):
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        from src.core.git_analyzer import GitAnalyzer
+        self.analyzer = GitAnalyzer()
+        
+        # Mock dulwich components
+        self.repo_patcher = patch('src.core.git_analyzer.Repo')
+        self.porcelain_patcher = patch('src.core.git_analyzer.porcelain')
+        self.tempfile_patcher = patch('src.core.git_analyzer.tempfile')
+        
+        self.mock_repo = self.repo_patcher.start()
+        self.mock_porcelain = self.porcelain_patcher.start()
+        self.mock_tempfile = self.tempfile_patcher.start()
+    
+    def tearDown(self):
+        """Clean up test fixtures"""
+        self.repo_patcher.stop()
+        self.porcelain_patcher.stop()
+        self.tempfile_patcher.stop()
+        
+        # Clean up the analyzer
+        self.analyzer.cleanup()
+    
+    def test_git_analyzer_initialization(self):
+        """Test GitAnalyzer initialization"""
+        from src.core.git_analyzer import GitAnalyzer
+        analyzer = GitAnalyzer()
+        self.assertIsNotNone(analyzer)
+        self.assertEqual(len(analyzer.temp_dirs), 0)
+    
+    def test_clone_repository_success(self):
+        """Test successful repository cloning"""
+        # Mock successful clone operation
+        self.mock_tempfile.mkdtemp.return_value = "/tmp/test_repo"
+        self.mock_porcelain.clone.return_value = None
+        
+        with patch('time.time', side_effect=[0.0, 1.0]):  # Mock timing
+            repo_path = self.analyzer.clone_repository("https://github.com/test/repo")
+        
+        self.assertIsNotNone(repo_path)
+        self.assertIn("/tmp/test_repo", self.analyzer.temp_dirs)
+        self.mock_porcelain.clone.assert_called_once()
+    
+    def test_clone_repository_timeout(self):
+        """Test repository cloning with timeout"""
+        self.mock_tempfile.mkdtemp.return_value = "/tmp/test_repo"
+        self.mock_porcelain.clone.return_value = None
+        
+        # Mock timing to exceed timeout (31 seconds > 30 second timeout)
+        with patch('time.time', side_effect=[0.0, 31.0]):
+            with patch('sys.stderr', new_callable=Mock):
+                repo_path = self.analyzer.clone_repository("https://github.com/test/repo", timeout=30)
+        
+        self.assertIsNone(repo_path)
+    
+    def test_clone_repository_exception(self):
+        """Test repository cloning with exception"""
+        self.mock_tempfile.mkdtemp.return_value = "/tmp/test_repo"
+        self.mock_porcelain.clone.side_effect = Exception("Clone failed")
+        
+        with patch('sys.stderr', new_callable=Mock):
+            repo_path = self.analyzer.clone_repository("https://github.com/test/repo")
+        
+        self.assertIsNone(repo_path)
+    
+    def test_clone_repository_url_parsing(self):
+        """Test URL parsing in clone_repository"""
+        self.mock_tempfile.mkdtemp.return_value = "/tmp/test_repo"
+        self.mock_porcelain.clone.return_value = None
+        
+        with patch('time.time', side_effect=[0.0, 1.0, 2.0, 3.0]):
+            # Test with .git extension
+            repo_path = self.analyzer.clone_repository("https://github.com/test/repo.git")
+            self.assertIsNotNone(repo_path)
+            if repo_path:
+                self.assertIn("repo", repo_path)
+            
+            # Test without .git extension
+            repo_path = self.analyzer.clone_repository("https://github.com/test/simple")
+            self.assertIsNotNone(repo_path)
+            if repo_path:
+                self.assertIn("simple", repo_path)
+    
+    def test_analyze_repository_success(self):
+        """Test successful repository analysis"""
+        # Mock repository object
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        
+        # Mock refs (branches)
+        mock_repo_instance.get_refs.return_value = [b'refs/heads/main', b'refs/heads/develop']
+        
+        # Mock commits
+        mock_commit1 = Mock()
+        mock_commit1.commit_time = 1609459200  # 2021-01-01
+        mock_commit1.author = b'author1@example.com'
+        mock_commit1.committer = b'author1@example.com'  # Same as author
+        
+        mock_commit2 = Mock()
+        mock_commit2.commit_time = 1577836800  # 2020-01-01  
+        mock_commit2.author = b'author2@example.com'
+        mock_commit2.committer = b'author2@example.com'  # Same as author
+        
+        mock_repo_instance.get_walker.return_value = [mock_commit1, mock_commit2]
+        
+        # Mock tree structure
+        mock_tree = Mock()
+        mock_item1 = (b'README.md', Mock())
+        mock_item1[1].type = 2  # File type
+        mock_item2 = (b'test_file.py', Mock())
+        mock_item2[1].type = 2  # File type
+        mock_item3 = (b'LICENSE', Mock())
+        mock_item3[1].type = 2  # File type
+        
+        mock_tree.items.return_value = [mock_item1, mock_item2, mock_item3]
+        mock_repo_instance.head.return_value = b'main_hash'
+        mock_repo_instance.__getitem__ = Mock(return_value=mock_tree)
+        
+        metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        # Verify results
+        self.assertTrue(metadata["is_git_repo"])
+        self.assertEqual(metadata["branch_count"], 2)
+        self.assertEqual(metadata["commit_count"], 2)
+        self.assertEqual(metadata["contributor_count"], 2)
+        self.assertEqual(metadata["file_count"], 3)
+        self.assertTrue(metadata["has_readme"])
+        self.assertTrue(metadata["has_license"])
+        self.assertTrue(metadata["has_tests"])
+    
+    def test_analyze_repository_repo_creation_failure(self):
+        """Test repository analysis when Repo creation fails"""
+        self.mock_repo.side_effect = Exception("Invalid repository")
+        
+        with patch('sys.stderr', new_callable=Mock):
+            metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        self.assertFalse(metadata["is_git_repo"])
+        self.assertIn("error", metadata)
+    
+    def test_analyze_repository_branch_exception(self):
+        """Test repository analysis when branch reading fails"""
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        
+        # Mock exception when getting refs
+        mock_repo_instance.get_refs.side_effect = Exception("Cannot read refs")
+        
+        # Mock other successful operations
+        mock_repo_instance.get_walker.return_value = []
+        mock_repo_instance.head.side_effect = Exception("No head")
+        
+        metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        self.assertTrue(metadata["is_git_repo"])
+        self.assertEqual(metadata["branch_count"], 0)  # Should default to 0
+    
+    def test_analyze_repository_commit_exception(self):
+        """Test repository analysis when commit reading fails"""
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        
+        # Mock successful refs
+        mock_repo_instance.get_refs.return_value = [b'refs/heads/main']
+        
+        # Mock exception when getting walker
+        mock_repo_instance.get_walker.side_effect = Exception("Cannot read commits")
+        
+        # Mock tree exception
+        mock_repo_instance.head.side_effect = Exception("No head")
+        
+        metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        self.assertTrue(metadata["is_git_repo"])
+        self.assertEqual(metadata["commit_count"], 0)  # Should default to 0
+    
+    def test_analyze_repository_tree_exception(self):
+        """Test repository analysis when tree reading fails"""
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        
+        # Mock successful refs and walker
+        mock_repo_instance.get_refs.return_value = [b'refs/heads/main']
+        mock_repo_instance.get_walker.return_value = []
+        
+        # Mock exception when accessing head/tree
+        mock_repo_instance.head.side_effect = Exception("Cannot read head")
+        
+        metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        self.assertTrue(metadata["is_git_repo"])
+        self.assertEqual(metadata["file_count"], 0)  # Should default to 0
+    
+    def test_analyze_repository_file_detection(self):
+        """Test file type detection in repository analysis"""
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        
+        # Mock minimal setup
+        mock_repo_instance.get_refs.return_value = []
+        mock_repo_instance.get_walker.return_value = []
+        
+        # Mock tree with various file types
+        mock_tree = Mock()
+        files = [
+            (b'README.txt', Mock()),
+            (b'README.rst', Mock()),
+            (b'license.txt', Mock()),
+            (b'license.md', Mock()),
+            (b'test_module.py', Mock()),
+            (b'unit_test.py', Mock()),
+            (b'script.js', Mock()),
+            (b'style.css', Mock()),
+        ]
+        
+        for file_item in files:
+            file_item[1].type = 2  # File type
+        
+        mock_tree.items.return_value = files
+        mock_repo_instance.head.return_value = b'main_hash'
+        mock_repo_instance.__getitem__ = Mock(return_value=mock_tree)
+        
+        metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        self.assertEqual(metadata["file_count"], 8)
+        self.assertTrue(metadata["has_readme"])
+        self.assertTrue(metadata["has_license"])
+        self.assertTrue(metadata["has_tests"])
+        self.assertIn('py', metadata["languages"])
+        self.assertIn('js', metadata["languages"])
+        self.assertIn('css', metadata["languages"])
+    
+    def test_analyze_github_repo_success(self):
+        """Test successful GitHub repository analysis"""
+        # Mock successful clone
+        self.mock_tempfile.mkdtemp.return_value = "/tmp/test_repo"
+        self.mock_porcelain.clone.return_value = None
+        
+        # Mock successful analysis
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        mock_repo_instance.get_refs.return_value = [b'refs/heads/main']
+        mock_repo_instance.get_walker.return_value = []
+        mock_repo_instance.head.side_effect = Exception("No files")
+        
+        with patch('time.time', side_effect=[0.0, 1.0]):
+            metadata = self.analyzer.analyze_github_repo("https://github.com/test/repo")
+        
+        self.assertTrue(metadata["success"])
+        self.assertEqual(metadata["url"], "https://github.com/test/repo")
+        self.assertTrue(metadata["is_git_repo"])
+    
+    def test_analyze_github_repo_clone_failure(self):
+        """Test GitHub repository analysis when clone fails"""
+        # Mock failed clone
+        self.mock_porcelain.clone.side_effect = Exception("Clone failed")
+        
+        with patch('sys.stderr', new_callable=Mock):
+            metadata = self.analyzer.analyze_github_repo("https://github.com/test/repo")
+        
+        self.assertFalse(metadata["success"])
+        self.assertEqual(metadata["url"], "https://github.com/test/repo")
+        self.assertIn("error", metadata)
+    
+    def test_cleanup_success(self):
+        """Test successful cleanup of temporary directories"""
+        # Add some temp directories
+        self.analyzer.temp_dirs = ["/tmp/test1", "/tmp/test2"]
+        
+        with patch('shutil.rmtree') as mock_rmtree:
+            self.analyzer.cleanup()
+        
+        self.assertEqual(len(self.analyzer.temp_dirs), 0)
+        self.assertEqual(mock_rmtree.call_count, 2)
+    
+    def test_cleanup_with_exceptions(self):
+        """Test cleanup when rmtree fails"""
+        self.analyzer.temp_dirs = ["/tmp/test1", "/tmp/test2"]
+        
+        with patch('shutil.rmtree', side_effect=Exception("Permission denied")):
+            with patch('sys.stderr', new_callable=Mock):
+                # Test with debug enabled
+                with patch.dict(os.environ, {'AUTOGRADER': 'false', 'DEBUG': 'true'}):
+                    self.analyzer.cleanup()
+        
+        self.assertEqual(len(self.analyzer.temp_dirs), 0)
+    
+    def test_cleanup_autograder_mode(self):
+        """Test cleanup in autograder mode (suppressed warnings)"""
+        self.analyzer.temp_dirs = ["/tmp/test1"]
+        
+        with patch('shutil.rmtree', side_effect=Exception("Permission denied")):
+            with patch('sys.stderr', new_callable=Mock):
+                # Test with autograder enabled
+                with patch.dict(os.environ, {'AUTOGRADER': 'true', 'DEBUG': 'false'}):
+                    self.analyzer.cleanup()
+        
+        self.assertEqual(len(self.analyzer.temp_dirs), 0)
+    
+    def test_destructor_calls_cleanup(self):
+        """Test that destructor calls cleanup"""
+        temp_dirs = ["/tmp/test1"]
+        self.analyzer.temp_dirs = temp_dirs.copy()
+        
+        with patch.object(self.analyzer, 'cleanup') as mock_cleanup:
+            self.analyzer.__del__()
+            mock_cleanup.assert_called_once()
+    
+    def test_analyze_git_repository_function(self):
+        """Test the standalone analyze_git_repository function"""
+        from src.core.git_analyzer import analyze_git_repository
+        
+        # Mock the entire GitAnalyzer workflow
+        self.mock_tempfile.mkdtemp.return_value = "/tmp/test_repo"
+        self.mock_porcelain.clone.return_value = None
+        
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        mock_repo_instance.get_refs.return_value = [b'refs/heads/main']
+        mock_repo_instance.get_walker.return_value = []
+        mock_repo_instance.head.side_effect = Exception("No files")
+        
+        with patch('time.time', side_effect=[0.0, 1.0]):
+            with patch('shutil.rmtree'):  # Mock cleanup
+                result = analyze_git_repository("https://github.com/test/repo")
+        
+        self.assertTrue(result["success"])
+        self.assertEqual(result["url"], "https://github.com/test/repo")
+    
+    def test_analyze_git_repository_function_cleanup_on_exception(self):
+        """Test that analyze_git_repository function cleans up even on exception"""
+        from src.core.git_analyzer import analyze_git_repository
+        
+        # Mock clone to succeed but analysis to fail
+        self.mock_tempfile.mkdtemp.return_value = "/tmp/test_repo"
+        self.mock_porcelain.clone.return_value = None
+        self.mock_repo.side_effect = Exception("Analysis failed")
+        
+        with patch('time.time', side_effect=[0.0, 1.0]):
+            with patch('shutil.rmtree') as mock_rmtree:
+                with patch('sys.stderr', new_callable=Mock):
+                    result = analyze_git_repository("https://github.com/test/repo")
+        
+        # Should still attempt cleanup despite exception
+        mock_rmtree.assert_called()
+    
+    def test_contributor_analysis_with_same_author_committer(self):
+        """Test contributor counting when author and committer are the same"""
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        
+        mock_repo_instance.get_refs.return_value = []
+        
+        # Mock commits with same author and committer
+        mock_commit = Mock()
+        mock_commit.commit_time = 1609459200
+        mock_commit.author = b'same@example.com'
+        mock_commit.committer = b'same@example.com'
+        
+        mock_repo_instance.get_walker.return_value = [mock_commit]
+        mock_repo_instance.head.side_effect = Exception("No files")
+        
+        metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        # Should count as 1 contributor, not 2
+        self.assertEqual(metadata["contributor_count"], 1)
+    
+    def test_empty_repository_analysis(self):
+        """Test analysis of empty repository"""
+        mock_repo_instance = Mock()
+        self.mock_repo.return_value = mock_repo_instance
+        
+        # Empty repository
+        mock_repo_instance.get_refs.return_value = []
+        mock_repo_instance.get_walker.return_value = []
+        mock_repo_instance.head.side_effect = Exception("Empty repo")
+        
+        metadata = self.analyzer.analyze_repository("/fake/repo/path")
+        
+        self.assertTrue(metadata["is_git_repo"])
+        self.assertEqual(metadata["branch_count"], 0)
+        self.assertEqual(metadata["commit_count"], 0)
+        self.assertEqual(metadata["contributor_count"], 0)
+        self.assertEqual(metadata["file_count"], 0)
+        self.assertIsNone(metadata["last_commit_date"])
+        self.assertIsNone(metadata["first_commit_date"])
 
 
 class TestIntegration(unittest.TestCase):
