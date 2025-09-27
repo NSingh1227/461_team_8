@@ -195,6 +195,259 @@ class TestModelResult(unittest.TestCase):
         self.assertIn("net_score", ndjson_line)
 
 
+class TestLLMClient(unittest.TestCase):
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_api_key'})
+    @patch('src.core.llm_client.post_with_rate_limit')
+    def test_ask_for_json_score_success_valid_json(self, mock_post):
+        """Test successful API call with valid JSON response"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{
+                "message": {
+                    "content": '{"score": 0.85, "rationale": "High quality model with good documentation"}'
+                }
+            }]
+        }
+        mock_post.return_value = mock_response
+        
+        score, rationale = ask_for_json_score("Test prompt for model evaluation")
+        
+        self.assertEqual(score, 0.85)
+        self.assertEqual(rationale, "High quality model with good documentation")
+        mock_post.assert_called_once()
+    
+    @patch.dict(os.environ, {}, clear=True)
+    def test_ask_for_json_score_no_api_key(self):
+        """Test when API key is not available"""
+        score, reason = ask_for_json_score("Test prompt")
+        
+        self.assertIsNone(score)
+        self.assertEqual(reason, "API key not available")
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_key', 'AUTOGRADER': 'false', 'DEBUG': 'true'})
+    def test_ask_for_json_score_no_api_key_debug_mode(self):
+        """Test debug message when API key is missing and debug is enabled"""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch('sys.stderr', new_callable=Mock) as mock_stderr:
+                score, reason = ask_for_json_score("Test prompt")
+                
+                self.assertIsNone(score)
+                self.assertEqual(reason, "API key not available")
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_key'})
+    @patch('src.core.llm_client.post_with_rate_limit')
+    def test_ask_for_json_score_api_error_status(self, mock_post):
+        """Test API error response with non-200 status code"""
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        mock_post.return_value = mock_response
+        
+        score, reason = ask_for_json_score("Test prompt")
+        
+        self.assertIsNone(score)
+        self.assertEqual(reason, "API request failed")
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_key', 'AUTOGRADER': 'false', 'DEBUG': 'true'})
+    @patch('src.core.llm_client.post_with_rate_limit')
+    def test_ask_for_json_score_api_error_debug_mode(self, mock_post):
+        """Test API error with debug logging enabled"""
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.text = "Not Found"
+        mock_post.return_value = mock_response
+        
+        with patch('sys.stderr', new_callable=Mock) as mock_stderr:
+            score, reason = ask_for_json_score("Test prompt")
+            
+            self.assertIsNone(score)
+            self.assertEqual(reason, "API request failed")
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_key'})
+    @patch('src.core.llm_client.post_with_rate_limit')
+    def test_ask_for_json_score_no_response(self, mock_post):
+        """Test when post_with_rate_limit returns None"""
+        mock_post.return_value = None
+        
+        score, reason = ask_for_json_score("Test prompt")
+        
+        self.assertIsNone(score)
+        self.assertEqual(reason, "API request failed")
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_key'})
+    @patch('src.core.llm_client.post_with_rate_limit')
+    def test_ask_for_json_score_exception_handling(self, mock_post):
+        """Test exception handling during API call"""
+        mock_post.side_effect = Exception("Network timeout")
+        
+        score, reason = ask_for_json_score("Test prompt")
+        
+        self.assertIsNone(score)
+        self.assertIn("Request error: Network timeout", reason)
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_key', 'AUTOGRADER': 'false', 'DEBUG': 'true'})
+    @patch('src.core.llm_client.post_with_rate_limit')
+    def test_ask_for_json_score_exception_debug_mode(self, mock_post):
+        """Test exception handling with debug mode enabled"""
+        mock_post.side_effect = Exception("Connection error")
+        
+        with patch('sys.stderr', new_callable=Mock) as mock_stderr:
+            score, reason = ask_for_json_score("Test prompt")
+            
+            self.assertIsNone(score)
+            self.assertIn("Request error: Connection error", reason)
+    
+    @patch.dict(os.environ, {'GEN_AI_STUDIO_API_KEY': 'test_key'})
+    @patch('src.core.llm_client.post_with_rate_limit')
+    def test_ask_for_json_score_custom_parameters(self, mock_post):
+        """Test with custom API URL and model parameters"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{
+                "message": {
+                    "content": '{"score": 0.75, "rationale": "Good performance"}'
+                }
+            }]
+        }
+        mock_post.return_value = mock_response
+        
+        score, rationale = ask_for_json_score(
+            "Custom prompt",
+            api_url="https://custom-api.com/chat",
+            model="custom-model:latest"
+        )
+        
+        self.assertEqual(score, 0.75)
+        self.assertEqual(rationale, "Good performance")
+        
+        # Verify the API was called with correct parameters
+        call_args = mock_post.call_args
+        self.assertEqual(call_args[0][0], "https://custom-api.com/chat")
+        self.assertIn("custom-model:latest", str(call_args[1]['json']))
+    
+    def test_extract_json_score_valid_json(self):
+        """Test _extract_json_score with valid JSON content"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = '{"score": 0.9, "rationale": "Excellent model"}'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 0.9)
+        self.assertEqual(rationale, "Excellent model")
+    
+    def test_extract_json_score_empty_content(self):
+        """Test _extract_json_score with empty content"""
+        from src.core.llm_client import _extract_json_score
+        
+        score, reason = _extract_json_score("")
+        
+        self.assertIsNone(score)
+        self.assertEqual(reason, "Empty response")
+    
+    def test_extract_json_score_invalid_json(self):
+        """Test _extract_json_score with invalid JSON that contains valid JSON snippet"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = 'This is some text with {"score": 0.7, "rationale": "Good"} embedded JSON'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 0.7)
+        self.assertEqual(rationale, "Good")
+    
+    def test_extract_json_score_score_pattern_match(self):
+        """Test _extract_json_score with Score: pattern"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = "The model evaluation shows Score: 0.65 based on various metrics"
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 0.65)
+        self.assertEqual(rationale, content.strip())
+    
+    def test_extract_json_score_number_extraction(self):
+        """Test _extract_json_score with number extraction fallback"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = "Model achieves 0.82 performance on benchmark"
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 0.82)
+        self.assertEqual(rationale, content.strip())
+    
+    def test_extract_json_score_score_clamping_high(self):
+        """Test score clamping for values > 1.0"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = '{"score": 1.5, "rationale": "Exceeds expectations"}'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 1.0)  # Should be clamped to 1.0
+        self.assertEqual(rationale, "Exceeds expectations")
+    
+    def test_extract_json_score_score_clamping_low(self):
+        """Test score clamping for values < 0.0"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = '{"score": -0.3, "rationale": "Below minimum"}'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 0.0)  # Should be clamped to 0.0
+        self.assertEqual(rationale, "Below minimum")
+    
+    def test_extract_json_score_integer_score(self):
+        """Test _extract_json_score with integer score"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = '{"score": 1, "rationale": "Perfect score"}'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 1.0)
+        self.assertEqual(rationale, "Perfect score")
+    
+    def test_extract_json_score_no_valid_score(self):
+        """Test _extract_json_score when no valid score can be extracted"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = "This text contains no valid score information"
+        score, rationale = _extract_json_score(content)
+        
+        self.assertIsNone(score)
+        self.assertEqual(rationale, content.strip())
+    
+    def test_extract_json_score_malformed_json_with_score_field(self):
+        """Test _extract_json_score with malformed JSON containing score field"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = 'Text before {"score": 0.45, "rationale": "Average performance"} text after'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 0.45)
+        self.assertEqual(rationale, "Average performance")
+    
+    def test_extract_json_score_invalid_score_type(self):
+        """Test _extract_json_score with invalid score type in JSON"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = '{"score": "not_a_number", "rationale": "Invalid score type"}'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertIsNone(score)
+        self.assertEqual(rationale, content.strip())
+    
+    def test_extract_json_score_missing_rationale(self):
+        """Test _extract_json_score with missing rationale field"""
+        from src.core.llm_client import _extract_json_score
+        
+        content = '{"score": 0.8}'
+        score, rationale = _extract_json_score(content)
+        
+        self.assertEqual(score, 0.8)
+        self.assertEqual(rationale, "")  # Should default to empty string
+
+
 class TestLLMAnalyzer(unittest.TestCase):
     def test_llm_analyzer_creation(self):
         analyzer = LLMAnalyzer()
