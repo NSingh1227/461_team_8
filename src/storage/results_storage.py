@@ -91,6 +91,16 @@ class ModelResult:
                 "aws_server": 0.0
             }
 
+        class DecimalEncoder(json.JSONEncoder):
+            def encode(self, obj):
+                if isinstance(obj, float):
+                    return f'{obj:.2f}'
+                elif isinstance(obj, dict):
+                    return '{' + ','.join(f'"{k}":{self.encode(v)}' for k, v in obj.items()) + '}'
+                elif isinstance(obj, list):
+                    return '[' + ','.join(self.encode(v) for v in obj) + ']'
+                return super().encode(obj)
+
         result_dict = {
             "name": model_name,
             "category": "MODEL",
@@ -113,7 +123,7 @@ class ModelResult:
             "code_quality": code_quality_val,
             "code_quality_latency": self.code_quality_latency
         }
-        return json.dumps(result_dict, separators=(',', ':'))
+        return json.dumps(result_dict, separators=(',', ':'), cls=DecimalEncoder)
 
 
 class ResultsStorage:
