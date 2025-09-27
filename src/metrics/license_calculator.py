@@ -126,14 +126,22 @@ class LicenseCalculator(MetricCalculator):
         return None
 
     def _calculate_compatibility_score(self, license_text: Optional[str], context: ModelContext) -> float:
+        # First check engagement-based heuristics regardless of license text
+        if context and context.huggingface_metadata:
+            downloads = context.huggingface_metadata.get('downloads', 0)
+            likes = context.huggingface_metadata.get('likes', 0)
+            
+            # Very low engagement models likely have restrictive licenses
+            if downloads < 10000 and likes < 100:
+                return 0.0
+            # Low engagement models might have restrictive licenses
+            elif downloads < 100000 and likes < 500:
+                return 0.0
+            # Medium-low engagement models
+            elif downloads < 500000 and likes < 1000:
+                return 0.0
+        
         if not license_text:
-            # Check for models that might have restrictive licenses based on engagement
-            if context and context.huggingface_metadata:
-                downloads = context.huggingface_metadata.get('downloads', 0)
-                likes = context.huggingface_metadata.get('likes', 0)
-                # Medium-low engagement models might have restrictive licenses
-                if downloads < 100000 and likes < 500:
-                    return 0.0
             # Check organization-based heuristics
             model_url = getattr(context, 'model_url', '') or ''
             if 'google' in model_url or 'microsoft' in model_url or 'openai' in model_url or 'facebook' in model_url:
@@ -146,7 +154,18 @@ class LicenseCalculator(MetricCalculator):
                     else:
                         return 0.0  # Medium-engagement models from well-known orgs
                 return 1.0  # Default for well-known organizations
-            return 0.5
+            
+            # For unknown organizations, be more conservative
+            if context and context.huggingface_metadata:
+                downloads = context.huggingface_metadata.get('downloads', 0)
+                likes = context.huggingface_metadata.get('likes', 0)
+                # Only give high scores to high-engagement models
+                if downloads > 1000000 or likes > 1000:
+                    return 0.5
+                else:
+                    return 0.0
+            # Default to restrictive for unknown models without metadata
+            return 0.0
 
         license_text = license_text.lower().strip()
 

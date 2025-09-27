@@ -40,68 +40,49 @@ class SizeCalculator(MetricCalculator):
     def calculate_score(self, context: ModelContext) -> float:
         start_time: float = time.time()
         
-        # Get model-specific scores based on URL patterns
-        model_url = context.model_url or ""
+        # Always try intelligent fallback first for Hugging Face models
+        if context.model_url and context.model_url.startswith("https://huggingface.co"):
+            try:
+                self.platform_compatibility = self._get_intelligent_fallback_scores(context)
+                score: float = max(self.platform_compatibility.values()) if self.platform_compatibility else 0.5
+                end_time: float = time.time()
+                self._set_score(score, int((end_time - start_time) * 1000))
+                return score
+            except Exception:
+                pass  # Fall through to artifact size estimation
         
-        # Handle specific known models
-        if "bert-base-uncased" in model_url:
-            self.platform_compatibility = {
-                "raspberry_pi": 0.20,
-                "jetson_nano": 0.40,
-                "desktop_pc": 0.95,
-                "aws_server": 1.00
-            }
-            score = 0.95
-        elif "audience_classifier_model" in model_url:
+        try:
+            total_artifact_size_mb: Optional[float] = self._estimate_artifact_size_mb(context)
+
+            if total_artifact_size_mb is None:
+                # Use intelligent fallback based on model characteristics
+                try:
+                    self.platform_compatibility = self._get_intelligent_fallback_scores(context)
+                    score: float = max(self.platform_compatibility.values()) if self.platform_compatibility else 0.5
+                except Exception:
+                    # Fallback to default scores if intelligent fallback fails
+                    self.platform_compatibility = {
+                        "raspberry_pi": 0.75,
+                        "jetson_nano": 0.80,
+                        "desktop_pc": 1.00,
+                        "aws_server": 1.00
+                    }
+                    score = 0.8
+            else:
+                self.platform_compatibility = {
+                    platform: max(0.0, 1.0 - (total_artifact_size_mb / cap_mb))
+                    for platform, cap_mb in self.HARDWARE_CAPS_MB.items()
+                }
+                score = max(self.platform_compatibility.values()) if self.platform_compatibility else 0.5
+        except Exception:
+            # Default fallback scoring
             self.platform_compatibility = {
                 "raspberry_pi": 0.75,
                 "jetson_nano": 0.80,
                 "desktop_pc": 1.00,
                 "aws_server": 1.00
             }
-            score = 1.00
-        elif "whisper-tiny" in model_url:
-            self.platform_compatibility = {
-                "raspberry_pi": 0.90,
-                "jetson_nano": 0.95,
-                "desktop_pc": 1.00,
-                "aws_server": 1.00
-            }
-            score = 1.00
-        else:
-            # Fallback to original logic for other models
-            try:
-                total_artifact_size_mb: Optional[float] = self._estimate_artifact_size_mb(context)
-
-                if total_artifact_size_mb is None:
-                    # Use intelligent fallback based on model characteristics
-                    try:
-                        self.platform_compatibility = self._get_intelligent_fallback_scores(context)
-                        score: float = max(self.platform_compatibility.values()) if self.platform_compatibility else 0.5
-                    except Exception:
-                        # Fallback to default scores if intelligent fallback fails
-                        self.platform_compatibility = {
-                            "raspberry_pi": 0.75,
-                            "jetson_nano": 0.80,
-                            "desktop_pc": 1.00,
-                            "aws_server": 1.00
-                        }
-                        score = 0.8
-                else:
-                    self.platform_compatibility = {
-                        platform: max(0.0, 1.0 - (total_artifact_size_mb / cap_mb))
-                        for platform, cap_mb in self.HARDWARE_CAPS_MB.items()
-                    }
-                    score = max(self.platform_compatibility.values()) if self.platform_compatibility else 0.5
-            except Exception:
-                # Default fallback scoring
-                self.platform_compatibility = {
-                    "raspberry_pi": 0.75,
-                    "jetson_nano": 0.80,
-                    "desktop_pc": 1.00,
-                    "aws_server": 1.00
-                }
-                score = 0.8
+            score = 0.8
 
         end_time: float = time.time()
         self._set_score(score, int((end_time - start_time) * 1000))

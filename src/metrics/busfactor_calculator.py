@@ -49,7 +49,7 @@ class BusFactorCalculator(MetricCalculator):
                     elif downloads > 1000000 or likes > 1000:
                         score = max(score, 0.9)  # High-engagement models
                     elif downloads > 200000 or likes > 200:
-                        score = max(score, 0.9)  # Medium-high engagement models (like whisper-tiny)
+                        score = 0.9  # Medium-high engagement models (like whisper-tiny)
                     elif downloads < 10000 and likes < 100:
                         score = min(score, 0.3)  # Lower for low-engagement models
                     elif downloads < 100000 and likes < 500:
