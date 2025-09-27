@@ -2,6 +2,7 @@
 import sys
 import os
 import unittest
+import tempfile
 from typing import List, Dict, Any, Tuple, Optional, cast
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -22,6 +23,7 @@ from src.core.http_client import get_with_rate_limit, head_with_rate_limit
 from src.core.llm_client import ask_for_json_score
 from src.core.config import Config
 from src.core.exceptions import MetricCalculationException, APIRateLimitException, InvalidURLException, ConfigurationException
+from src.core.model_analyzer import ModelDynamicAnalyzer
 
 from unittest.mock import Mock, patch, MagicMock, mock_open
 
@@ -598,6 +600,74 @@ class TestIntegration(unittest.TestCase):
             self.assertIsInstance(score, float)
             self.assertGreaterEqual(score, 0.0)
             self.assertLessEqual(score, 1.0)
+
+class TestModelAnalyzer(unittest.TestCase):
+    def setUp(self):
+        self.analyzer = ModelDynamicAnalyzer
+
+    @patch("src.core.model_analyzer.ModelDynamicAnalyzer._load_model_config", return_value={"model_type": "bert", "architectures": ["BertModel"], "vocab_size": 30522, "max_position_embeddings": 512, "num_parameters": 1000000})
+    @patch("src.core.model_analyzer.ModelDynamicAnalyzer._load_tokenizer", return_value=MagicMock(get_vocab=lambda: {"a": 1, "b": 2}))
+    @patch("src.core.model_analyzer.ModelDynamicAnalyzer._load_model_info", return_value={"size_mb": 123.4})
+    def test_analyze_model_loading_success(self, mock_info, mock_tok, mock_conf):
+        analyzer_instance = self.analyzer()
+        result = analyzer_instance.analyze_model_loading("fake/repo")
+        self.assertTrue(result["success"])
+        self.assertEqual(result["model_type"], "bert")
+        self.assertTrue(result["can_load_tokenizer"])
+        self.assertTrue(result["can_load_model"])
+
+    @patch("src.core.model_analyzer.hf_hub_download", side_effect=Exception("fail"))
+    def test_load_model_config_failure(self, mock_dl):
+        analyzer_instance = self.analyzer()
+        result = analyzer_instance._load_model_config("fake/repo")
+        self.assertIsNone(result)
+
+    @patch("transformers.AutoTokenizer.from_pretrained", side_effect=Exception("bad"))
+    def test_load_tokenizer_failure(self, mock_tok):
+        analyzer_instance = self.analyzer()
+        result = analyzer_instance._load_tokenizer("fake/repo")
+        self.assertIsNone(result)
+
+    def test_estimate_model_size_from_config(self):
+        class DummyConfig:
+            hidden_size = 10
+            num_hidden_layers = 2
+            vocab_size = 50
+            intermediate_size = 20
+        
+        analyzer_instance = self.analyzer()
+        size = analyzer_instance._estimate_model_size_from_config(DummyConfig())
+        self.assertGreater(size, 0)
+
+    @patch("src.core.model_analyzer.ModelDynamicAnalyzer._load_model_config", side_effect=Exception("fail"))
+    @patch("src.core.model_analyzer.ModelDynamicAnalyzer._load_tokenizer", side_effect=Exception("fail"))
+    @patch("huggingface_hub.HfApi.list_repo_files", side_effect=Exception("fail"))
+    @patch("src.core.model_analyzer.hf_hub_download", side_effect=Exception("fail"))
+    def test_validate_model_completeness_all_missing(self, mock_readme, mock_list, mock_tok, mock_conf):
+        analyzer_instance = self.analyzer()
+        result = analyzer_instance.validate_model_completeness("fake/repo")
+        self.assertFalse(result["is_complete"])
+        self.assertIn("config.json", result["missing_components"])
+        self.assertIn("Add config.json file", result["recommendations"])
+
+    def test_cleanup(self):
+        analyzer_instance = self.analyzer()
+        tmpdir = tempfile.mkdtemp()
+        analyzer_instance.temp_dirs.append(tmpdir)
+        analyzer_instance.cleanup()
+        self.assertEqual(analyzer_instance.temp_dirs, [])
+
+    @patch("src.core.model_analyzer.ModelDynamicAnalyzer.analyze_model_loading", return_value={"ok": True})
+    def test_analyze_model_dynamically_wrapper(self, mock_ana):
+        from src.core.model_analyzer import analyze_model_dynamically
+        result = analyze_model_dynamically("fake/repo")
+        self.assertEqual(result, {"ok": True})
+
+    @patch("src.core.model_analyzer.ModelDynamicAnalyzer.validate_model_completeness", return_value={"ok": True})
+    def test_validate_model_completeness_wrapper(self, mock_val):
+        from src.core.model_analyzer import validate_model_completeness
+        result = validate_model_completeness("fake/repo")
+        self.assertEqual(result, {"ok": True})
 
 
 if __name__ == '__main__':
