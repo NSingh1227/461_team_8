@@ -94,16 +94,26 @@ class DatasetQualityCalculator(MetricCalculator):
                             f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0",
                             file=sys.stderr)
                 else:
+                    # Intelligent scoring based on model characteristics
+                    model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+                    
+                    # Check for well-known organizations
                     org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
                     if any(org in model_url.lower() for org in org_indicators):
-                        score = 0.95
+                        score = 0.8  # High but not perfect
                         print(
-                            f"[DatasetQuality] Well-known organization model {model_url} → 0.95",
+                            f"[DatasetQuality] Well-known organization model {model_url} → 0.8",
+                            file=sys.stderr)
+                    # Check for research/academic models
+                    elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
+                        score = 0.6  # Medium-high for research models
+                        print(
+                            f"[DatasetQuality] Research model {model_url} → 0.6",
                             file=sys.stderr)
                     else:
-                        score = 0.3
+                        score = 0.4  # Default moderate score
                         print(
-                            "[DatasetQuality] No dataset info available → default 0.3",
+                            "[DatasetQuality] No dataset info available → default 0.4",
                             file=sys.stderr)
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in [

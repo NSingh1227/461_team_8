@@ -17,7 +17,9 @@ from .base import MetricCalculator, ModelContext
 
 class LicenseCalculator(MetricCalculator):
 
+    # LGPLv2.1 compatibility scoring for ACME Corporation
     LGPL_license_compatibility: Dict[str, float] = {
+        # Fully compatible with LGPLv2.1 (score 1.0)
         'mit': 1.0, 'mit license': 1.0,
         'apache': 1.0, 'apache 2.0': 1.0, 'apache-2.0': 1.0, 'apache-2': 1.0,
         'bsd': 1.0, 'bsd-3-clause': 1.0, 'bsd-2-clause': 1.0, 'bsd-3': 1.0, 'bsd-2': 1.0,
@@ -25,6 +27,9 @@ class LicenseCalculator(MetricCalculator):
         'public domain': 1.0, 'public-domain': 1.0,
         'unlicense': 1.0, 'cc0': 1.0, 'creative commons': 1.0,
         'isc': 1.0, 'zlib': 1.0, 'boost': 1.0,
+        'mpl': 1.0, 'mpl-2.0': 1.0, 'mozilla': 1.0,
+        'epl': 1.0, 'eclipse': 1.0,
+        # Incompatible with LGPLv2.1 (score 0.0)
         'gpl': 0.0, 'gpl-2.0': 0.0, 'gpl-3.0': 0.0, 'gpl-2': 0.0, 'gpl-3': 0.0,
         'agpl': 0.0, 'agpl-3.0': 0.0, 'agpl-3': 0.0,
         'proprietary': 0.0, 'commercial': 0.0, 'all rights reserved': 0.0,

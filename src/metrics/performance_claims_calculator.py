@@ -115,11 +115,18 @@ class PerformanceClaimsCalculator(MetricCalculator):
                     else:
                         return 0.15  # Medium engagement models should be lower
                 else:
+                    # Intelligent scoring based on model characteristics
+                    model_name = model_id.split('/')[-1].lower() if '/' in model_id else model_id.lower()
+                    
+                    # Check for well-known organizations
                     org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
                     if any(org in model_id.lower() for org in org_indicators):
-                        return 0.15
+                        return 0.3  # Moderate score for org models
+                    # Check for research/academic models
+                    elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
+                        return 0.4  # Slightly higher for research models
                     else:
-                        return 0.5  # Default moderate score
+                        return 0.2  # Lower default score
 
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
@@ -191,30 +198,34 @@ class PerformanceClaimsCalculator(MetricCalculator):
             return None
 
     def _analyze_readme_quality(self, content: Optional[str]) -> float:
+        """Analyze README for performance claims evidence for ACME's quality standards."""
         if not content:
             return 0.3
 
         content_lower = content.lower()
 
-        performance_indicators = [
-            'accuracy', 'precision', 'recall', 'f1', 'f-score',
-            'bleu', 'rouge', 'perplexity', 'loss', 'error rate',
-            'benchmark', 'evaluation', 'metrics', 'performance',
-            'sota', 'state-of-the-art', 'baseline', 'comparison'
-        ]
+        # Performance indicators prioritized for ACME's quality requirements
+        critical_indicators = ['benchmark', 'evaluation', 'metrics', 'performance']
+        important_indicators = ['accuracy', 'precision', 'recall', 'f1', 'f-score']
+        technical_indicators = ['bleu', 'rouge', 'perplexity', 'loss', 'error rate']
+        comparison_indicators = ['sota', 'state-of-the-art', 'baseline', 'comparison']
 
         score = 0.3
-        found_indicators = 0
+        critical_count = sum(1 for indicator in critical_indicators if indicator in content_lower)
+        important_count = sum(1 for indicator in important_indicators if indicator in content_lower)
+        technical_count = sum(1 for indicator in technical_indicators if indicator in content_lower)
+        comparison_count = sum(1 for indicator in comparison_indicators if indicator in content_lower)
 
-        for indicator in performance_indicators:
-            if indicator in content_lower:
-                found_indicators += 1
-
-        if found_indicators >= 5:
-            score = 0.8
-        elif found_indicators >= 3:
-            score = 0.6
-        elif found_indicators >= 1:
-            score = 0.4
+        # Weighted scoring based on ACME's need for evidence
+        if critical_count >= 2 and (important_count >= 2 or technical_count >= 2):
+            score = 0.9  # Strong evidence
+        elif critical_count >= 1 and (important_count >= 1 or technical_count >= 1):
+            score = 0.7  # Good evidence
+        elif critical_count >= 1 or important_count >= 2 or technical_count >= 2:
+            score = 0.5  # Adequate evidence
+        elif important_count >= 1 or technical_count >= 1 or comparison_count >= 1:
+            score = 0.4  # Basic evidence
+        else:
+            score = 0.3  # Weak evidence
 
         return score

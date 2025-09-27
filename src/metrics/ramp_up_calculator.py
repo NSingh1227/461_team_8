@@ -6,7 +6,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from huggingface_hub import hf_hub_download
-from huggingface_hub.utils import (HfHubHTTPError,  # type: ignore
+from huggingface_hub.utils import (HfHubHTTPError,  
                                    RepositoryNotFoundError)
 
 from .base import MetricCalculator, ModelContext
@@ -148,33 +148,48 @@ class RampUpCalculator(MetricCalculator):
                     return 0.85  # Medium-high engagement models
                 elif downloads < 10000 and likes < 100:
                     return 0.25  # Low-engagement models have limited documentation
-            return 0.3
+            # Intelligent fallback based on model characteristics
+            model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+            
+            # Check for well-known organizations
+            org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
+            if any(org in model_url.lower() for org in org_indicators):
+                return 0.7  # High but not perfect
+            # Check for research/academic models
+            elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
+                return 0.5  # Medium for research models
+            else:
+                return 0.3  # Default moderate score
 
     def _analyze_readme_quality(self, content: str) -> float:
+        """Analyze README quality for ACME engineers' ramp-up time."""
         if not content:
             return 0.3
 
         content_lower = content.lower()
 
-        quality_indicators = [
-            'installation', 'install', 'setup', 'getting started',
-            'quick start', 'tutorial', 'example', 'usage',
-            'documentation', 'api', 'reference', 'guide',
-            'requirements', 'dependencies', 'environment'
-        ]
+        # Quality indicators prioritized for ACME engineers
+        critical_indicators = ['installation', 'install', 'setup', 'getting started']
+        important_indicators = ['quick start', 'tutorial', 'example', 'usage']
+        helpful_indicators = ['documentation', 'api', 'reference', 'guide']
+        necessary_indicators = ['requirements', 'dependencies', 'environment']
 
         score = 0.3
-        found_indicators = 0
+        critical_count = sum(1 for indicator in critical_indicators if indicator in content_lower)
+        important_count = sum(1 for indicator in important_indicators if indicator in content_lower)
+        helpful_count = sum(1 for indicator in helpful_indicators if indicator in content_lower)
+        necessary_count = sum(1 for indicator in necessary_indicators if indicator in content_lower)
 
-        for indicator in quality_indicators:
-            if indicator in content_lower:
-                found_indicators += 1
-
-        if found_indicators >= 5:
-            score = 0.8
-        elif found_indicators >= 3:
-            score = 0.6
-        elif found_indicators >= 1:
-            score = 0.4
+        # Weighted scoring based on ACME priorities
+        if critical_count >= 2 and important_count >= 2:
+            score = 0.9  # Excellent documentation
+        elif critical_count >= 1 and important_count >= 1:
+            score = 0.7  # Good documentation
+        elif critical_count >= 1 or important_count >= 2:
+            score = 0.5  # Adequate documentation
+        elif helpful_count >= 2 or necessary_count >= 1:
+            score = 0.4  # Basic documentation
+        else:
+            score = 0.3  # Poor documentation
 
         return score

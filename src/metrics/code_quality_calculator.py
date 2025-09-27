@@ -84,11 +84,18 @@ class CodeQualityCalculator(MetricCalculator):
             else:
                 return 0.0  # Lower quality for medium-engagement models
         else:
+            # Intelligent scoring based on model characteristics
+            model_name = model_url.split('/')[-1].lower() if '/' in model_url else model_url.lower()
+            
+            # Check for well-known organizations
             org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
             if any(org in model_url.lower() for org in org_indicators):
-                return 0.93
+                return 0.8  # High but not perfect
+            # Check for research/academic models
+            elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
+                return 0.6  # Medium-high for research models
             else:
-                return 0.4
+                return 0.5  # Default moderate score
 
     def _score_from_dynamic_analysis(self, model_url: str) -> float:
         try:

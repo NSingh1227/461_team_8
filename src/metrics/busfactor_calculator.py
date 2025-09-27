@@ -61,11 +61,18 @@ class BusFactorCalculator(MetricCalculator):
                     else:
                         score = 0.9  # Medium-high engagement models
                 else:
+                    # Intelligent scoring based on URL patterns and model characteristics
+                    model_name = url_to_use.split('/')[-1].lower() if '/' in url_to_use else url_to_use.lower()
+                    
+                    # Check for well-known organizations (higher bus factor)
                     org_indicators = ['google', 'microsoft', 'openai', 'facebook', 'meta', 'anthropic', 'huggingface', 'stability', 'cohere']
                     if any(org in url_to_use.lower() for org in org_indicators):
-                        score = 0.9
+                        score = 0.8  # High but not perfect
+                    # Check for research/academic indicators
+                    elif any(indicator in model_name for indicator in ['bert', 'gpt', 'roberta', 'distilbert', 't5', 'albert', 'electra', 'whisper', 'gemma', 'llama', 'claude', 'transformer', 'vision', 'resnet', 'vgg', 'inception']):
+                        score = 0.6  # Medium-high for research models
                     else:
-                        score = max(score, 0.5)  # Default moderate score
+                        score = 0.4  # Default moderate score
             else:
                 score = 0.0
 
@@ -114,6 +121,7 @@ class BusFactorCalculator(MetricCalculator):
                 return self._get_historical_contributors(
                     repo_info['owner'], repo_info['repo'])
 
+            # Calculate bus factor based on contributor diversity for ACME's maintainer responsiveness
             contributors: set[str] = set()
             for commit in commits:
                 if not isinstance(commit, dict):
@@ -124,7 +132,20 @@ class BusFactorCalculator(MetricCalculator):
                 elif commit.get('commit', {}).get('author', {}).get('email'):
                     contributors.add(commit['commit']['author']['email'])
 
-            return len(contributors)
+            contributor_count = len(contributors)
+            # Bus factor scoring for ACME: higher = safer (more maintainers)
+            if contributor_count == 0:
+                return 0.0
+            elif contributor_count == 1:
+                return 0.1  # Single maintainer - high risk
+            elif contributor_count <= 3:
+                return 0.3  # Small team - medium risk
+            elif contributor_count <= 5:
+                return 0.5  # Medium team - acceptable risk
+            elif contributor_count <= 10:
+                return 0.7  # Good team size - low risk
+            else:
+                return 0.9  # Large team - very low risk
 
         except Exception as e:
             print(f"Error getting contributors: {e}", file=sys.stderr)
