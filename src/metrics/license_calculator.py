@@ -159,8 +159,8 @@ class LicenseCalculator(MetricCalculator):
             if context and context.huggingface_metadata:
                 downloads = context.huggingface_metadata.get('downloads', 0)
                 likes = context.huggingface_metadata.get('likes', 0)
-                # Only give high scores to high-engagement models
-                if downloads > 1000000 or likes > 1000:
+                # Only give high scores to very high-engagement models
+                if downloads > 2000000 or likes > 2000:
                     return 0.5
                 else:
                     return 0.0

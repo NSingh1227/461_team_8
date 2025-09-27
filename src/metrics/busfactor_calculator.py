@@ -61,7 +61,7 @@ class BusFactorCalculator(MetricCalculator):
                 else:
                     # No metadata available - use general heuristics based on organization
                     if 'google' in url_to_use or 'microsoft' in url_to_use or 'openai' in url_to_use or 'facebook' in url_to_use:
-                        score = max(score, 0.95)  # Well-known organizations have high bus factor
+                        score = 0.9  # Well-known organizations have high bus factor
                     else:
                         score = max(score, 0.5)  # Default moderate score
             else:
