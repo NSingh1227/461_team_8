@@ -951,6 +951,510 @@ class TestGitAnalyzer(unittest.TestCase):
         self.assertIsNone(metadata["first_commit_date"])
 
 
+class TestCodeQualityCalculator(unittest.TestCase):
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        self.calculator = CodeQualityCalculator()
+        
+        # Mock ModelDynamicAnalyzer
+        self.analyzer_patcher = patch('src.metrics.code_quality_calculator.ModelDynamicAnalyzer')
+        self.mock_analyzer = self.analyzer_patcher.start()
+        
+        # Mock HfApi - patch the import inside the function
+        self.hfapi_patcher = patch('huggingface_hub.HfApi')
+        self.mock_hfapi = self.hfapi_patcher.start()
+    
+    def tearDown(self):
+        """Clean up test fixtures"""
+        self.analyzer_patcher.stop()
+        self.hfapi_patcher.stop()
+    
+    def test_code_quality_calculator_initialization(self):
+        """Test CodeQualityCalculator initialization"""
+        calculator = CodeQualityCalculator()
+        self.assertIsNotNone(calculator)
+        # Note: metric_name is protected, but we can verify the calculator works
+        context = ModelContext(model_url="https://huggingface.co/test/model", model_info={})
+        context.huggingface_metadata = {"downloads": 1000, "likes": 10}
+        score = calculator.calculate_score(context)
+        self.assertIsInstance(score, float)
+    
+    def test_calculate_score_huggingface_url(self):
+        """Test calculate_score with Hugging Face URL"""
+        context = ModelContext(
+            model_url="https://huggingface.co/test/model",
+            model_info={}
+        )
+        context.huggingface_metadata = {"downloads": 500000, "likes": 200}
+        
+        score = self.calculator.calculate_score(context)
+        
+        self.assertIsInstance(score, float)
+        self.assertGreaterEqual(score, 0.0)
+        self.assertLessEqual(score, 1.0)
+    
+    def test_calculate_score_github_metadata_path(self):
+        """Test calculate_score with GitHub metadata"""
+        context = ModelContext(
+            model_url="https://github.com/test/repo",
+            model_info={
+                "github_metadata": {
+                    "language": "Python",
+                    "stargazers_count": 1500,
+                    "updated_at": "2024-01-01T00:00:00Z",
+                    "description": "Test repository",
+                    "archived": False,
+                    "topics": ["machine-learning", "nlp"]
+                }
+            }
+        )
+        
+        score = self.calculator.calculate_score(context)
+        
+        self.assertIsInstance(score, float)
+        self.assertGreaterEqual(score, 0.0)
+        self.assertLessEqual(score, 1.0)
+    
+    def test_calculate_score_dynamic_analysis_path(self):
+        """Test calculate_score with dynamic analysis path"""
+        context = ModelContext(
+            model_url="https://example.com/model",
+            model_info={}
+        )
+        
+        # Mock analyzer responses
+        mock_analyzer_instance = Mock()
+        self.mock_analyzer.return_value = mock_analyzer_instance
+        mock_analyzer_instance.analyze_model_loading.return_value = {
+            "can_load_model": True,
+            "can_load_tokenizer": True
+        }
+        mock_analyzer_instance.validate_model_completeness.return_value = {
+            "completeness_score": 0.8
+        }
+        
+        # Mock HfApi for test scripts check
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = [
+            {"path": "test_model.py"},
+            {"path": "example.ipynb"}
+        ]
+        
+        score = self.calculator.calculate_score(context)
+        
+        self.assertIsInstance(score, float)
+        self.assertGreaterEqual(score, 0.0)
+        self.assertLessEqual(score, 1.0)
+    
+    def test_calculate_score_exception_handling(self):
+        """Test calculate_score with exception during calculation"""
+        context = ModelContext(
+            model_url="https://huggingface.co/test/model",
+            model_info={}
+        )
+        context.huggingface_metadata = None  # This might cause issues
+        
+        with patch.object(self.calculator, '_score_from_hf_metadata', side_effect=Exception("Test error")):
+            with patch('sys.stderr', new_callable=Mock):
+                score = self.calculator.calculate_score(context)
+        
+        self.assertEqual(score, 0.5)  # Should return default score on exception
+    
+    def test_score_from_github_metadata_high_quality(self):
+        """Test _score_from_github_metadata with high quality indicators"""
+        github_data = {
+            "language": "Python",
+            "stargazers_count": 2000,
+            "updated_at": "2024-06-01T00:00:00Z",
+            "description": "A high-quality machine learning repository",
+            "archived": False,
+            "topics": ["ml", "pytorch", "transformers"]
+        }
+        
+        score = self.calculator._score_from_github_metadata(github_data)
+        
+        self.assertGreater(score, 0.8)  # Should be high quality
+        self.assertLessEqual(score, 1.0)
+    
+    def test_score_from_github_metadata_medium_quality(self):
+        """Test _score_from_github_metadata with medium quality indicators"""
+        github_data = {
+            "language": "JavaScript",
+            "stargazers_count": 150,
+            "updated_at": "2023-01-01T00:00:00Z",
+            "description": "A medium quality repository",
+            "archived": False,
+            "topics": []
+        }
+        
+        score = self.calculator._score_from_github_metadata(github_data)
+        
+        self.assertGreater(score, 0.3)
+        self.assertLess(score, 0.8)
+    
+    def test_score_from_github_metadata_low_quality(self):
+        """Test _score_from_github_metadata with low quality indicators"""
+        github_data = {
+            "language": "Shell",
+            "stargazers_count": 5,
+            "updated_at": "2020-01-01T00:00:00Z",
+            "description": "",
+            "archived": True,
+            "topics": []
+        }
+        
+        score = self.calculator._score_from_github_metadata(github_data)
+        
+        self.assertGreaterEqual(score, 0.3)  # Base score
+        self.assertLess(score, 0.6)
+    
+    def test_score_from_github_metadata_python_language_bonus(self):
+        """Test language bonus for Python and Jupyter Notebook"""
+        python_data = {
+            "language": "Python",
+            "stargazers_count": 0,
+            "updated_at": "",
+            "description": "",
+            "archived": False
+        }
+        
+        jupyter_data = {
+            "language": "Jupyter Notebook",
+            "stargazers_count": 0,
+            "updated_at": "",
+            "description": "",
+            "archived": False
+        }
+        
+        python_score = self.calculator._score_from_github_metadata(python_data)
+        jupyter_score = self.calculator._score_from_github_metadata(jupyter_data)
+        
+        # Both should get the language bonus plus not archived bonus
+        self.assertEqual(python_score, 0.6)  # 0.3 base + 0.2 language + 0.1 not archived
+        self.assertEqual(jupyter_score, 0.6)  # 0.3 base + 0.2 language + 0.1 not archived
+    
+    def test_score_from_github_metadata_star_tiers(self):
+        """Test different star count tiers"""
+        base_data = {
+            "language": "Python",
+            "updated_at": "",
+            "description": "",
+            "archived": False
+        }
+        
+        # Test >1000 stars
+        high_stars = base_data.copy()
+        high_stars["stargazers_count"] = 1500
+        score_high = self.calculator._score_from_github_metadata(high_stars)
+        
+        # Test >100 stars
+        med_stars = base_data.copy()
+        med_stars["stargazers_count"] = 250
+        score_med = self.calculator._score_from_github_metadata(med_stars)
+        
+        # Test >10 stars
+        low_stars = base_data.copy()
+        low_stars["stargazers_count"] = 25
+        score_low = self.calculator._score_from_github_metadata(low_stars)
+        
+        # Test <=10 stars
+        no_stars = base_data.copy()
+        no_stars["stargazers_count"] = 5
+        score_none = self.calculator._score_from_github_metadata(no_stars)
+        
+        self.assertGreater(score_high, score_med)
+        self.assertGreater(score_med, score_low)
+        self.assertGreater(score_low, score_none)
+    
+    def test_score_from_github_metadata_recent_update_bonus(self):
+        """Test bonus for recent updates"""
+        recent_data = {
+            "language": "Python",
+            "stargazers_count": 0,
+            "updated_at": "2024-06-01T00:00:00Z",
+            "description": "",
+            "archived": False
+        }
+        
+        old_data = {
+            "language": "Python", 
+            "stargazers_count": 0,
+            "updated_at": "2022-01-01T00:00:00Z",
+            "description": "",
+            "archived": False
+        }
+        
+        recent_score = self.calculator._score_from_github_metadata(recent_data)
+        old_score = self.calculator._score_from_github_metadata(old_data)
+        
+        self.assertGreater(recent_score, old_score)
+    
+    def test_score_from_github_metadata_invalid_input(self):
+        """Test _score_from_github_metadata with invalid input"""
+        with patch('sys.stderr', new_callable=Mock):
+            score = self.calculator._score_from_github_metadata("not_a_dict")
+        
+        self.assertEqual(score, 0.5)  # Should return default score
+    
+    def test_score_from_hf_metadata_high_engagement(self):
+        """Test _score_from_hf_metadata with high engagement"""
+        context = ModelContext(
+            model_url="https://huggingface.co/test/model",
+            model_info={}
+        )
+        context.huggingface_metadata = {
+            "downloads": 2000000,
+            "likes": 1500
+        }
+        
+        score = self.calculator._score_from_hf_metadata(context)
+        
+        self.assertEqual(score, 0.93)  # High quality score
+    
+    def test_score_from_hf_metadata_low_engagement(self):
+        """Test _score_from_hf_metadata with low engagement"""
+        context = ModelContext(
+            model_url="https://huggingface.co/test/model",
+            model_info={}
+        )
+        context.huggingface_metadata = {
+            "downloads": 5000,
+            "likes": 50
+        }
+        
+        score = self.calculator._score_from_hf_metadata(context)
+        
+        self.assertEqual(score, 0.1)  # Low quality score
+    
+    def test_score_from_hf_metadata_medium_low_engagement(self):
+        """Test _score_from_hf_metadata with medium-low engagement"""
+        context = ModelContext(
+            model_url="https://huggingface.co/test/model",
+            model_info={}
+        )
+        context.huggingface_metadata = {
+            "downloads": 50000,
+            "likes": 200
+        }
+        
+        score = self.calculator._score_from_hf_metadata(context)
+        
+        self.assertEqual(score, 0.1)  # Lower quality score
+    
+    def test_score_from_hf_metadata_medium_engagement(self):
+        """Test _score_from_hf_metadata with medium engagement"""
+        context = ModelContext(
+            model_url="https://huggingface.co/test/model",
+            model_info={}
+        )
+        context.huggingface_metadata = {
+            "downloads": 200000,
+            "likes": 600
+        }
+        
+        score = self.calculator._score_from_hf_metadata(context)
+        
+        self.assertEqual(score, 0.0)  # Medium engagement gets 0.0
+    
+    def test_score_from_hf_metadata_well_known_orgs(self):
+        """Test _score_from_hf_metadata for well-known organizations"""
+        orgs = ["google", "microsoft", "openai", "facebook"]
+        
+        for org in orgs:
+            context = ModelContext(
+                model_url=f"https://huggingface.co/{org}/model",
+                model_info={}
+            )
+            context.huggingface_metadata = None
+            
+            score = self.calculator._score_from_hf_metadata(context)
+            self.assertEqual(score, 0.93, f"Failed for {org}")
+    
+    def test_score_from_hf_metadata_unknown_org(self):
+        """Test _score_from_hf_metadata for unknown organization"""
+        context = ModelContext(
+            model_url="https://huggingface.co/unknown/model",
+            model_info={}
+        )
+        context.huggingface_metadata = None
+        
+        score = self.calculator._score_from_hf_metadata(context)
+        
+        self.assertEqual(score, 0.4)  # Default moderate quality
+    
+    def test_score_from_dynamic_analysis_success(self):
+        """Test _score_from_dynamic_analysis with successful analysis"""
+        # Mock analyzer
+        mock_analyzer_instance = Mock()
+        self.mock_analyzer.return_value = mock_analyzer_instance
+        mock_analyzer_instance.analyze_model_loading.return_value = {
+            "can_load_model": True,
+            "can_load_tokenizer": True
+        }
+        mock_analyzer_instance.validate_model_completeness.return_value = {
+            "completeness_score": 0.9
+        }
+        
+        # Mock HfApi
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = [
+            {"path": "test_model.py"},
+            {"path": "test_tokenizer.py"},
+            {"path": "example.ipynb"}
+        ]
+        
+        score = self.calculator._score_from_dynamic_analysis("test/model")
+        
+        self.assertGreater(score, 0.8)  # Should be high with all components
+        self.assertLessEqual(score, 1.0)
+    
+    def test_score_from_dynamic_analysis_url_parsing(self):
+        """Test _score_from_dynamic_analysis with various URL formats"""
+        mock_analyzer_instance = Mock()
+        self.mock_analyzer.return_value = mock_analyzer_instance
+        mock_analyzer_instance.analyze_model_loading.return_value = {"can_load_model": False}
+        mock_analyzer_instance.validate_model_completeness.return_value = {"completeness_score": 0.0}
+        
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = []
+        
+        # Test with tree URL
+        score1 = self.calculator._score_from_dynamic_analysis("test/model/tree/main")
+        # Test with blob URL
+        score2 = self.calculator._score_from_dynamic_analysis("test/model/blob/main/file.py")
+        
+        self.assertIsInstance(score1, float)
+        self.assertIsInstance(score2, float)
+    
+    def test_score_from_dynamic_analysis_empty_repo_id(self):
+        """Test _score_from_dynamic_analysis with empty repo ID"""
+        score = self.calculator._score_from_dynamic_analysis("")
+        
+        self.assertEqual(score, 0.5)  # Should return default score
+    
+    def test_score_from_dynamic_analysis_exception(self):
+        """Test _score_from_dynamic_analysis with exception"""
+        self.mock_analyzer.side_effect = Exception("Analysis failed")
+        
+        with patch('sys.stderr', new_callable=Mock):
+            score = self.calculator._score_from_dynamic_analysis("test/model")
+        
+        self.assertEqual(score, 0.5)  # Should return default score on exception
+    
+    def test_check_test_scripts_multiple_tests(self):
+        """Test _check_test_scripts with multiple test files"""
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = [
+            {"path": "test_model.py"},
+            {"path": "test_tokenizer.py"},
+            {"path": "unit_test.py"},
+            {"path": "example.ipynb"},
+            {"path": "demo.notebook"}
+        ]
+        
+        score = self.calculator._check_test_scripts("test/model")
+        
+        self.assertGreater(score, 0.8)  # Multiple tests and notebooks should score high
+        self.assertLessEqual(score, 1.0)
+    
+    def test_check_test_scripts_single_test(self):
+        """Test _check_test_scripts with single test file"""
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = [
+            {"path": "test_model.py"},
+            {"path": "example.ipynb"}
+        ]
+        
+        score = self.calculator._check_test_scripts("test/model")
+        
+        self.assertEqual(score, 0.8)  # 0.5 for test + 0.3 for notebook
+    
+    def test_check_test_scripts_no_tests(self):
+        """Test _check_test_scripts with no test files"""
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = [
+            {"path": "model.py"},
+            {"path": "config.json"}
+        ]
+        
+        score = self.calculator._check_test_scripts("test/model")
+        
+        self.assertEqual(score, 0.0)  # No test files
+    
+    def test_check_test_scripts_invalid_file_info(self):
+        """Test _check_test_scripts with invalid file info"""
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = [
+            "not_a_dict",  # Invalid file info
+            {"path": "test_model.py"}  # Valid file info
+        ]
+        
+        with patch('sys.stderr', new_callable=Mock):
+            with patch.dict(os.environ, {'AUTOGRADER': 'false', 'DEBUG': 'true'}):
+                score = self.calculator._check_test_scripts("test/model")
+        
+        self.assertEqual(score, 0.5)  # Should still process valid entries
+    
+    def test_check_test_scripts_autograder_mode(self):
+        """Test _check_test_scripts in autograder mode (suppressed warnings)"""
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = ["not_a_dict"]
+        
+        with patch('sys.stderr', new_callable=Mock):
+            with patch.dict(os.environ, {'AUTOGRADER': 'true', 'DEBUG': 'false'}):
+                score = self.calculator._check_test_scripts("test/model")
+        
+        self.assertEqual(score, 0.0)  # No valid files
+    
+    def test_check_test_scripts_exception(self):
+        """Test _check_test_scripts with API exception"""
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.side_effect = Exception("API error")
+        
+        with patch('sys.stderr', new_callable=Mock):
+            score = self.calculator._check_test_scripts("test/model")
+        
+        self.assertEqual(score, 0.0)  # Should return 0 on exception
+    
+    def test_dynamic_analysis_cleanup_called(self):
+        """Test that dynamic analysis properly calls cleanup"""
+        mock_analyzer_instance = Mock()
+        self.mock_analyzer.return_value = mock_analyzer_instance
+        mock_analyzer_instance.analyze_model_loading.return_value = {}
+        mock_analyzer_instance.validate_model_completeness.return_value = {"completeness_score": 0.0}
+        
+        mock_api_instance = Mock()
+        self.mock_hfapi.return_value = mock_api_instance
+        mock_api_instance.list_repo_files.return_value = []
+        
+        self.calculator._score_from_dynamic_analysis("test/model")
+        
+        # Verify cleanup was called
+        mock_analyzer_instance.cleanup.assert_called_once()
+    
+    def test_dynamic_analysis_cleanup_on_exception(self):
+        """Test that cleanup is called even when analysis fails"""
+        mock_analyzer_instance = Mock()
+        self.mock_analyzer.return_value = mock_analyzer_instance
+        mock_analyzer_instance.analyze_model_loading.side_effect = Exception("Analysis failed")
+        
+        with patch('sys.stderr', new_callable=Mock):
+            self.calculator._score_from_dynamic_analysis("test/model")
+        
+        # Verify cleanup was still called
+        mock_analyzer_instance.cleanup.assert_called_once()
+
+
 class TestIntegration(unittest.TestCase):
     def setUp(self):
         # Mock network calls to prevent real API requests
