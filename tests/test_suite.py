@@ -2392,6 +2392,474 @@ class TestBusFactorCalculator(unittest.TestCase):
         self.assertEqual(result, 0.2)  # Default fallback score
 
 
+class TestLicenseCalculator(unittest.TestCase):
+    def setUp(self):
+        self.calculator = LicenseCalculator()
+        
+        # HuggingFace context with various metadata scenarios
+        self.hf_context_carddata = MagicMock()
+        self.hf_context_carddata.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        self.hf_context_carddata.huggingface_metadata = {
+            'cardData': {'license': 'MIT'},
+            'downloads': 1000000,
+            'likes': 500
+        }
+        
+        self.hf_context_tags = MagicMock()
+        self.hf_context_tags.model_url = "https://huggingface.co/google/bert-base-uncased"
+        self.hf_context_tags.huggingface_metadata = {
+            'tags': ['license:apache-2.0', 'pytorch', 'bert'],
+            'downloads': 2000000,
+            'likes': 1000
+        }
+        
+        # GitHub context
+        self.github_context = MagicMock()
+        self.github_context.model_url = "https://github.com/microsoft/DialoGPT"
+        self.github_context.model_info = {
+            'github_metadata': {
+                'license': {'spdx_id': 'MIT', 'name': 'MIT License'}
+            }
+        }
+        self.github_context.huggingface_metadata = None
+        
+        # Low engagement context
+        self.low_engagement_context = MagicMock()
+        self.low_engagement_context.model_url = "https://huggingface.co/user/small-model"
+        self.low_engagement_context.huggingface_metadata = {
+            'downloads': 5000,  # < 10K
+            'likes': 50  # < 100
+        }
+
+    def test_calculate_score_mit_license(self):
+        """Test calculation with MIT license from cardData."""
+        score = self.calculator.calculate_score(self.hf_context_carddata)
+        
+        self.assertEqual(score, 1.0)  # MIT is fully compatible with LGPL
+
+    def test_calculate_score_apache_license_from_tags(self):
+        """Test calculation with Apache license from tags."""
+        score = self.calculator.calculate_score(self.hf_context_tags)
+        
+        self.assertEqual(score, 1.0)  # Apache is fully compatible with LGPL
+
+    def test_calculate_score_github_spdx_id(self):
+        """Test calculation with GitHub SPDX ID."""
+        score = self.calculator.calculate_score(self.github_context)
+        
+        self.assertEqual(score, 1.0)  # MIT is fully compatible
+
+    def test_calculate_score_low_engagement_model(self):
+        """Test calculation with low engagement model."""
+        score = self.calculator.calculate_score(self.low_engagement_context)
+        
+        self.assertEqual(score, 0.0)  # Low engagement models get 0.0
+
+    @patch('os.environ.get')
+    def test_calculate_score_exception_handling_debug_mode(self, mock_env_get):
+        """Test exception handling in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        
+        # Create context that will cause an exception
+        bad_context = MagicMock()
+        bad_context.model_url = None  # This should cause issues
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(bad_context)
+        
+        self.assertEqual(score, 0.5)  # Default fallback score
+
+    @patch('os.environ.get')
+    def test_calculate_score_exception_handling_autograder_mode(self, mock_env_get):
+        """Test exception handling in autograder mode (silent)."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        
+        bad_context = MagicMock()
+        bad_context.model_url = None
+        
+        score = self.calculator.calculate_score(bad_context)
+        
+        self.assertEqual(score, 0.5)
+
+    def test_extract_license_from_context_huggingface(self):
+        """Test license extraction routing for Hugging Face URLs."""
+        with patch.object(self.calculator, '_extract_huggingface_license', return_value='mit') as mock_hf:
+            result = self.calculator._extract_license_from_context(self.hf_context_carddata)
+            
+            self.assertEqual(result, 'mit')
+            mock_hf.assert_called_once()
+
+    def test_extract_license_from_context_github(self):
+        """Test license extraction routing for GitHub URLs."""
+        with patch.object(self.calculator, '_extract_github_license', return_value='apache-2.0') as mock_gh:
+            result = self.calculator._extract_license_from_context(self.github_context)
+            
+            self.assertEqual(result, 'apache-2.0')
+            mock_gh.assert_called_once()
+
+    def test_extract_license_from_context_unsupported_url(self):
+        """Test license extraction for unsupported URLs."""
+        unsupported_context = MagicMock()
+        unsupported_context.model_url = "https://example.com/some-model"
+        
+        result = self.calculator._extract_license_from_context(unsupported_context)
+        
+        self.assertIsNone(result)
+
+    def test_extract_huggingface_license_from_carddata(self):
+        """Test extracting license from Hugging Face cardData."""
+        result = self.calculator._extract_huggingface_license(self.hf_context_carddata)
+        
+        self.assertEqual(result, 'mit')
+
+    def test_extract_huggingface_license_from_tags(self):
+        """Test extracting license from Hugging Face tags."""
+        result = self.calculator._extract_huggingface_license(self.hf_context_tags)
+        
+        self.assertEqual(result, 'apache-2.0')
+
+    def test_extract_huggingface_license_no_metadata(self):
+        """Test Hugging Face license extraction with no metadata."""
+        no_metadata_context = MagicMock()
+        no_metadata_context.model_url = "https://huggingface.co/test/model"
+        no_metadata_context.huggingface_metadata = None
+        
+        with patch.object(self.calculator, '_extract_repo_id', return_value='test/model'):
+            with patch.object(self.calculator, '_fetch_readme_from_hf_api', return_value='license: MIT'):
+                with patch.object(self.calculator, '_extract_license_from_readme', return_value='mit'):
+                    result = self.calculator._extract_huggingface_license(no_metadata_context)
+                    
+                    self.assertEqual(result, 'mit')
+
+    def test_extract_huggingface_license_readme_failure(self):
+        """Test Hugging Face license extraction when README fetch fails."""
+        no_metadata_context = MagicMock()
+        no_metadata_context.model_url = "https://huggingface.co/test/model"
+        no_metadata_context.huggingface_metadata = None
+        
+        with patch.object(self.calculator, '_extract_repo_id', side_effect=Exception("API Error")):
+            with patch('sys.stderr', new_callable=StringIO):
+                result = self.calculator._extract_huggingface_license(no_metadata_context)
+                
+                self.assertIsNone(result)
+
+    def test_extract_github_license_from_metadata_spdx_id(self):
+        """Test GitHub license extraction from metadata using SPDX ID."""
+        result = self.calculator._extract_github_license(self.github_context)
+        
+        self.assertEqual(result, 'mit')
+
+    def test_extract_github_license_from_metadata_name_only(self):
+        """Test GitHub license extraction using name when SPDX ID is missing."""
+        name_only_context = MagicMock()
+        name_only_context.model_url = "https://github.com/user/repo"
+        name_only_context.model_info = {
+            'github_metadata': {
+                'license': {'name': 'Apache License 2.0', 'spdx_id': None}
+            }
+        }
+        name_only_context.huggingface_metadata = None
+        
+        result = self.calculator._extract_github_license(name_only_context)
+        
+        self.assertEqual(result, 'apache license 2.0')
+
+    @patch('src.metrics.license_calculator.get_with_rate_limit')
+    @patch('src.metrics.license_calculator.Config.get_github_token')
+    def test_extract_github_license_api_call_success(self, mock_token, mock_get):
+        """Test GitHub license extraction via API call."""
+        mock_token.return_value = "test_token"
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'license': {'spdx_id': 'BSD-3-Clause', 'name': 'BSD 3-Clause License'}
+        }
+        mock_get.return_value = mock_response
+        
+        api_context = MagicMock()
+        api_context.model_url = "https://github.com/owner/repo"
+        api_context.model_info = None
+        api_context.huggingface_metadata = None
+        
+        result = self.calculator._extract_github_license(api_context)
+        
+        self.assertEqual(result, 'bsd-3-clause')
+
+    @patch('src.metrics.license_calculator.get_with_rate_limit')
+    def test_extract_github_license_api_call_no_token(self, mock_get):
+        """Test GitHub license extraction without token.""" 
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'license': {'spdx_id': 'GPL-3.0', 'name': 'GNU General Public License v3.0'}
+        }
+        mock_get.return_value = mock_response
+        
+        api_context = MagicMock()
+        api_context.model_url = "https://github.com/owner/repo"
+        api_context.model_info = None
+        api_context.huggingface_metadata = None
+        
+        result = self.calculator._extract_github_license(api_context)
+        
+        self.assertEqual(result, 'gpl-3.0')
+
+    @patch('src.metrics.license_calculator.get_with_rate_limit')
+    def test_extract_github_license_api_failure(self, mock_get):
+        """Test GitHub license extraction when API call fails."""
+        mock_get.return_value = None
+        
+        api_context = MagicMock()
+        api_context.model_url = "https://github.com/owner/repo"
+        api_context.model_info = None
+        api_context.huggingface_metadata = None
+        
+        result = self.calculator._extract_github_license(api_context)
+        
+        self.assertIsNone(result)
+
+    @patch('src.metrics.license_calculator.get_with_rate_limit')
+    def test_extract_github_license_api_error_status(self, mock_get):
+        """Test GitHub license extraction with API error status."""
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+        
+        api_context = MagicMock()
+        api_context.model_url = "https://github.com/owner/repo"
+        api_context.model_info = None
+        api_context.huggingface_metadata = None
+        
+        result = self.calculator._extract_github_license(api_context)
+        
+        self.assertIsNone(result)
+
+    def test_extract_github_license_invalid_url(self):
+        """Test GitHub license extraction with invalid URL format."""
+        invalid_context = MagicMock()
+        invalid_context.model_url = "https://github.com/invalid"  # Missing repo name
+        invalid_context.model_info = None
+        invalid_context.huggingface_metadata = None
+        
+        result = self.calculator._extract_github_license(invalid_context)
+        
+        self.assertIsNone(result)
+
+    @patch('src.metrics.license_calculator.get_with_rate_limit')
+    def test_extract_github_license_exception_handling(self, mock_get):
+        """Test GitHub license extraction exception handling."""
+        mock_get.side_effect = Exception("Network error")
+        
+        api_context = MagicMock()
+        api_context.model_url = "https://github.com/owner/repo"
+        api_context.model_info = None
+        api_context.huggingface_metadata = None
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._extract_github_license(api_context)
+        
+        self.assertIsNone(result)
+
+    def test_calculate_compatibility_score_low_engagement_downloads(self):
+        """Test compatibility scoring for low downloads and likes."""
+        context = MagicMock()
+        context.huggingface_metadata = {'downloads': 5000, 'likes': 50}
+        
+        score = self.calculator._calculate_compatibility_score('mit', context)
+        
+        self.assertEqual(score, 0.0)  # Low engagement override
+
+    def test_calculate_compatibility_score_medium_low_engagement(self):
+        """Test compatibility scoring for medium-low engagement."""
+        context = MagicMock()
+        context.huggingface_metadata = {'downloads': 50000, 'likes': 200}
+        
+        score = self.calculator._calculate_compatibility_score('mit', context)
+        
+        self.assertEqual(score, 0.0)  # Still low engagement
+
+    def test_calculate_compatibility_score_medium_engagement(self):
+        """Test compatibility scoring for medium engagement."""
+        context = MagicMock()
+        context.huggingface_metadata = {'downloads': 200000, 'likes': 600}
+        
+        score = self.calculator._calculate_compatibility_score('mit', context)
+        
+        self.assertEqual(score, 0.0)  # Still considered low
+
+    def test_calculate_compatibility_score_no_license_well_known_org_high_engagement(self):
+        """Test scoring with no license but well-known org and high engagement."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/google/bert-large"
+        context.huggingface_metadata = {'downloads': 6000000, 'likes': 6000}
+        
+        score = self.calculator._calculate_compatibility_score(None, context)
+        
+        self.assertEqual(score, 1.0)
+
+    def test_calculate_compatibility_score_no_license_well_known_org_medium_engagement(self):
+        """Test scoring with no license but well-known org and medium engagement."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/microsoft/model"
+        context.huggingface_metadata = {'downloads': 100000, 'likes': 500}
+        
+        score = self.calculator._calculate_compatibility_score(None, context)
+        
+        self.assertEqual(score, 0.0)
+
+    def test_calculate_compatibility_score_no_license_unknown_org_high_engagement(self):
+        """Test scoring with no license, unknown org, but high engagement."""
+        context = MagicMock()
+        context.model_url = "https://example.com/user/popular-model"  # Different domain to avoid org detection
+        context.huggingface_metadata = {'downloads': 3000000, 'likes': 3000}
+        
+        score = self.calculator._calculate_compatibility_score(None, context)
+        
+        # Since downloads > 2M OR likes > 2K, should return 0.5
+        self.assertEqual(score, 0.5)
+
+    def test_calculate_compatibility_score_no_license_huggingface_medium_engagement(self):
+        """Test scoring with no license on HuggingFace but medium engagement."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/unknownuser/model"
+        context.huggingface_metadata = {'downloads': 3000000, 'likes': 3000}  # High but not very high
+        
+        score = self.calculator._calculate_compatibility_score(None, context)
+        
+        # HuggingFace domain is detected as known org, but engagement not very high
+        self.assertEqual(score, 0.0)
+
+    def test_calculate_compatibility_score_no_license_unknown_org_low_engagement(self):
+        """Test scoring with no license, unknown org, and low engagement."""
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/user/unpopular-model"
+        context.huggingface_metadata = {'downloads': 1000, 'likes': 10}
+        
+        score = self.calculator._calculate_compatibility_score(None, context)
+        
+        self.assertEqual(score, 0.0)
+
+    def test_calculate_compatibility_score_exact_license_match(self):
+        """Test exact license match in compatibility dictionary."""
+        context = MagicMock()
+        context.huggingface_metadata = {'downloads': 1000000, 'likes': 1000}
+        
+        # Test various license types
+        self.assertEqual(self.calculator._calculate_compatibility_score('mit', context), 1.0)
+        self.assertEqual(self.calculator._calculate_compatibility_score('apache-2.0', context), 1.0)
+        self.assertEqual(self.calculator._calculate_compatibility_score('bsd-3-clause', context), 1.0)
+        self.assertEqual(self.calculator._calculate_compatibility_score('gpl-3.0', context), 0.0)
+        self.assertEqual(self.calculator._calculate_compatibility_score('agpl-3.0', context), 0.0)
+
+    def test_calculate_compatibility_score_partial_license_match(self):
+        """Test partial license matching."""
+        context = MagicMock()
+        context.huggingface_metadata = {'downloads': 1000000, 'likes': 1000}
+        
+        # Test partial matches
+        self.assertEqual(self.calculator._calculate_compatibility_score('mit license v2', context), 1.0)
+        self.assertEqual(self.calculator._calculate_compatibility_score('apache license 2.0', context), 1.0)
+        self.assertEqual(self.calculator._calculate_compatibility_score('gnu gpl v3', context), 0.0)
+
+    def test_calculate_compatibility_score_unknown_license(self):
+        """Test unknown license defaults to 0.5."""
+        context = MagicMock()
+        context.huggingface_metadata = {'downloads': 1000000, 'likes': 1000}
+        
+        score = self.calculator._calculate_compatibility_score('custom-license-unknown', context)
+        
+        self.assertEqual(score, 0.5)
+
+    def test_extract_license_from_readme_success(self):
+        """Test successful license extraction from README."""
+        readme_content = """
+        # My Model
+        
+        This is a great model.
+        
+        License: MIT
+        
+        ## Usage
+        """
+        
+        result = self.calculator._extract_license_from_readme(readme_content)
+        
+        self.assertEqual(result, 'mit')
+
+    def test_extract_license_from_readme_no_license(self):
+        """Test README with no license information."""
+        readme_content = """
+        # My Model
+        
+        This model has no license info.
+        """
+        
+        result = self.calculator._extract_license_from_readme(readme_content)
+        
+        self.assertIsNone(result)
+
+    def test_extract_repo_id_standard_url(self):
+        """Test repo ID extraction from standard Hugging Face URL."""
+        url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        result = self.calculator._extract_repo_id(url)
+        
+        self.assertEqual(result, "microsoft/DialoGPT-medium")
+
+    def test_extract_repo_id_with_tree(self):
+        """Test repo ID extraction with tree path."""
+        url = "https://huggingface.co/microsoft/DialoGPT-medium/tree/main"
+        result = self.calculator._extract_repo_id(url)
+        
+        self.assertEqual(result, "microsoft/DialoGPT-medium")
+
+    def test_extract_repo_id_with_blob(self):
+        """Test repo ID extraction with blob path."""
+        url = "https://huggingface.co/microsoft/DialoGPT-medium/blob/main/README.md"
+        result = self.calculator._extract_repo_id(url)
+        
+        self.assertEqual(result, "microsoft/DialoGPT-medium")
+
+    def test_extract_repo_id_invalid_url(self):
+        """Test repo ID extraction with invalid URL."""
+        url = "https://github.com/microsoft/repo"
+        
+        with self.assertRaises(ValueError):
+            self.calculator._extract_repo_id(url)
+
+    @patch('src.metrics.license_calculator.hf_hub_download')
+    def test_fetch_readme_from_hf_api_success(self, mock_download):
+        """Test successful README fetch from Hugging Face API."""
+        mock_download.return_value = "/tmp/readme.md"
+        readme_content = "# Model\nLicense: MIT"
+        
+        with patch('builtins.open', mock_open(read_data=readme_content)):
+            result = self.calculator._fetch_readme_from_hf_api("microsoft/DialoGPT")
+            
+            self.assertEqual(result, readme_content)
+
+    @patch('src.metrics.license_calculator.hf_hub_download')
+    def test_fetch_readme_from_hf_api_not_found(self, mock_download):
+        """Test README fetch when repository not found."""
+        from huggingface_hub.utils import RepositoryNotFoundError
+        mock_download.side_effect = RepositoryNotFoundError("Repository not found")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._fetch_readme_from_hf_api("nonexistent/repo")
+            
+            self.assertEqual(result, "")
+
+    @patch('src.metrics.license_calculator.hf_hub_download')
+    def test_fetch_readme_from_hf_api_http_error(self, mock_download):
+        """Test README fetch with HTTP error."""
+        from huggingface_hub.utils import HfHubHTTPError
+        mock_download.side_effect = HfHubHTTPError("HTTP 404")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._fetch_readme_from_hf_api("private/repo")
+            
+            self.assertEqual(result, "")
+
+
 if __name__ == '__main__':
     os.environ['AUTOGRADER'] = 'true'
     os.environ['DEBUG'] = 'false'
