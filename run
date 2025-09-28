@@ -8,6 +8,9 @@ import re
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
+# Suppress HuggingFace Hub progress bars
+os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+
 
 project_root: Path = Path(__file__).parent.absolute()
 sys.path.insert(0, str(project_root))
@@ -17,13 +20,11 @@ def validate_environment_variables() -> None:
     """Validate environment variables for GitHub token and log file."""
     github_token: Optional[str] = os.environ.get('GITHUB_TOKEN')
     if github_token and 'invalid' in github_token.lower():
-        print("ERROR: Invalid GitHub token provided")
         print("ERROR: Invalid GitHub token provided", file=sys.stderr)
         sys.exit(1)
     
     log_file: str = os.environ.get('LOG_FILE', '')
     if 'LOG_FILE' in os.environ and 'invalid' in log_file.lower():
-        print(f"ERROR: Cannot write to log file '{log_file}': Invalid path")
         print(f"ERROR: Cannot write to log file '{log_file}': Invalid path", file=sys.stderr)
         sys.exit(1)
     
@@ -31,12 +32,10 @@ def validate_environment_variables() -> None:
     if not is_autograder and 'LOG_FILE' in os.environ and log_file:
         try:
             if not os.path.exists(log_file):
-                print(f"ERROR: Log file '{log_file}' does not exist")
                 print(f"ERROR: Log file '{log_file}' does not exist", file=sys.stderr)
                 sys.exit(1)
             
             if not os.access(log_file, os.W_OK):
-                print(f"ERROR: Cannot write to log file '{log_file}': Permission denied")
                 print(f"ERROR: Cannot write to log file '{log_file}': Permission denied", file=sys.stderr)
                 sys.exit(1)
             
@@ -44,12 +43,10 @@ def validate_environment_variables() -> None:
                 with open(log_file, 'w') as f:
                     pass
             except Exception as e:
-                print(f"ERROR: Cannot write to log file '{log_file}': {str(e)}")
                 print(f"ERROR: Cannot write to log file '{log_file}': {str(e)}", file=sys.stderr)
                 sys.exit(1)
                 
         except Exception as e:
-            print(f"ERROR: Invalid log file path '{log_file}': {str(e)}")
             print(f"ERROR: Invalid log file path '{log_file}': {str(e)}", file=sys.stderr)
             sys.exit(1)
 
@@ -105,7 +102,7 @@ def install_dependencies() -> int:
         
         requirements_file: Path = project_root / 'requirements.txt'
         if not requirements_file.exists():
-            print("Dependencies installed successfully")
+            print("Dependencies installed successfully", file=sys.stderr)
             return 0
         
         install_methods: List[List[str]] = [
@@ -123,7 +120,7 @@ def install_dependencies() -> int:
                 )
                 
                 if result.returncode == 0:
-                    print("Dependencies installed successfully")
+                    print("Dependencies installed successfully", file=sys.stderr)
                     logging.info("Dependencies installed successfully")
                     return 0
                 else:
@@ -167,7 +164,7 @@ def run_tests() -> int:
                 )
             except Exception as e:
                 logging.warning(f"Coverage module not available, falling back to direct test execution: {e}")
-                print(f"WARNING: Coverage module not available, running tests directly: {e}")
+                print(f"WARNING: Coverage module not available, running tests directly: {e}", file=sys.stderr)
                 result = subprocess.run(
                     [sys.executable, str(test_file)], 
                     capture_output=True, text=True, cwd=project_root
@@ -212,18 +209,18 @@ def run_tests() -> int:
                     print("Test suite executed successfully (coverage parsing failed)")
                     return 0 if result.returncode == 0 else 1
                 else:
-                    print("ERROR: Could not parse test results")
+                    print("ERROR: Could not parse test results", file=sys.stderr)
                     logging.error("Could not parse test results")
                     return 1
         else:
-            print("ERROR: Test file not found")
+            print("ERROR: Test file not found", file=sys.stderr)
             logging.error("Test file not found")
             return 1
             
     except Exception as e:
-        print(f"ERROR: Test execution failed: {e}")
+        print(f"ERROR: Test execution failed: {e}", file=sys.stderr)
         logging.error(f"Test error: {e}")
-        print("Test suite execution failed - check logs for details")
+        print("Test suite execution failed - check logs for details", file=sys.stderr)
         return 1
 
 

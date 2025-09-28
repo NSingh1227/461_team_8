@@ -16,6 +16,9 @@ class DatasetQualityCalculator(MetricCalculator):
     def calculate_score(self, context: ModelContext) -> float:
         start_time: float = time.time()
         score: float = 0.0
+        
+        is_autograder = os.environ.get('AUTOGRADER', '').lower() in ['true', '1', 'yes']
+        debug_enabled = os.environ.get('DEBUG', '').lower() in ['true', '1', 'yes']
 
         try:
             dataset_info: Optional[Dict[str, Any]] = self._prepare_dataset_info(context)
@@ -29,34 +32,40 @@ class DatasetQualityCalculator(MetricCalculator):
                         likes = context.huggingface_metadata.get('likes', 0)
                         if downloads > 1000000 or likes > 1000:
                             score = 0.95
-                            print(
-                                f"[DatasetQuality] High engagement model {model_url} → 0.95",
-                                file=sys.stderr)
+                            if not is_autograder and debug_enabled:
+                                print(
+                                    f"[DatasetQuality] High engagement model {model_url} → 0.95",
+                                    file=sys.stderr)
                         elif downloads < 10000 and likes < 100:
                             score = 0.0
-                            print(
-                                f"[DatasetQuality] Low engagement model {model_url} → 0.0",
-                                file=sys.stderr)
+                            if not is_autograder and debug_enabled:
+                                print(
+                                    f"[DatasetQuality] Low engagement model {model_url} → 0.0",
+                                    file=sys.stderr)
                         elif downloads < 100000 and likes < 500:
                             score = 0.0
-                            print(
-                                f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0",
-                                file=sys.stderr)
+                            if not is_autograder and debug_enabled:
+                                print(
+                                    f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0",
+                                    file=sys.stderr)
                         elif downloads < 500000 and likes < 1000:
                             score = 0.0
-                            print(
-                                f"[DatasetQuality] Medium engagement model {model_url} → 0.0",
-                                file=sys.stderr)
+                            if not is_autograder and debug_enabled:
+                                print(
+                                    f"[DatasetQuality] Medium engagement model {model_url} → 0.0",
+                                    file=sys.stderr)
                         else:
                             score = 0.0
-                            print(
-                                f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0",
-                                file=sys.stderr)
+                            if not is_autograder and debug_enabled:
+                                print(
+                                    f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0",
+                                    file=sys.stderr)
                     else:
                         score = 0.3
-                        print(
-                            "[DatasetQuality] No dataset info available → default 0.3",
-                            file=sys.stderr)
+                        if not is_autograder and debug_enabled:
+                            print(
+                                "[DatasetQuality] No dataset info available → default 0.3",
+                                file=sys.stderr)
             else:
                 model_url = context.model_url or ""
 
@@ -65,40 +74,47 @@ class DatasetQualityCalculator(MetricCalculator):
                     likes = context.huggingface_metadata.get('likes', 0)
                     if downloads > 5000000 or likes > 5000:
                         score = 0.95
-                        print(
-                            f"[DatasetQuality] Very high engagement model {model_url} → 0.95",
-                            file=sys.stderr)
+                        if not is_autograder and debug_enabled:
+                            print(
+                                f"[DatasetQuality] Very high engagement model {model_url} → 0.95",
+                                file=sys.stderr)
                     elif downloads > 1000000 or likes > 1000:
                         score = 0.8
-                        print(
-                            f"[DatasetQuality] High engagement model {model_url} → 0.8",
-                            file=sys.stderr)
+                        if not is_autograder and debug_enabled:
+                            print(
+                                f"[DatasetQuality] High engagement model {model_url} → 0.8",
+                                file=sys.stderr)
                     elif downloads < 10000 and likes < 100:
                         score = 0.0
-                        print(
-                            f"[DatasetQuality] Low engagement model {model_url} → 0.0",
-                            file=sys.stderr)
+                        if not is_autograder and debug_enabled:
+                            print(
+                                f"[DatasetQuality] Low engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                     elif downloads < 100000 and likes < 500:
                         score = 0.0
-                        print(
-                            f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0",
-                            file=sys.stderr)
+                        if not is_autograder and debug_enabled:
+                            print(
+                                f"[DatasetQuality] Medium-low engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                     elif downloads < 500000 and likes < 1000:
                         score = 0.0
-                        print(
-                            f"[DatasetQuality] Medium engagement model {model_url} → 0.0",
-                            file=sys.stderr)
+                        if not is_autograder and debug_enabled:
+                            print(
+                                f"[DatasetQuality] Medium engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                     else:
                         score = 0.0
-                        print(
-                            f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0",
-                            file=sys.stderr)
+                        if not is_autograder and debug_enabled:
+                            print(
+                                f"[DatasetQuality] Medium-high engagement model {model_url} → 0.0",
+                                file=sys.stderr)
                 else:
                     # Without metadata, we can't assess dataset quality intelligently
                     score = 0.0
-                    print(
-                        "[DatasetQuality] No dataset info available → 0.0",
-                        file=sys.stderr)
+                    if not is_autograder and debug_enabled:
+                        print(
+                            "[DatasetQuality] No dataset info available → 0.0",
+                            file=sys.stderr)
         except Exception as e:
             is_autograder = os.environ.get('AUTOGRADER', '').lower() in [
                 'true', '1', 'yes']
