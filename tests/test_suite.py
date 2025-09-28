@@ -2860,6 +2860,513 @@ class TestLicenseCalculator(unittest.TestCase):
             self.assertEqual(result, "")
 
 
+class TestRampUpCalculator(unittest.TestCase):
+    def setUp(self):
+        self.calculator = RampUpCalculator()
+        
+        # High engagement HuggingFace context
+        self.high_engagement_context = MagicMock()
+        self.high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        self.high_engagement_context.huggingface_metadata = {
+            'downloads': 2000000,  # > 1M
+            'likes': 1500  # > 1K
+        }
+        
+        # Medium engagement context
+        self.medium_engagement_context = MagicMock()
+        self.medium_engagement_context.model_url = "https://huggingface.co/user/some-model"
+        self.medium_engagement_context.huggingface_metadata = {
+            'downloads': 150000,  # 100K-200K
+            'likes': 150  # 100-200
+        }
+        
+        # Low engagement context
+        self.low_engagement_context = MagicMock()
+        self.low_engagement_context.model_url = "https://huggingface.co/user/unpopular-model"
+        self.low_engagement_context.huggingface_metadata = {
+            'downloads': 5000,  # < 10K
+            'likes': 50  # < 100
+        }
+        
+        # Non-HuggingFace context
+        self.github_context = MagicMock()
+        self.github_context.model_url = "https://github.com/microsoft/repo"
+        self.github_context.huggingface_metadata = None
+
+    def test_calculate_score_huggingface_url(self):
+        """Test score calculation for Hugging Face URL."""
+        with patch.object(self.calculator, '_score_huggingface_model', return_value=0.8) as mock_score:
+            score = self.calculator.calculate_score(self.high_engagement_context)
+            
+            self.assertEqual(score, 0.8)
+            mock_score.assert_called_once()
+
+    def test_calculate_score_non_huggingface_url(self):
+        """Test score calculation for non-Hugging Face URL."""
+        score = self.calculator.calculate_score(self.github_context)
+        
+        self.assertEqual(score, 0.5)  # Default score for non-HF URLs
+
+    @patch('os.environ.get')
+    def test_calculate_score_exception_handling_debug_mode(self, mock_env_get):
+        """Test exception handling in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        
+        # Create context that will cause an exception
+        bad_context = MagicMock()
+        bad_context.model_url = "https://github.com/user/repo"  # Non-HF URL returns 0.5
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(bad_context)
+        
+        self.assertEqual(score, 0.5)  # Non-HF URL default
+
+    @patch('os.environ.get')
+    def test_calculate_score_exception_handling_autograder_mode(self, mock_env_get):
+        """Test exception handling in autograder mode (silent)."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        
+        bad_context = MagicMock()
+        bad_context.model_url = "https://github.com/user/repo"  # Non-HF URL returns 0.5
+        
+        score = self.calculator.calculate_score(bad_context)
+        
+        self.assertEqual(score, 0.5)
+
+    def test_score_huggingface_model_empty_repo_id(self):
+        """Test scoring when repo ID is empty."""
+        empty_context = MagicMock()
+        empty_context.model_url = "https://huggingface.co/"
+        empty_context.huggingface_metadata = None
+        
+        score = self.calculator._score_huggingface_model(empty_context.model_url, empty_context)
+        
+        self.assertEqual(score, 0.3)
+
+    def test_score_huggingface_model_with_tree_path(self):
+        """Test repo ID extraction with tree path."""
+        tree_context = MagicMock()
+        tree_context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium/tree/main"
+        tree_context.huggingface_metadata = {'downloads': 2000000, 'likes': 1500}
+        
+        with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.7):
+            with patch('src.metrics.ramp_up_calculator.hf_hub_download') as mock_download:
+                mock_download.return_value = "/tmp/readme.md"
+                with patch('builtins.open', mock_open(read_data="# Model\nInstallation guide here")):
+                    score = self.calculator._score_huggingface_model(tree_context.model_url, tree_context)
+                    
+                    self.assertEqual(score, 0.9)  # High engagement boost
+
+    def test_score_huggingface_model_with_blob_path(self):
+        """Test repo ID extraction with blob path."""
+        blob_context = MagicMock()
+        blob_context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium/blob/main/README.md"
+        blob_context.huggingface_metadata = {'downloads': 2000000, 'likes': 1500}
+        
+        with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.6):
+            with patch('src.metrics.ramp_up_calculator.hf_hub_download') as mock_download:
+                mock_download.return_value = "/tmp/readme.md"
+                with patch('builtins.open', mock_open(read_data="# Model\nBasic documentation")):
+                    score = self.calculator._score_huggingface_model(blob_context.model_url, blob_context)
+                    
+                    self.assertEqual(score, 0.9)  # High engagement boost
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_readme_not_found_high_engagement(self, mock_download):
+        """Test README not found with high engagement fallback."""
+        from huggingface_hub.utils import RepositoryNotFoundError
+        mock_download.side_effect = RepositoryNotFoundError("Repository not found")
+        
+        score = self.calculator._score_huggingface_model(
+            self.high_engagement_context.model_url, 
+            self.high_engagement_context
+        )
+        
+        self.assertEqual(score, 0.9)  # High engagement fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_readme_not_found_medium_engagement(self, mock_download):
+        """Test README not found with medium engagement fallback."""
+        from huggingface_hub.utils import RepositoryNotFoundError
+        mock_download.side_effect = RepositoryNotFoundError("Repository not found")
+        
+        score = self.calculator._score_huggingface_model(
+            self.medium_engagement_context.model_url, 
+            self.medium_engagement_context
+        )
+        
+        self.assertEqual(score, 0.85)  # Medium-high engagement fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_readme_not_found_low_engagement(self, mock_download):
+        """Test README not found with low engagement fallback."""
+        from huggingface_hub.utils import RepositoryNotFoundError
+        mock_download.side_effect = RepositoryNotFoundError("Repository not found")
+        
+        score = self.calculator._score_huggingface_model(
+            self.low_engagement_context.model_url, 
+            self.low_engagement_context
+        )
+        
+        self.assertEqual(score, 0.25)  # Low engagement fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_readme_not_found_no_metadata_known_org(self, mock_download):
+        """Test README not found with no metadata but known organization."""
+        from huggingface_hub.utils import RepositoryNotFoundError
+        mock_download.side_effect = RepositoryNotFoundError("Repository not found")
+        
+        known_org_context = MagicMock()
+        known_org_context.model_url = "https://huggingface.co/google/bert-base"
+        known_org_context.huggingface_metadata = None
+        
+        score = self.calculator._score_huggingface_model(
+            known_org_context.model_url, 
+            known_org_context
+        )
+        
+        self.assertEqual(score, 0.9)  # Known org fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_readme_not_found_no_metadata_unknown_org(self, mock_download):
+        """Test README not found with no metadata and unknown organization."""
+        from huggingface_hub.utils import RepositoryNotFoundError
+        mock_download.side_effect = RepositoryNotFoundError("Repository not found")
+        
+        unknown_org_context = MagicMock()
+        unknown_org_context.model_url = "https://huggingface.co/randomuser/model"
+        unknown_org_context.huggingface_metadata = None
+        
+        score = self.calculator._score_huggingface_model(
+            unknown_org_context.model_url, 
+            unknown_org_context
+        )
+        
+        self.assertEqual(score, 0.5)  # Unknown org default
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_http_error(self, mock_download):
+        """Test HTTP error when fetching README."""
+        from huggingface_hub.utils import HfHubHTTPError
+        mock_download.side_effect = HfHubHTTPError("HTTP 403 Forbidden")
+        
+        score = self.calculator._score_huggingface_model(
+            self.high_engagement_context.model_url, 
+            self.high_engagement_context
+        )
+        
+        self.assertEqual(score, 0.9)  # High engagement fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_general_exception_with_metadata(self, mock_download):
+        """Test general exception with metadata fallback."""
+        mock_download.side_effect = Exception("Network error")
+        
+        score = self.calculator._score_huggingface_model(
+            self.high_engagement_context.model_url, 
+            self.high_engagement_context
+        )
+        
+        self.assertEqual(score, 0.9)  # High engagement fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_general_exception_no_metadata(self, mock_download):
+        """Test general exception without metadata."""
+        mock_download.side_effect = Exception("Network error")
+        
+        no_metadata_context = MagicMock()
+        no_metadata_context.model_url = "https://huggingface.co/user/model"
+        no_metadata_context.huggingface_metadata = None
+        
+        score = self.calculator._score_huggingface_model(
+            no_metadata_context.model_url, 
+            no_metadata_context
+        )
+        
+        self.assertEqual(score, 0.3)  # Default fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_empty_readme_with_metadata(self, mock_download):
+        """Test empty README content with metadata fallback."""
+        mock_download.return_value = "/tmp/readme.md"
+        
+        with patch('builtins.open', mock_open(read_data="")):
+            score = self.calculator._score_huggingface_model(
+                self.high_engagement_context.model_url, 
+                self.high_engagement_context
+            )
+            
+            self.assertEqual(score, 0.9)  # High engagement fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_empty_readme_no_metadata(self, mock_download):
+        """Test empty README content without metadata."""
+        mock_download.return_value = "/tmp/readme.md"
+        
+        no_metadata_context = MagicMock()
+        no_metadata_context.model_url = "https://huggingface.co/user/model"
+        no_metadata_context.huggingface_metadata = None
+        
+        with patch('builtins.open', mock_open(read_data="")):
+            score = self.calculator._score_huggingface_model(
+                no_metadata_context.model_url, 
+                no_metadata_context
+            )
+            
+            self.assertEqual(score, 0.3)  # Default fallback
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_with_readme_high_engagement_boost(self, mock_download):
+        """Test README analysis with high engagement boost."""
+        mock_download.return_value = "/tmp/readme.md"
+        readme_content = "# Model\nInstallation: pip install model\nUsage examples included"
+        
+        with patch('builtins.open', mock_open(read_data=readme_content)):
+            with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.5):
+                score = self.calculator._score_huggingface_model(
+                    self.high_engagement_context.model_url, 
+                    self.high_engagement_context
+                )
+                
+                self.assertEqual(score, 0.9)  # max(0.5, 0.9) = 0.9
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_with_readme_medium_high_engagement(self, mock_download):
+        """Test README analysis with medium-high engagement boost."""
+        mock_download.return_value = "/tmp/readme.md"
+        readme_content = "# Model\nBasic documentation"
+        
+        medium_high_context = MagicMock()
+        medium_high_context.model_url = "https://huggingface.co/user/popular-model"
+        medium_high_context.huggingface_metadata = {
+            'downloads': 250000,  # > 200K
+            'likes': 250  # > 200
+        }
+        
+        with patch('builtins.open', mock_open(read_data=readme_content)):
+            with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.4):
+                score = self.calculator._score_huggingface_model(
+                    medium_high_context.model_url, 
+                    medium_high_context
+                )
+                
+                self.assertEqual(score, 0.85)  # max(0.4, 0.85) = 0.85
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_with_readme_low_engagement_limit(self, mock_download):
+        """Test README analysis with low engagement score limiting."""
+        mock_download.return_value = "/tmp/readme.md"
+        readme_content = "# Model\nExcellent documentation with all indicators"
+        
+        with patch('builtins.open', mock_open(read_data=readme_content)):
+            with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.9):
+                score = self.calculator._score_huggingface_model(
+                    self.low_engagement_context.model_url, 
+                    self.low_engagement_context
+                )
+                
+                # Should be limited by low engagement
+                self.assertEqual(score, 0.25)  # min(0.9, 0.25) = 0.25
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_with_readme_medium_low_engagement_limit(self, mock_download):
+        """Test README analysis with medium-low engagement limiting."""
+        mock_download.return_value = "/tmp/readme.md"
+        readme_content = "# Model\nGood documentation"
+        
+        medium_low_context = MagicMock()
+        medium_low_context.model_url = "https://huggingface.co/user/model"
+        medium_low_context.huggingface_metadata = {
+            'downloads': 75000,  # < 100K 
+            'likes': 400  # < 500
+        }
+        
+        with patch('builtins.open', mock_open(read_data=readme_content)):
+            with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.7):
+                score = self.calculator._score_huggingface_model(
+                    medium_low_context.model_url, 
+                    medium_low_context
+                )
+                
+                self.assertEqual(score, 0.85)  # Medium-high engagement boost due to likes > 200
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_with_readme_medium_engagement_set(self, mock_download):
+        """Test README analysis with medium engagement score setting."""
+        mock_download.return_value = "/tmp/readme.md"
+        readme_content = "# Model\nDecent documentation"
+        
+        medium_context = MagicMock()
+        medium_context.model_url = "https://huggingface.co/user/model"
+        medium_context.huggingface_metadata = {
+            'downloads': 500000,  # < 1M
+            'likes': 500  # < 1K
+        }
+        
+        with patch('builtins.open', mock_open(read_data=readme_content)):
+            with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.6):
+                score = self.calculator._score_huggingface_model(
+                    medium_context.model_url, 
+                    medium_context
+                )
+                
+                self.assertEqual(score, 0.85)  # Medium-high engagement boost
+
+    @patch('src.metrics.ramp_up_calculator.hf_hub_download')
+    def test_score_huggingface_model_with_readme_fallback_medium_high(self, mock_download):
+        """Test README analysis with fallback medium-high engagement boost."""
+        mock_download.return_value = "/tmp/readme.md"
+        readme_content = "# Model\nSome documentation"
+        
+        fallback_context = MagicMock()
+        fallback_context.model_url = "https://huggingface.co/user/model"
+        fallback_context.huggingface_metadata = {
+            'downloads': 3000000,  # > 1M
+            'likes': 3000  # > 1K (but falls through to else case)
+        }
+        
+        with patch('builtins.open', mock_open(read_data=readme_content)):
+            with patch.object(self.calculator, '_analyze_readme_quality', return_value=0.4):
+                score = self.calculator._score_huggingface_model(
+                    fallback_context.model_url, 
+                    fallback_context
+                )
+                
+                self.assertEqual(score, 0.9)  # max(0.4, 0.9) for very high downloads
+
+    def test_score_huggingface_model_outer_exception_with_metadata(self):
+        """Test outer exception handling with metadata."""
+        # Create a context that will cause an exception in the outer try block
+        with patch('src.metrics.ramp_up_calculator.urlparse', side_effect=Exception("Parse error")):
+            score = self.calculator._score_huggingface_model(
+                self.high_engagement_context.model_url, 
+                self.high_engagement_context
+            )
+            
+            self.assertEqual(score, 0.9)  # High engagement fallback
+
+    def test_score_huggingface_model_outer_exception_no_metadata(self):
+        """Test outer exception handling without metadata."""
+        no_metadata_context = MagicMock()
+        no_metadata_context.model_url = "https://huggingface.co/user/model"
+        no_metadata_context.huggingface_metadata = None
+        
+        with patch('src.metrics.ramp_up_calculator.urlparse', side_effect=Exception("Parse error")):
+            score = self.calculator._score_huggingface_model(
+                no_metadata_context.model_url, 
+                no_metadata_context
+            )
+            
+            self.assertEqual(score, 0.3)  # Default fallback
+
+    def test_analyze_readme_quality_empty_content(self):
+        """Test README quality analysis with empty content."""
+        score = self.calculator._analyze_readme_quality("")
+        
+        self.assertEqual(score, 0.3)
+
+    def test_analyze_readme_quality_excellent_documentation(self):
+        """Test README quality analysis with excellent documentation."""
+        content = """
+        # My Model
+        
+        ## Installation
+        pip install my-model
+        
+        ## Setup  
+        Follow these setup steps
+        
+        ## Quick Start
+        Here's a tutorial
+        
+        ## Usage Examples
+        Sample code here
+        """
+        
+        score = self.calculator._analyze_readme_quality(content)
+        
+        self.assertEqual(score, 0.9)  # critical_count >= 2 and important_count >= 2
+
+    def test_analyze_readme_quality_good_documentation(self):
+        """Test README quality analysis with good documentation."""
+        content = """
+        # My Model
+        
+        ## Installation
+        pip install my-model
+        
+        ## Tutorial  
+        Basic guide here
+        """
+        
+        score = self.calculator._analyze_readme_quality(content)
+        
+        self.assertEqual(score, 0.7)  # critical_count >= 1 and important_count >= 1
+
+    def test_analyze_readme_quality_adequate_documentation(self):
+        """Test README quality analysis with adequate documentation."""
+        content = """
+        # My Model
+        
+        ## Installation
+        pip install my-model
+        """
+        
+        score = self.calculator._analyze_readme_quality(content)
+        
+        self.assertEqual(score, 0.5)  # critical_count >= 1
+
+    def test_analyze_readme_quality_adequate_with_multiple_important(self):
+        """Test README quality analysis with multiple important indicators."""
+        content = """
+        # My Model
+        
+        ## Quick Start
+        Get started quickly
+        
+        ## Tutorial
+        Step by step guide
+        
+        ## Usage Examples  
+        Code samples
+        """
+        
+        score = self.calculator._analyze_readme_quality(content)
+        
+        self.assertEqual(score, 0.5)  # important_count >= 2
+
+    def test_analyze_readme_quality_basic_documentation(self):
+        """Test README quality analysis with basic documentation."""
+        content = """
+        # My Model
+        
+        ## Documentation
+        See the docs
+        
+        ## API Reference
+        API details here
+        
+        ## Requirements
+        Python 3.8+
+        """
+        
+        score = self.calculator._analyze_readme_quality(content)
+        
+        self.assertEqual(score, 0.4)  # helpful_count >= 2 or necessary_count >= 1
+
+    def test_analyze_readme_quality_poor_documentation(self):
+        """Test README quality analysis with poor documentation."""
+        content = """
+        # My Model
+        
+        This is just a basic description without any helpful indicators.
+        """
+        
+        score = self.calculator._analyze_readme_quality(content)
+        
+        self.assertEqual(score, 0.3)  # No indicators found
+
+
 if __name__ == '__main__':
     os.environ['AUTOGRADER'] = 'true'
     os.environ['DEBUG'] = 'false'
