@@ -3367,6 +3367,1621 @@ class TestRampUpCalculator(unittest.TestCase):
         self.assertEqual(score, 0.3)  # No indicators found
 
 
+class TestDatasetCodeCalculator(unittest.TestCase):
+    def setUp(self):
+        self.calculator = DatasetCodeCalculator()
+        
+        # High engagement context with dataset and code
+        self.high_engagement_context = MagicMock()
+        self.high_engagement_context.dataset_url = "https://example.com/dataset"
+        self.high_engagement_context.code_url = "https://github.com/example/repo"
+        self.high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT"
+        self.high_engagement_context.huggingface_metadata = {
+            'downloads': 2000000,
+            'likes': 1500,
+            'datasets': ['dataset1', 'dataset2'],
+            'tags': ['code', 'github'],
+            'repository': 'https://github.com/microsoft/DialoGPT'
+        }
+        self.high_engagement_context.model_info = {'datasets': ['test'], 'source': 'github'}
+        
+        # Medium engagement context
+        self.medium_engagement_context = MagicMock()
+        self.medium_engagement_context.dataset_url = ""
+        self.medium_engagement_context.code_url = ""
+        self.medium_engagement_context.model_url = "https://huggingface.co/user/model"
+        self.medium_engagement_context.huggingface_metadata = {
+            'downloads': 150000,
+            'likes': 150,
+            'cardData': {'datasets': ['dataset1']}
+        }
+        self.medium_engagement_context.model_info = {}
+        
+        # Low engagement context
+        self.low_engagement_context = MagicMock()
+        self.low_engagement_context.dataset_url = None
+        self.low_engagement_context.code_url = None
+        self.low_engagement_context.model_url = "https://huggingface.co/user/unpopular"
+        self.low_engagement_context.huggingface_metadata = {
+            'downloads': 5000,
+            'likes': 50
+        }
+        self.low_engagement_context.model_info = None
+        
+        # Context without metadata
+        self.no_metadata_context = MagicMock()
+        self.no_metadata_context.dataset_url = None
+        self.no_metadata_context.code_url = None
+        self.no_metadata_context.model_url = "https://huggingface.co/user/model"
+        self.no_metadata_context.huggingface_metadata = None
+        self.no_metadata_context.model_info = None
+
+    def test_calculate_score_none_context(self):
+        """Test score calculation with None context."""
+        score = self.calculator.calculate_score(None)
+        self.assertEqual(score, 0.0)
+
+    def test_calculate_score_both_dataset_and_code(self):
+        """Test score calculation when both dataset and code are available."""
+        with patch.object(self.calculator, '_check_dataset_availability', return_value=True):
+            with patch.object(self.calculator, '_check_code_availability', return_value=True):
+                score = self.calculator.calculate_score(self.high_engagement_context)
+                self.assertEqual(score, 1.0)
+
+    def test_calculate_score_dataset_only(self):
+        """Test score calculation when only dataset is available."""
+        with patch.object(self.calculator, '_check_dataset_availability', return_value=True):
+            with patch.object(self.calculator, '_check_code_availability', return_value=False):
+                score = self.calculator.calculate_score(self.high_engagement_context)
+                self.assertEqual(score, 0.5)
+
+    def test_calculate_score_code_only(self):
+        """Test score calculation when only code is available."""
+        with patch.object(self.calculator, '_check_dataset_availability', return_value=False):
+            with patch.object(self.calculator, '_check_code_availability', return_value=True):
+                score = self.calculator.calculate_score(self.high_engagement_context)
+                self.assertEqual(score, 0.5)
+
+    def test_calculate_score_neither_available(self):
+        """Test score calculation when neither dataset nor code is available."""
+        with patch.object(self.calculator, '_check_dataset_availability', return_value=False):
+            with patch.object(self.calculator, '_check_code_availability', return_value=False):
+                score = self.calculator.calculate_score(self.high_engagement_context)
+                self.assertEqual(score, 0.0)
+
+    @patch('os.environ.get')
+    def test_calculate_score_exception_debug_mode(self, mock_env_get):
+        """Test exception handling in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        
+        with patch.object(self.calculator, '_check_dataset_availability', side_effect=Exception("Test error")):
+            with patch('sys.stderr', new_callable=StringIO):
+                score = self.calculator.calculate_score(self.high_engagement_context)
+                self.assertEqual(score, 0.5)
+
+    @patch('os.environ.get')
+    def test_calculate_score_exception_autograder_mode(self, mock_env_get):
+        """Test exception handling in autograder mode (silent)."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        
+        with patch.object(self.calculator, '_check_dataset_availability', side_effect=Exception("Test error")):
+            score = self.calculator.calculate_score(self.high_engagement_context)
+            self.assertEqual(score, 0.5)
+
+    def test_check_dataset_availability_with_dataset_url(self):
+        """Test dataset availability check with explicit dataset URL."""
+        result = self.calculator._check_dataset_availability(self.high_engagement_context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_empty_dataset_url(self):
+        """Test dataset availability check with empty dataset URL."""
+        empty_context = MagicMock()
+        empty_context.dataset_url = ""
+        empty_context.huggingface_metadata = {'datasets': ['dataset1']}
+        empty_context.model_info = {}
+        empty_context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(empty_context)
+        self.assertTrue(result)  # Should find datasets in metadata
+
+    def test_check_dataset_availability_with_huggingface_datasets(self):
+        """Test dataset availability check with HuggingFace datasets in metadata."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {'datasets': ['dataset1', 'dataset2']}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_with_card_data_datasets(self):
+        """Test dataset availability check with datasets in cardData."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {'cardData': {'datasets': ['dataset1']}}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_with_model_info_datasets(self):
+        """Test dataset availability check with datasets in model_info."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {}
+        context.model_info = {'datasets': ['dataset1']}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_with_model_info_dataset_keyword(self):
+        """Test dataset availability check with 'dataset' keyword in model_info."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {}
+        context.model_info = "This model uses a custom dataset for training"
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_high_engagement_downloads(self):
+        """Test dataset availability with very high downloads."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {'downloads': 6000000, 'likes': 100}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_high_engagement_likes(self):
+        """Test dataset availability with very high likes."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {'downloads': 100000, 'likes': 6000}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_medium_high_engagement(self):
+        """Test dataset availability with medium-high engagement."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {'downloads': 1500000, 'likes': 1500}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertTrue(result)
+
+    def test_check_dataset_availability_low_engagement_downloads(self):
+        """Test dataset availability with low downloads."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {'downloads': 5000, 'likes': 50}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertFalse(result)
+
+    def test_check_dataset_availability_low_engagement_likes(self):
+        """Test dataset availability with low likes."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {'downloads': 50000, 'likes': 50}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_dataset_availability(context)
+        self.assertFalse(result)
+
+    def test_check_dataset_availability_no_metadata(self):
+        """Test dataset availability without metadata."""
+        result = self.calculator._check_dataset_availability(self.no_metadata_context)
+        self.assertFalse(result)
+
+    def test_check_dataset_availability_invalid_metadata_type(self):
+        """Test dataset availability with invalid metadata type."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = "invalid_metadata"
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._check_dataset_availability(context)
+            self.assertFalse(result)
+
+    def test_check_code_availability_with_code_url(self):
+        """Test code availability check with explicit code URL."""
+        result = self.calculator._check_code_availability(self.high_engagement_context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_empty_code_url(self):
+        """Test code availability check with empty code URL."""
+        empty_context = MagicMock()
+        empty_context.code_url = ""
+        empty_context.huggingface_metadata = {'repository': 'https://github.com/user/repo'}
+        empty_context.model_info = {}
+        empty_context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(empty_context)
+        self.assertTrue(result)  # Should find repository in metadata
+
+    def test_check_code_availability_with_repository_metadata(self):
+        """Test code availability check with repository in metadata."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'repository': 'https://github.com/user/repo'}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_with_code_tags(self):
+        """Test code availability check with code-related tags."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'tags': ['code', 'pytorch', 'machine-learning']}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_with_github_tags(self):
+        """Test code availability check with github tags."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'tags': ['github', 'source-code']}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_with_source_tags(self):
+        """Test code availability check with source tags."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'tags': ['source', 'implementation']}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_with_non_string_tags(self):
+        """Test code availability check with non-string tags."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'tags': ['code', 123, None, 'github']}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)  # Should still find 'code' and 'github'
+
+    def test_check_code_availability_with_github_model_info(self):
+        """Test code availability check with GitHub source in model_info."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {}
+        context.model_info = {'source': 'github'}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_high_engagement_downloads(self):
+        """Test code availability with very high downloads."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'downloads': 6000000, 'likes': 100}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_high_engagement_likes(self):
+        """Test code availability with very high likes."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'downloads': 100000, 'likes': 6000}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_medium_high_engagement(self):
+        """Test code availability with medium-high engagement."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'downloads': 1500000, 'likes': 1500}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertTrue(result)
+
+    def test_check_code_availability_low_engagement(self):
+        """Test code availability with low engagement."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'downloads': 5000, 'likes': 50}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertFalse(result)
+
+    def test_check_code_availability_medium_low_engagement(self):
+        """Test code availability with medium-low engagement."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = {'downloads': 50000, 'likes': 300}
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        result = self.calculator._check_code_availability(context)
+        self.assertFalse(result)
+
+    def test_check_code_availability_no_metadata(self):
+        """Test code availability without metadata."""
+        result = self.calculator._check_code_availability(self.no_metadata_context)
+        self.assertFalse(result)
+
+    def test_check_code_availability_invalid_metadata_type(self):
+        """Test code availability with invalid metadata type."""
+        context = MagicMock()
+        context.code_url = None
+        context.huggingface_metadata = "invalid_metadata"
+        context.model_info = {}
+        context.model_url = "https://huggingface.co/user/model"
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._check_code_availability(context)
+            self.assertFalse(result)
+
+
+class TestDatasetQualityCalculator(unittest.TestCase):
+    def setUp(self):
+        self.calculator = DatasetQualityCalculator()
+        
+        # High engagement context
+        self.high_engagement_context = MagicMock()
+        self.high_engagement_context.dataset_url = "https://example.com/dataset"
+        self.high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT"
+        self.high_engagement_context.huggingface_metadata = {
+            'downloads': 2000000,
+            'likes': 1500,
+            'datasets': ['dataset1', 'dataset2'],
+            'cardData': {
+                'description': 'This is a high-quality model',
+                'datasets': ['custom_dataset']
+            }
+        }
+        
+        # Medium engagement context
+        self.medium_engagement_context = MagicMock()
+        self.medium_engagement_context.dataset_url = None
+        self.medium_engagement_context.model_url = "https://huggingface.co/user/model"
+        self.medium_engagement_context.huggingface_metadata = {
+            'downloads': 150000,
+            'likes': 150
+        }
+        
+        # Low engagement context
+        self.low_engagement_context = MagicMock()
+        self.low_engagement_context.dataset_url = None
+        self.low_engagement_context.model_url = "https://huggingface.co/user/unpopular"
+        self.low_engagement_context.huggingface_metadata = {
+            'downloads': 5000,
+            'likes': 50
+        }
+        
+        # Very high engagement context
+        self.very_high_engagement_context = MagicMock()
+        self.very_high_engagement_context.dataset_url = None
+        self.very_high_engagement_context.model_url = "https://huggingface.co/google/bert"
+        self.very_high_engagement_context.huggingface_metadata = {
+            'downloads': 6000000,
+            'likes': 6000
+        }
+        
+        # No metadata context
+        self.no_metadata_context = MagicMock()
+        self.no_metadata_context.dataset_url = None
+        self.no_metadata_context.model_url = "https://huggingface.co/user/model"
+        self.no_metadata_context.huggingface_metadata = None
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    @patch.object(LLMAnalyzer, 'analyze_dataset_quality')
+    def test_calculate_score_with_dataset_info_llm_success(self, mock_llm_analyze, mock_prepare_info):
+        """Test score calculation with dataset info and successful LLM analysis."""
+        mock_prepare_info.return_value = {"dataset_url": "https://example.com/dataset"}
+        mock_llm_analyze.return_value = 0.8
+        
+        score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.8)
+        mock_prepare_info.assert_called_once_with(self.high_engagement_context)
+        mock_llm_analyze.assert_called_once()
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    @patch.object(LLMAnalyzer, 'analyze_dataset_quality')
+    def test_calculate_score_with_dataset_info_llm_zero_high_engagement(self, mock_llm_analyze, mock_prepare_info):
+        """Test score calculation when LLM returns 0.0 but has high engagement fallback."""
+        mock_prepare_info.return_value = {"dataset_url": "https://example.com/dataset"}
+        mock_llm_analyze.return_value = 0.0
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.95)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    @patch.object(LLMAnalyzer, 'analyze_dataset_quality')
+    def test_calculate_score_with_dataset_info_llm_zero_low_engagement(self, mock_llm_analyze, mock_prepare_info):
+        """Test score calculation when LLM returns 0.0 with low engagement."""
+        mock_prepare_info.return_value = {"dataset_url": "https://example.com/dataset"}
+        mock_llm_analyze.return_value = 0.0
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.low_engagement_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    @patch.object(LLMAnalyzer, 'analyze_dataset_quality')
+    def test_calculate_score_with_dataset_info_llm_zero_medium_low_engagement(self, mock_llm_analyze, mock_prepare_info):
+        """Test score calculation when LLM returns 0.0 with medium-low engagement."""
+        mock_prepare_info.return_value = {"dataset_url": "https://example.com/dataset"}
+        mock_llm_analyze.return_value = 0.0
+        
+        medium_low_context = MagicMock()
+        medium_low_context.model_url = "https://huggingface.co/user/model"
+        medium_low_context.huggingface_metadata = {
+            'downloads': 50000,
+            'likes': 300
+        }
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(medium_low_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    @patch.object(LLMAnalyzer, 'analyze_dataset_quality')
+    def test_calculate_score_with_dataset_info_llm_zero_medium_engagement(self, mock_llm_analyze, mock_prepare_info):
+        """Test score calculation when LLM returns 0.0 with medium engagement."""
+        mock_prepare_info.return_value = {"dataset_url": "https://example.com/dataset"}
+        mock_llm_analyze.return_value = 0.0
+        
+        medium_context = MagicMock()
+        medium_context.model_url = "https://huggingface.co/user/model"
+        medium_context.huggingface_metadata = {
+            'downloads': 300000,
+            'likes': 800
+        }
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(medium_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    @patch.object(LLMAnalyzer, 'analyze_dataset_quality')
+    def test_calculate_score_with_dataset_info_llm_zero_no_metadata(self, mock_llm_analyze, mock_prepare_info):
+        """Test score calculation when LLM returns 0.0 with no metadata."""
+        mock_prepare_info.return_value = {"dataset_url": "https://example.com/dataset"}
+        mock_llm_analyze.return_value = 0.0
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.no_metadata_context)
+        
+        self.assertEqual(score, 0.3)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_no_dataset_info_very_high_engagement(self, mock_prepare_info):
+        """Test score calculation with no dataset info but very high engagement."""
+        mock_prepare_info.return_value = None
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.very_high_engagement_context)
+        
+        self.assertEqual(score, 0.95)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_no_dataset_info_high_engagement(self, mock_prepare_info):
+        """Test score calculation with no dataset info but high engagement."""
+        mock_prepare_info.return_value = None
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.8)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_no_dataset_info_low_engagement(self, mock_prepare_info):
+        """Test score calculation with no dataset info and low engagement."""
+        mock_prepare_info.return_value = None
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.low_engagement_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_no_dataset_info_medium_low_engagement(self, mock_prepare_info):
+        """Test score calculation with no dataset info and medium-low engagement."""
+        mock_prepare_info.return_value = None
+        
+        medium_low_context = MagicMock()
+        medium_low_context.model_url = "https://huggingface.co/user/model"
+        medium_low_context.huggingface_metadata = {
+            'downloads': 50000,
+            'likes': 300
+        }
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(medium_low_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_no_dataset_info_medium_engagement(self, mock_prepare_info):
+        """Test score calculation with no dataset info and medium engagement."""
+        mock_prepare_info.return_value = None
+        
+        medium_context = MagicMock()
+        medium_context.model_url = "https://huggingface.co/user/model"
+        medium_context.huggingface_metadata = {
+            'downloads': 300000,
+            'likes': 800
+        }
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(medium_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_no_dataset_info_no_metadata(self, mock_prepare_info):
+        """Test score calculation with no dataset info and no metadata."""
+        mock_prepare_info.return_value = None
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.no_metadata_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch('os.environ.get')
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_exception_debug_mode(self, mock_prepare_info, mock_env_get):
+        """Test exception handling in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        mock_prepare_info.side_effect = Exception("Test error")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.0)
+
+    @patch('os.environ.get')
+    @patch.object(DatasetQualityCalculator, '_prepare_dataset_info')
+    def test_calculate_score_exception_autograder_mode(self, mock_prepare_info, mock_env_get):
+        """Test exception handling in autograder mode (silent)."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        mock_prepare_info.side_effect = Exception("Test error")
+        
+        score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.0)
+
+    def test_prepare_dataset_info_with_dataset_url(self):
+        """Test dataset info preparation with dataset URL."""
+        with patch.object(self.calculator, '_fetch_readme_content', return_value="README content"):
+            result = self.calculator._prepare_dataset_info(self.high_engagement_context)
+        
+        self.assertIsNotNone(result)
+        self.assertEqual(result["dataset_url"], "https://example.com/dataset")
+        self.assertEqual(result["datasets"], ['custom_dataset'])  # cardData datasets override main datasets
+        self.assertIn("readme", result)
+
+    def test_prepare_dataset_info_no_dataset_url_with_metadata(self):
+        """Test dataset info preparation without dataset URL but with metadata."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {
+            'datasets': ['dataset1'],
+            'cardData': {'description': 'Test description'}
+        }
+        
+        with patch.object(self.calculator, '_fetch_readme_content', return_value="README content"):
+            result = self.calculator._prepare_dataset_info(context)
+        
+        self.assertIsNotNone(result)
+        self.assertEqual(result["datasets"], ['dataset1'])
+        self.assertEqual(result["description"], 'Test description')
+
+    def test_prepare_dataset_info_invalid_metadata_type(self):
+        """Test dataset info preparation with invalid metadata type."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = "invalid_metadata"
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._prepare_dataset_info(context)
+        
+        self.assertIsNone(result)
+
+    def test_prepare_dataset_info_no_context(self):
+        """Test dataset info preparation with no context."""
+        with patch.object(self.calculator, '_fetch_readme_content', return_value=None):
+            result = self.calculator._prepare_dataset_info(None)
+        
+        self.assertIsNone(result)
+
+    def test_prepare_dataset_info_empty_result(self):
+        """Test dataset info preparation with empty result."""
+        context = MagicMock()
+        context.dataset_url = None
+        context.huggingface_metadata = {}
+        
+        with patch.object(self.calculator, '_fetch_readme_content', return_value=None):
+            result = self.calculator._prepare_dataset_info(context)
+        
+        self.assertIsNone(result)
+
+    def test_fetch_readme_content_with_description_and_datasets(self):
+        """Test README content fetching with description and datasets."""
+        result = self.calculator._fetch_readme_content(self.high_engagement_context)
+        
+        self.assertIsNotNone(result)
+        self.assertIn("# Description", result)
+        self.assertIn("This is a high-quality model", result)
+        self.assertIn("## Datasets", result)
+        self.assertIn("dataset1, dataset2", result)
+
+    def test_fetch_readme_content_with_description_only(self):
+        """Test README content fetching with description only."""
+        context = MagicMock()
+        context.huggingface_metadata = {
+            'cardData': {'description': 'Test description'},
+            'datasets': []
+        }
+        
+        result = self.calculator._fetch_readme_content(context)
+        
+        self.assertIsNotNone(result)
+        self.assertIn("# Description", result)
+        self.assertIn("Test description", result)
+        self.assertNotIn("## Datasets", result)
+
+    def test_fetch_readme_content_with_datasets_only(self):
+        """Test README content fetching with datasets only."""
+        context = MagicMock()
+        context.huggingface_metadata = {
+            'cardData': {},
+            'datasets': ['dataset1', 'dataset2']
+        }
+        
+        result = self.calculator._fetch_readme_content(context)
+        
+        self.assertIsNotNone(result)
+        self.assertNotIn("# Description", result)
+        self.assertIn("## Datasets", result)
+        self.assertIn("dataset1, dataset2", result)
+
+    def test_fetch_readme_content_no_context(self):
+        """Test README content fetching with no context."""
+        result = self.calculator._fetch_readme_content(None)
+        
+        self.assertIsNone(result)
+
+    def test_fetch_readme_content_no_metadata(self):
+        """Test README content fetching with no metadata."""
+        result = self.calculator._fetch_readme_content(self.no_metadata_context)
+        
+        self.assertIsNone(result)
+
+    def test_fetch_readme_content_invalid_metadata_type(self):
+        """Test README content fetching with invalid metadata type."""
+        context = MagicMock()
+        context.huggingface_metadata = "invalid_metadata"
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._fetch_readme_content(context)
+        
+        self.assertIsNone(result)
+
+    def test_fetch_readme_content_empty_parts(self):
+        """Test README content fetching with no description or datasets."""
+        context = MagicMock()
+        context.huggingface_metadata = {
+            'cardData': {},
+            'datasets': []
+        }
+        
+        result = self.calculator._fetch_readme_content(context)
+        
+        self.assertIsNone(result)
+
+    @patch('os.environ.get')
+    def test_fetch_readme_content_exception_debug_mode(self, mock_env_get):
+        """Test README content fetching exception in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        
+        context = MagicMock()
+        context.huggingface_metadata = MagicMock()
+        context.huggingface_metadata.get.side_effect = Exception("Test error")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            result = self.calculator._fetch_readme_content(context)
+        
+        self.assertIsNone(result)
+
+    @patch('os.environ.get')
+    def test_fetch_readme_content_exception_autograder_mode(self, mock_env_get):
+        """Test README content fetching exception in autograder mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        
+        context = MagicMock()
+        context.huggingface_metadata = MagicMock()
+        context.huggingface_metadata.get.side_effect = Exception("Test error")
+        
+        result = self.calculator._fetch_readme_content(context)
+        
+        self.assertIsNone(result)
+
+
+class TestPerformanceClaimsCalculator(unittest.TestCase):
+    def setUp(self):
+        self.calculator = PerformanceClaimsCalculator()
+        
+        # HuggingFace context with very high engagement
+        self.very_high_engagement_context = MagicMock()
+        self.very_high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        self.very_high_engagement_context.huggingface_metadata = {
+            'downloads': 6000000,
+            'likes': 6000
+        }
+        
+        # HuggingFace context with high engagement
+        self.high_engagement_context = MagicMock()
+        self.high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        self.high_engagement_context.huggingface_metadata = {
+            'downloads': 2000000,
+            'likes': 1500
+        }
+        
+        # HuggingFace context with medium-high engagement
+        self.medium_high_engagement_context = MagicMock()
+        self.medium_high_engagement_context.model_url = "https://huggingface.co/user/model"
+        self.medium_high_engagement_context.huggingface_metadata = {
+            'downloads': 250000,
+            'likes': 250
+        }
+        
+        # HuggingFace context with low engagement
+        self.low_engagement_context = MagicMock()
+        self.low_engagement_context.model_url = "https://huggingface.co/user/unpopular"
+        self.low_engagement_context.huggingface_metadata = {
+            'downloads': 5000,
+            'likes': 50
+        }
+        
+        # HuggingFace context with medium-low engagement
+        self.medium_low_engagement_context = MagicMock()
+        self.medium_low_engagement_context.model_url = "https://huggingface.co/user/model"
+        self.medium_low_engagement_context.huggingface_metadata = {
+            'downloads': 50000,
+            'likes': 300
+        }
+        
+        # HuggingFace context with medium engagement
+        self.medium_engagement_context = MagicMock()
+        self.medium_engagement_context.model_url = "https://huggingface.co/user/model"
+        self.medium_engagement_context.huggingface_metadata = {
+            'downloads': 500000,
+            'likes': 800
+        }
+        
+        # Non-HuggingFace context
+        self.non_hf_context = MagicMock()
+        self.non_hf_context.model_url = "https://github.com/microsoft/repo"
+        self.non_hf_context.huggingface_metadata = None
+        
+        # HuggingFace context without metadata
+        self.no_metadata_context = MagicMock()
+        self.no_metadata_context.model_url = "https://huggingface.co/user/model"
+        self.no_metadata_context.huggingface_metadata = None
+
+    def test_calculate_score_non_hf_url(self):
+        """Test score calculation for non-HuggingFace URL."""
+        score = self.calculator.calculate_score(self.non_hf_context)
+        self.assertEqual(score, 0.3)  # Non-HF URL returns 0.3 directly
+
+    @patch.object(PerformanceClaimsCalculator, '_score_from_metadata_or_llm')
+    def test_calculate_score_with_valid_score(self, mock_score_method):
+        """Test score calculation with valid score from metadata/LLM."""
+        mock_score_method.return_value = 0.8
+        
+        score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.8)
+        mock_score_method.assert_called_once_with(self.high_engagement_context)
+
+    @patch.object(PerformanceClaimsCalculator, '_score_from_metadata_or_llm')
+    def test_calculate_score_with_none_score(self, mock_score_method):
+        """Test score calculation when score method returns None."""
+        mock_score_method.return_value = None
+        
+        score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.5)
+
+    @patch('os.environ.get')
+    @patch.object(PerformanceClaimsCalculator, '_score_from_metadata_or_llm')
+    def test_calculate_score_exception_debug_mode(self, mock_score_method, mock_env_get):
+        """Test exception handling in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        mock_score_method.side_effect = Exception("Test error")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.5)
+
+    @patch('os.environ.get')
+    @patch.object(PerformanceClaimsCalculator, '_score_from_metadata_or_llm')
+    def test_calculate_score_exception_autograder_mode(self, mock_score_method, mock_env_get):
+        """Test exception handling in autograder mode (silent)."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        mock_score_method.side_effect = Exception("Test error")
+        
+        score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.5)
+
+    def test_score_from_metadata_or_llm_non_hf_url(self):
+        """Test scoring for non-HuggingFace URL."""
+        score = self.calculator._score_from_metadata_or_llm(self.non_hf_context)
+        self.assertEqual(score, 0.3)
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    @patch.object(PerformanceClaimsCalculator, '_analyze_readme_quality')
+    def test_score_from_metadata_or_llm_with_readme_heuristic_only(self, mock_analyze, mock_fetch):
+        """Test scoring with README content but LLM fails."""
+        mock_fetch.return_value = "# Model\nThis model has great performance metrics."
+        mock_analyze.return_value = 0.7
+        
+        with patch('src.metrics.performance_claims_calculator.ask_for_json_score', side_effect=Exception("LLM failed")):
+            with patch('os.environ.get', return_value='false'):
+                score = self.calculator._score_from_metadata_or_llm(self.very_high_engagement_context)
+        
+        self.assertEqual(score, 0.92)  # Very high engagement overrides heuristic
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    @patch.object(PerformanceClaimsCalculator, '_analyze_readme_quality')
+    @patch('src.metrics.performance_claims_calculator.ask_for_json_score')
+    def test_score_from_metadata_or_llm_with_llm_success(self, mock_llm, mock_analyze, mock_fetch):
+        """Test scoring with successful LLM analysis."""
+        mock_fetch.return_value = "# Model\nThis model has great performance metrics."
+        mock_analyze.return_value = 0.6
+        mock_llm.return_value = (0.8, "Analysis complete")
+        
+        score = self.calculator._score_from_metadata_or_llm(self.very_high_engagement_context)
+        
+        self.assertEqual(score, 0.92)  # Very high engagement overrides combined score
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    @patch.object(PerformanceClaimsCalculator, '_analyze_readme_quality')
+    @patch('src.metrics.performance_claims_calculator.ask_for_json_score')
+    def test_score_from_metadata_or_llm_with_llm_invalid_score(self, mock_llm, mock_analyze, mock_fetch):
+        """Test scoring when LLM returns invalid score."""
+        mock_fetch.return_value = "# Model\nThis model has great performance metrics."
+        mock_analyze.return_value = 0.6
+        mock_llm.return_value = (None, "Analysis failed")
+        
+        score = self.calculator._score_from_metadata_or_llm(self.very_high_engagement_context)
+        
+        self.assertEqual(score, 0.92)  # Very high engagement overrides heuristic
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    @patch.object(PerformanceClaimsCalculator, '_analyze_readme_quality')
+    @patch('src.metrics.performance_claims_calculator.ask_for_json_score')
+    def test_score_from_metadata_or_llm_engagement_overrides(self, mock_llm, mock_analyze, mock_fetch):
+        """Test that engagement levels override LLM/heuristic scores."""
+        mock_fetch.return_value = "# Model\nBasic model description."
+        mock_analyze.return_value = 0.3
+        mock_llm.return_value = (0.4, "Low score")
+        
+        # Test all engagement levels
+        test_cases = [
+            (self.very_high_engagement_context, 0.92),
+            (self.high_engagement_context, 0.85),
+            (self.medium_high_engagement_context, 0.8),
+            (self.low_engagement_context, 0.15),
+            (self.medium_low_engagement_context, 0.8),  # Medium-low engagement (50k downloads, 300 likes > 100) gets 0.8
+            (self.medium_engagement_context, 0.8)  # Medium engagement (500k downloads > 100k) gets 0.8
+        ]
+        
+        for context, expected_score in test_cases:
+            score = self.calculator._score_from_metadata_or_llm(context)
+            self.assertEqual(score, expected_score)
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    def test_score_from_metadata_or_llm_no_readme_with_metadata(self, mock_fetch):
+        """Test scoring without README but with metadata."""
+        mock_fetch.return_value = None
+        
+        test_cases = [
+            (self.very_high_engagement_context, 0.92),
+            (self.high_engagement_context, 0.85),
+            (self.medium_high_engagement_context, 0.8),
+            (self.low_engagement_context, 0.15),
+            (self.medium_low_engagement_context, 0.8),  # Medium-low engagement (50k downloads, 300 likes > 100) gets 0.8
+            (self.medium_engagement_context, 0.8)  # Medium engagement (500k downloads > 100k) gets 0.8
+        ]
+        
+        for context, expected_score in test_cases:
+            score = self.calculator._score_from_metadata_or_llm(context)
+            self.assertEqual(score, expected_score)
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    def test_score_from_metadata_or_llm_no_readme_no_metadata(self, mock_fetch):
+        """Test scoring without README and without metadata."""
+        mock_fetch.return_value = None
+        
+        score = self.calculator._score_from_metadata_or_llm(self.no_metadata_context)
+        
+        self.assertEqual(score, 0.15)
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    @patch('os.environ.get')
+    def test_score_from_metadata_or_llm_exception_debug_mode(self, mock_env_get, mock_fetch):
+        """Test exception handling in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        mock_fetch.side_effect = Exception("Fetch error")
+        
+        with patch('sys.stderr', new_callable=StringIO):
+            score = self.calculator._score_from_metadata_or_llm(self.very_high_engagement_context)
+        
+        self.assertEqual(score, 0.92)  # Very high engagement fallback
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    @patch('os.environ.get')
+    def test_score_from_metadata_or_llm_exception_autograder_mode(self, mock_env_get, mock_fetch):
+        """Test exception handling in autograder mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        mock_fetch.side_effect = Exception("Fetch error")
+        
+        score = self.calculator._score_from_metadata_or_llm(self.very_high_engagement_context)
+        
+        self.assertEqual(score, 0.92)
+
+    @patch.object(PerformanceClaimsCalculator, '_fetch_readme_content')
+    def test_score_from_metadata_or_llm_exception_no_metadata(self, mock_fetch):
+        """Test exception handling without metadata."""
+        mock_fetch.side_effect = Exception("Fetch error")
+        
+        score = self.calculator._score_from_metadata_or_llm(self.no_metadata_context)
+        
+        self.assertEqual(score, 0.3)
+
+    def test_fetch_readme_content_empty_repo_id(self):
+        """Test README fetching with empty repo ID."""
+        with patch('src.metrics.performance_claims_calculator.urlparse') as mock_urlparse:
+            mock_urlparse.return_value.path = "/"
+            
+            result = self.calculator._fetch_readme_content("https://huggingface.co/")
+            
+            self.assertIsNone(result)
+
+    @patch('os.environ.get')
+    def test_fetch_readme_content_exception_debug_mode(self, mock_env_get):
+        """Test README fetching exception in debug mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'DEBUG' else 'false'
+        
+        with patch('src.metrics.performance_claims_calculator.urlparse', side_effect=Exception("Parse error")):
+            with patch('sys.stderr', new_callable=StringIO):
+                result = self.calculator._fetch_readme_content("https://huggingface.co/user/model")
+        
+        self.assertIsNone(result)
+
+    @patch('os.environ.get')
+    def test_fetch_readme_content_exception_autograder_mode(self, mock_env_get):
+        """Test README fetching exception in autograder mode."""
+        mock_env_get.side_effect = lambda key, default='': 'true' if key == 'AUTOGRADER' else 'false'
+        
+        with patch('src.metrics.performance_claims_calculator.urlparse', side_effect=Exception("Parse error")):
+            result = self.calculator._fetch_readme_content("https://huggingface.co/user/model")
+        
+        self.assertIsNone(result)
+
+    def test_analyze_readme_quality_none_content(self):
+        """Test README quality analysis with None content."""
+        result = self.calculator._analyze_readme_quality(None)
+        self.assertEqual(result, 0.3)
+
+    def test_analyze_readme_quality_empty_content(self):
+        """Test README quality analysis with empty content."""
+        result = self.calculator._analyze_readme_quality("")
+        self.assertEqual(result, 0.3)
+
+    def test_analyze_readme_quality_excellent_evidence(self):
+        """Test README quality analysis with excellent performance evidence."""
+        content = """
+        # Model Performance
+        
+        ## Benchmark Results
+        Our model achieves state-of-the-art performance on multiple evaluation datasets.
+        
+        ## Metrics
+        - Accuracy: 95.2%
+        - Precision: 94.8%
+        - F1-score: 94.5%
+        - BLEU score: 0.85
+        
+        ## Performance Comparison
+        Compared to baseline models, our approach shows significant improvements.
+        """
+        
+        result = self.calculator._analyze_readme_quality(content)
+        self.assertEqual(result, 0.9)
+
+    def test_analyze_readme_quality_good_evidence(self):
+        """Test README quality analysis with good performance evidence."""
+        content = """
+        # Model Description
+        
+        ## Evaluation
+        The model was tested on standard benchmarks.
+        
+        ## Results  
+        - Accuracy: 90.1%
+        - F1 score: 0.89
+        """
+        
+        result = self.calculator._analyze_readme_quality(content)
+        self.assertEqual(result, 0.9)  # evaluation + benchmarks (2 critical) + accuracy/f1 (2 important) gives 0.9
+
+    def test_analyze_readme_quality_adequate_evidence(self):
+        """Test README quality analysis with adequate performance evidence."""
+        content = """
+        # Model
+        
+        ## Performance
+        The model shows good results on our evaluation set.
+        
+        Results include precision and recall metrics.
+        """
+        
+        result = self.calculator._analyze_readme_quality(content)
+        self.assertEqual(result, 0.9)  # performance + evaluation (2 critical) + precision/recall (2 important) gives 0.9
+
+    def test_analyze_readme_quality_basic_evidence(self):
+        """Test README quality analysis with basic performance evidence."""
+        content = """
+        # Model Description
+        
+        The model achieves good accuracy on test data.
+        We compared against baseline methods.
+        """
+        
+        result = self.calculator._analyze_readme_quality(content)
+        self.assertEqual(result, 0.4)
+
+    def test_analyze_readme_quality_weak_evidence(self):
+        """Test README quality analysis with weak performance evidence."""
+        content = """
+        # Model
+        
+        This is a machine learning model for text processing.
+        It was trained on a large dataset and works well.
+        """
+        
+        result = self.calculator._analyze_readme_quality(content)
+        self.assertEqual(result, 0.3)
+
+
+class TestSizeCalculator(unittest.TestCase):
+    def setUp(self):
+        self.calculator = SizeCalculator()
+        
+        # HuggingFace context with very high engagement
+        self.very_high_engagement_context = MagicMock()
+        self.very_high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        self.very_high_engagement_context.huggingface_metadata = {
+            'downloads': 6000000,
+            'likes': 6000
+        }
+        
+        # HuggingFace context with high engagement
+        self.high_engagement_context = MagicMock()
+        self.high_engagement_context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        self.high_engagement_context.huggingface_metadata = {
+            'downloads': 2000000,
+            'likes': 1500
+        }
+        
+        # HuggingFace context with medium engagement
+        self.medium_engagement_context = MagicMock()
+        self.medium_engagement_context.model_url = "https://huggingface.co/user/model"
+        self.medium_engagement_context.huggingface_metadata = {
+            'downloads': 150000,
+            'likes': 150
+        }
+        
+        # Non-HuggingFace context
+        self.non_hf_context = MagicMock()
+        self.non_hf_context.model_url = "https://github.com/microsoft/repo"
+        self.non_hf_context.huggingface_metadata = None
+        
+        # Context without metadata
+        self.no_metadata_context = MagicMock()
+        self.no_metadata_context.model_url = "https://huggingface.co/user/model"
+        self.no_metadata_context.huggingface_metadata = None
+
+    @patch.object(SizeCalculator, '_get_intelligent_fallback_scores')
+    def test_calculate_score_hf_url_with_fallback_success(self, mock_fallback):
+        """Test score calculation for HF URL with successful fallback."""
+        mock_fallback.return_value = {
+            "raspberry_pi": 0.75,
+            "jetson_nano": 0.80,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        
+        score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 1.00)  # Max value from compatibility dict
+        mock_fallback.assert_called_once_with(self.high_engagement_context)
+
+    @patch.object(SizeCalculator, '_get_intelligent_fallback_scores')
+    def test_calculate_score_hf_url_with_fallback_exception(self, mock_fallback):
+        """Test score calculation for HF URL when fallback raises exception."""
+        mock_fallback.side_effect = Exception("Fallback error")
+        
+        with patch.object(self.calculator, '_estimate_artifact_size_mb', return_value=None):
+            score = self.calculator.calculate_score(self.high_engagement_context)
+        
+        self.assertEqual(score, 0.8)  # Default fallback score
+
+    @patch.object(SizeCalculator, '_estimate_artifact_size_mb')
+    def test_calculate_score_non_hf_url_with_artifact_size(self, mock_estimate):
+        """Test score calculation for non-HF URL with artifact size."""
+        mock_estimate.return_value = 100.0  # 100MB
+        
+        score = self.calculator.calculate_score(self.non_hf_context)
+        
+        # Should calculate platform compatibility based on size
+        expected_rpi = max(0.0, 1.0 - (100.0 / 200))  # 0.5
+        expected_jetson = max(0.0, 1.0 - (100.0 / 1000))  # 0.9
+        expected_desktop = max(0.0, 1.0 - (100.0 / 8192))  # ~0.99
+        expected_aws = max(0.0, 1.0 - (100.0 / 51200))  # ~1.0
+        
+        self.assertAlmostEqual(score, 1.0, places=2)  # Max of the compatibility scores (with precision tolerance)
+
+    @patch.object(SizeCalculator, '_estimate_artifact_size_mb')
+    @patch.object(SizeCalculator, '_get_intelligent_fallback_scores')
+    def test_calculate_score_non_hf_url_no_artifact_size(self, mock_fallback, mock_estimate):
+        """Test score calculation for non-HF URL without artifact size."""
+        mock_estimate.return_value = None
+        mock_fallback.return_value = {
+            "raspberry_pi": 0.75,
+            "jetson_nano": 0.80,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        
+        score = self.calculator.calculate_score(self.non_hf_context)
+        
+        self.assertEqual(score, 1.00)
+
+    @patch.object(SizeCalculator, '_estimate_artifact_size_mb')
+    @patch.object(SizeCalculator, '_get_intelligent_fallback_scores')
+    def test_calculate_score_non_hf_url_fallback_exception(self, mock_fallback, mock_estimate):
+        """Test score calculation when both artifact size and fallback fail."""
+        mock_estimate.return_value = None
+        mock_fallback.side_effect = Exception("Fallback error")
+        
+        score = self.calculator.calculate_score(self.non_hf_context)
+        
+        self.assertEqual(score, 0.8)  # Default fallback
+
+    def test_get_platform_compatibility_after_calculation(self):
+        """Test platform compatibility getter after score calculation."""
+        with patch.object(self.calculator, '_estimate_artifact_size_mb', return_value=500.0):
+            score = self.calculator.calculate_score(self.non_hf_context)
+            
+            compatibility = self.calculator.get_platform_compatibility()
+            
+            self.assertIn("raspberry_pi", compatibility)
+            self.assertIn("jetson_nano", compatibility)
+            self.assertIn("desktop_pc", compatibility)
+            self.assertIn("aws_server", compatibility)
+
+    def test_get_intelligent_fallback_scores_very_high_engagement(self):
+        """Test intelligent fallback scores for very high engagement."""
+        scores = self.calculator._get_intelligent_fallback_scores(self.very_high_engagement_context)
+        
+        expected = {
+            "raspberry_pi": 0.20,
+            "jetson_nano": 0.40,
+            "desktop_pc": 0.95,
+            "aws_server": 1.00
+        }
+        self.assertEqual(scores, expected)
+
+    def test_get_intelligent_fallback_scores_high_engagement(self):
+        """Test intelligent fallback scores for high engagement."""
+        scores = self.calculator._get_intelligent_fallback_scores(self.high_engagement_context)
+        
+        expected = {
+            "raspberry_pi": 0.75,
+            "jetson_nano": 0.80,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        self.assertEqual(scores, expected)
+
+    def test_get_intelligent_fallback_scores_medium_engagement(self):
+        """Test intelligent fallback scores for medium engagement."""
+        scores = self.calculator._get_intelligent_fallback_scores(self.medium_engagement_context)
+        
+        expected = {
+            "raspberry_pi": 0.90,
+            "jetson_nano": 0.95,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        self.assertEqual(scores, expected)
+
+    def test_get_intelligent_fallback_scores_low_engagement(self):
+        """Test intelligent fallback scores for low engagement."""
+        low_engagement_context = MagicMock()
+        low_engagement_context.model_url = "https://huggingface.co/user/model"
+        low_engagement_context.huggingface_metadata = {
+            'downloads': 50000,
+            'likes': 50
+        }
+        
+        scores = self.calculator._get_intelligent_fallback_scores(low_engagement_context)
+        
+        expected = {
+            "raspberry_pi": 0.75,
+            "jetson_nano": 0.80,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        self.assertEqual(scores, expected)
+
+    def test_get_intelligent_fallback_scores_no_metadata_known_org(self):
+        """Test intelligent fallback scores without metadata but known organization."""
+        known_org_context = MagicMock()
+        known_org_context.model_url = "https://huggingface.co/google/bert"
+        known_org_context.huggingface_metadata = None
+        
+        scores = self.calculator._get_intelligent_fallback_scores(known_org_context)
+        
+        expected = {
+            "raspberry_pi": 0.90,
+            "jetson_nano": 0.95,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        self.assertEqual(scores, expected)
+
+    def test_get_intelligent_fallback_scores_no_metadata_unknown_org(self):
+        """Test intelligent fallback scores without metadata and unknown organization."""
+        # Create a context with truly unknown organization
+        unknown_org_context = MagicMock()
+        unknown_org_context.model_url = "https://example.com/user/model"
+        unknown_org_context.huggingface_metadata = None
+        
+        scores = self.calculator._get_intelligent_fallback_scores(unknown_org_context)
+        
+        expected = {
+            "raspberry_pi": 0.75,
+            "jetson_nano": 0.80,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        self.assertEqual(scores, expected)
+
+    def test_get_intelligent_fallback_scores_exception_handling(self):
+        """Test intelligent fallback scores with exception handling."""
+        bad_context = MagicMock()
+        bad_context.model_url = None
+        bad_context.huggingface_metadata.get.side_effect = Exception("Error")
+        
+        scores = self.calculator._get_intelligent_fallback_scores(bad_context)
+        
+        expected = {
+            "raspberry_pi": 0.75,
+            "jetson_nano": 0.80,
+            "desktop_pc": 1.00,
+            "aws_server": 1.00
+        }
+        self.assertEqual(scores, expected)
+
+    def test_estimate_artifact_size_mb_non_hf_url(self):
+        """Test artifact size estimation for non-HuggingFace URL."""
+        context = MagicMock()
+        context.model_url = "https://github.com/microsoft/repo"
+        
+        result = self.calculator._estimate_artifact_size_mb(context)
+        
+        self.assertIsNone(result)
+
+    @patch.object(SizeCalculator, '_hf_total_artifact_size_mb')
+    def test_estimate_artifact_size_mb_hf_url_success(self, mock_hf_size):
+        """Test artifact size estimation for HuggingFace URL."""
+        mock_hf_size.return_value = 150.5
+        
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium"
+        
+        result = self.calculator._estimate_artifact_size_mb(context)
+        
+        self.assertEqual(result, 150.5)
+        mock_hf_size.assert_called_once_with("microsoft/DialoGPT-medium")
+
+    @patch.object(SizeCalculator, '_hf_total_artifact_size_mb')
+    def test_estimate_artifact_size_mb_hf_url_with_tree_path(self, mock_hf_size):
+        """Test artifact size estimation for HF URL with tree path."""
+        mock_hf_size.return_value = 200.0
+        
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium/tree/main"
+        
+        result = self.calculator._estimate_artifact_size_mb(context)
+        
+        self.assertEqual(result, 200.0)
+        mock_hf_size.assert_called_once_with("microsoft/DialoGPT-medium")
+
+    @patch.object(SizeCalculator, '_hf_total_artifact_size_mb')
+    def test_estimate_artifact_size_mb_hf_url_with_blob_path(self, mock_hf_size):
+        """Test artifact size estimation for HF URL with blob path."""
+        mock_hf_size.return_value = 250.0
+        
+        context = MagicMock()
+        context.model_url = "https://huggingface.co/microsoft/DialoGPT-medium/blob/main/model.bin"
+        
+        result = self.calculator._estimate_artifact_size_mb(context)
+        
+        self.assertEqual(result, 250.0)
+        mock_hf_size.assert_called_once_with("microsoft/DialoGPT-medium")
+
+    def test_estimate_artifact_size_mb_exception_handling(self):
+        """Test artifact size estimation with exception handling."""
+        context = MagicMock()
+        context.model_url = None  # This will cause an exception
+        
+        result = self.calculator._estimate_artifact_size_mb(context)
+        
+        self.assertIsNone(result)
+
+    def test_looks_like_artifact_bin_extension(self):
+        """Test artifact detection for .bin files."""
+        self.assertTrue(self.calculator._looks_like_artifact("model.bin"))
+        self.assertTrue(self.calculator._looks_like_artifact("pytorch_model.bin"))
+
+    def test_looks_like_artifact_safetensors_extension(self):
+        """Test artifact detection for .safetensors files."""
+        self.assertTrue(self.calculator._looks_like_artifact("model.safetensors"))
+
+    def test_looks_like_artifact_h5_extension(self):
+        """Test artifact detection for .h5 files."""
+        self.assertTrue(self.calculator._looks_like_artifact("model.h5"))
+        self.assertTrue(self.calculator._looks_like_artifact("tf_model.h5"))
+
+    def test_looks_like_artifact_onnx_extension(self):
+        """Test artifact detection for .onnx files."""
+        self.assertTrue(self.calculator._looks_like_artifact("model.onnx"))
+
+    def test_looks_like_artifact_pytorch_extension(self):
+        """Test artifact detection for .pt and .ckpt files."""
+        self.assertTrue(self.calculator._looks_like_artifact("model.pt"))
+        self.assertTrue(self.calculator._looks_like_artifact("checkpoint.ckpt"))
+
+    def test_looks_like_artifact_case_insensitive(self):
+        """Test artifact detection is case insensitive."""
+        self.assertTrue(self.calculator._looks_like_artifact("MODEL.BIN"))
+        self.assertTrue(self.calculator._looks_like_artifact("Model.SafeTensors"))
+
+    def test_looks_like_artifact_non_artifact_files(self):
+        """Test artifact detection for non-artifact files."""
+        self.assertFalse(self.calculator._looks_like_artifact("README.md"))
+        self.assertFalse(self.calculator._looks_like_artifact("config.json"))
+        self.assertFalse(self.calculator._looks_like_artifact("tokenizer.json"))
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_hf_total_artifact_size_mb_with_siblings_success(self, mock_hf_api):
+        """Test HF artifact size calculation with siblings list."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        # Mock model info with siblings
+        mock_info = MagicMock()
+        mock_sibling1 = MagicMock()
+        mock_sibling1.rfilename = "pytorch_model.bin"
+        mock_sibling1.size = 1024 * 1024 * 100  # 100MB
+        
+        mock_sibling2 = MagicMock()
+        mock_sibling2.rfilename = "config.json"
+        mock_sibling2.size = 1024  # 1KB (not an artifact)
+        
+        mock_sibling3 = MagicMock()
+        mock_sibling3.rfilename = "model.safetensors"
+        mock_sibling3.size = 1024 * 1024 * 50  # 50MB
+        
+        mock_info.siblings = [mock_sibling1, mock_sibling2, mock_sibling3]
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._hf_total_artifact_size_mb("microsoft/DialoGPT-medium")
+        
+        self.assertEqual(result, 150.0)  # 100MB + 50MB = 150MB
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_hf_total_artifact_size_mb_with_dict_siblings(self, mock_hf_api):
+        """Test HF artifact size calculation with dict siblings."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.siblings = [
+            {"rfilename": "model.bin", "size": 1024 * 1024 * 200},  # 200MB
+            {"rfilename": "README.md", "size": 1024}  # 1KB (not an artifact)
+        ]
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._hf_total_artifact_size_mb("microsoft/DialoGPT-medium")
+        
+        self.assertEqual(result, 200.0)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    @patch.object(SizeCalculator, '_estimate_size_from_model_type')
+    def test_hf_total_artifact_size_mb_no_artifacts_fallback(self, mock_estimate_size, mock_hf_api):
+        """Test HF artifact size calculation fallback when no artifacts found."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.siblings = [
+            {"rfilename": "README.md", "size": 1024},
+            {"rfilename": "config.json", "size": 512}
+        ]
+        mock_api_instance.model_info.return_value = mock_info
+        mock_estimate_size.return_value = 1000.0
+        
+        result = self.calculator._hf_total_artifact_size_mb("microsoft/DialoGPT-medium")
+        
+        self.assertEqual(result, 1000.0)
+        mock_estimate_size.assert_called_once_with("microsoft/DialoGPT-medium")
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_hf_total_artifact_size_mb_api_exception(self, mock_hf_api):
+        """Test HF artifact size calculation with API exception."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        mock_api_instance.model_info.side_effect = Exception("API Error")
+        
+        result = self.calculator._hf_total_artifact_size_mb("microsoft/DialoGPT-medium")
+        
+        self.assertIsNone(result)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_estimate_size_from_model_type_with_num_parameters(self, mock_hf_api):
+        """Test size estimation from model type with num_parameters in config."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.config = {"num_parameters": 1000000}  # 1M parameters
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._estimate_size_from_model_type("test/model")
+        
+        expected_mb = (1000000 * 4) / (1024 * 1024)  # 4 bytes per param
+        self.assertEqual(result, expected_mb)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_estimate_size_from_model_type_tiny_model(self, mock_hf_api):
+        """Test size estimation for tiny model."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.config = {}
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._estimate_size_from_model_type("test/tiny-model")
+        
+        self.assertEqual(result, 50.0)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_estimate_size_from_model_type_base_model(self, mock_hf_api):
+        """Test size estimation for base model."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.config = {}
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._estimate_size_from_model_type("test/base-model")
+        
+        self.assertEqual(result, 500.0)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_estimate_size_from_model_type_large_model(self, mock_hf_api):
+        """Test size estimation for large model."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.config = {}
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._estimate_size_from_model_type("test/large-model")
+        
+        self.assertEqual(result, 2000.0)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_estimate_size_from_model_type_xl_model(self, mock_hf_api):
+        """Test size estimation for XL model."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.config = {}
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._estimate_size_from_model_type("test/xl-model")
+        
+        self.assertEqual(result, 5000.0)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_estimate_size_from_model_type_default_model(self, mock_hf_api):
+        """Test size estimation for unknown model type."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        
+        mock_info = MagicMock()
+        mock_info.config = {}
+        mock_api_instance.model_info.return_value = mock_info
+        
+        result = self.calculator._estimate_size_from_model_type("test/unknown-model")
+        
+        self.assertEqual(result, 1000.0)
+
+    @patch('src.metrics.size_calculator.HfApi')
+    def test_estimate_size_from_model_type_exception(self, mock_hf_api):
+        """Test size estimation with exception."""
+        mock_api_instance = MagicMock()
+        mock_hf_api.return_value = mock_api_instance
+        mock_api_instance.model_info.side_effect = Exception("API Error")
+        
+        result = self.calculator._estimate_size_from_model_type("test/model")
+        
+        self.assertEqual(result, 1000.0)  # Default fallback
+
+
 if __name__ == '__main__':
     os.environ['AUTOGRADER'] = 'true'
     os.environ['DEBUG'] = 'false'
