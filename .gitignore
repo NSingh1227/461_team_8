@@ -21,3 +21,8 @@ venv/
 # API tokens and secrets
 .github_token
 .genai_token
+
+.pytest_cache/
+.mypy_cache/
+.venv/
+coverage.xml
